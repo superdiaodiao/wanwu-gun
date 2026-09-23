@@ -246,7 +246,8 @@ class AudioEngine {
   }
 
   // ---------------------------------------------------------------- one-shots
-  pickup(sfx, rel = 0.1, sizeMeters = 0.5) {
+  /** combo: the game's pickup streak (1, 2, 3…); each step climbs the scale */
+  pickup(sfx, rel = 0.1, sizeMeters = 0.5, combo = 0) {
     const ctx = this._live();
     if (!ctx) return;
     try {
@@ -255,7 +256,7 @@ class AudioEngine {
       if (win.length >= 12) return; // > 40 pickups per second: drop the excess
       win.push(now);
       const burst = win.length;
-      this._combo = now - this._lastPick < 0.45 ? this._combo + 1 : 0;
+      this._combo = combo > 0 ? combo - 1 : now - this._lastPick < 0.45 ? this._combo + 1 : 0;
       this._lastPick = now;
       const t = Math.max(now + 0.005, this._nextPickT);
       this._nextPickT = t + 0.022; // stagger simultaneous pickups
@@ -285,6 +286,10 @@ class AudioEngine {
   }
   dash() {
     this._fire('dash', 0.2, 0.8, (ctx, d, t) => S.dash(ctx, d, t));
+  }
+  /** every tenth step of a pickup streak: a bright little run, higher the longer the streak */
+  comboChime(level = 1) {
+    this._fire('combo', 0.15, 1.2, (ctx, d, t) => S.comboChime(ctx, d, t, { level: +level || 1 }));
   }
   milestone(level = 1) {
     this._fire('milestone', 0.4, 3.5, (ctx, d, t) => S.milestone(ctx, d, t, { level: +level || 1 }));

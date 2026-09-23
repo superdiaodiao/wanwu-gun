@@ -10,11 +10,14 @@ export const PICK_RATIO = 0.6; // roll up things smaller than 0.6 × diameter
 // Growth first lands in a `pending` pool that the ball absorbs at most `rate` (fraction of its
 // diameter) per second, so a burst of pickups snowballs smoothly instead of all at once.
 // The rate eases off as the ball grows: quick early, a steady ~×2 per 40 s late.
-export const GROW = { P: 1.5, C: 1.0, cap: 0.1, rate: S => 0.016 + 0.03 / (1 + S / 1.5), speed: 3.4 };
+export const GROW = { P: 1.5, C: 1.0, cap: 0.1, rate: S => 0.02 + 0.035 / (1 + S / 3), speed: 3.4 };
 // handling: the heading swings to where the player points at TURN rad/s, and the velocity eases
 // towards the wanted one at ACC (pushing) / BRAKE (let go) per second — brisk, so the ball goes
 // where it is pointed instead of sailing past what the player was aiming for
 const TURN = 10, ACC = 8, BRAKE = 5;
+// 连滚: pickups less than `window` s apart form a streak; each step adds `step` to the growth of the
+// next pickup, up to +`max` — rolling through a cluster pays off right away
+export const COMBO = { window: 1, step: 0.02, max: 0.4 };
 // most stuck items drawn at once (the smallest go first); set per quality (engine.js QUALITY.stuck)
 export const STUCK = { max: 1400 };
 // The visible stone core shrinks relative to the ball as items pile up (0.9 → 0.7 of the radius),
@@ -98,7 +101,8 @@ export class Ball {
     this.bumpCd = 0;
     this.squash = 0;
     this.lastPick = null;
-    this.stats = { count: 0, byCat: {}, byType: {}, biggest: null, lost: 0 };
+    this.stats = { count: 0, byCat: {}, byType: {}, biggest: null, lost: 0, bestCombo: 0 };
+    this.combo = { n: 0, t: -9, extra: 0 }; // extra: growth (in Sp units) the streak has added
     for (const st of this.stuckTypes.values()) {
       st.entries.length = 0;
       st.mesh.count = 0;
@@ -109,6 +113,13 @@ export class Ball {
   }
 
   get r() { return this.S / 2; }
+  /** the size the ball is growing towards (what it has taken in, absorbed or not) */
+  get futureS() { return (this.Sp + this.pending) ** (1 / GROW.P); }
+  /** extra diameter the current streak has earned */
+  get comboExtra() {
+    const f = this.Sp + this.pending;
+    return f ** (1 / GROW.P) - Math.max(1e-9, f - this.combo.extra) ** (1 / GROW.P);
+  }
   /** 0 with a bare core, → 1 once the ball is covered in stuff */
   get covered() { return 1 - Math.exp(-this.stats.count / 18); }
   get rCore() { return (this.displayS / 2) * (0.9 - 0.2 * this.covered); }
@@ -235,10 +246,24 @@ export class Ball {
     const target = _v.clone().applyQuaternion(_qi).multiplyScalar(this.r * ATTACH_K);
     this.addStuck(o, target, localQuat, startLocal);
 
+    // streak (see COMBO)
+    const c = this.combo;
+    if (now - c.t < COMBO.window) c.n++;
+    else {
+      c.n = 1;
+      c.extra = 0;
+    }
+    c.t = now;
+    const mult = 1 + Math.min(COMBO.max, (c.n - 1) * COMBO.step);
     // one item can add at most `cap` to the diameter, so a lucky chain can't snowball out of control
     const maxGain = ((1 + GROW.cap) ** GROW.P - 1) * this.Sp;
-    o.growth = Math.min(maxGain, GROW.C * (0.3 + (o.spec.fill ?? 0.45)) * o.size ** GROW.P);
+    const base = GROW.C * (0.3 + (o.spec.fill ?? 0.45)) * o.size ** GROW.P;
+    o.growth = Math.min(maxGain, base * mult);
+    c.extra += Math.max(0, o.growth - Math.min(maxGain, base));
+    // how much this adds to the diameter once absorbed (shown straight away)
+    const before = (this.Sp + this.pending) ** (1 / GROW.P);
     this.pending += o.growth;
+    const gain = (this.Sp + this.pending) ** (1 / GROW.P) - before;
     this.squash = Math.min(0.12, this.squash + 0.02 + 0.3 * (o.size / this.S));
 
     const st = this.stats;
@@ -247,8 +272,9 @@ export class Ball {
     st.byType[o.spec.id] = (st.byType[o.spec.id] || 0) + 1;
     st.byCat[o.spec.cat] = (st.byCat[o.spec.cat] || 0) + 1;
     if (!st.biggest || o.size > st.biggest.size) st.biggest = { id: o.spec.id, name: o.spec.name, size: o.size };
+    st.bestCombo = Math.max(st.bestCombo, c.n);
     this.lastPick = o;
-    events.push({ type: 'pickup', o, first, rel: o.size / this.S });
+    events.push({ type: 'pickup', o, first, rel: o.size / this.S, combo: c.n, mult, gain });
 
     // things that belong together (a rotor on its tower, a rider on a bike) go together
     if (o.links) for (const l of o.links) if (l.state === 0) this.pick(l, now, events);

@@ -1,4 +1,5 @@
-// HUD: size gauge, next goal, timer, last item rolled up, toasts.
+// HUD: size gauge (with what is still to be absorbed), next goal, timer, last item rolled up, the
+// pickup streak, "+size" pop-ups, goal stamps, toasts.
 import { MILESTONES } from './story.js';
 
 const RING = 2 * Math.PI * 52;
@@ -19,6 +20,14 @@ export class HUD {
     this.sizeNum = $('size-num');
     this.sizeUnit = $('size-unit');
     this.ring = $('size-ring');
+    this.ringNext = $('size-ring-next');
+    this.gains = $('hud-gains');
+    this.comboBox = $('hud-combo');
+    this.comboN = $('combo-n');
+    this.comboBonus = $('combo-bonus');
+    this.stampBox = $('stamp');
+    this.stampSize = $('stamp-size');
+    this.stampSub = $('stamp-sub');
     this.goal = $('goal-text');
     this.timeBox = $('hud-time');
     this.timeText = $('time-text');
@@ -36,7 +45,7 @@ export class HUD {
     this.root.hidden = !on;
   }
 
-  update(S, milestoneIdx, secondsLeft, count) {
+  update(S, milestoneIdx, secondsLeft, count, futureS = S) {
     const [n, u] = splitLength(S);
     if (n !== this.shown.num) this.sizeNum.textContent = this.shown.num = n;
     if (u !== this.shown.unit) this.sizeUnit.textContent = this.shown.unit = u;
@@ -44,8 +53,10 @@ export class HUD {
     const prev = milestoneIdx > 0 ? MILESTONES[milestoneIdx - 1][0] : 0.1;
     const goalText = next ? fmt(next[0]) : '∞';
     if (goalText !== this.shown.goal) this.goal.textContent = this.shown.goal = goalText;
-    const t = next ? Math.max(0, Math.min(1, Math.log(S / prev) / Math.log(next[0] / prev))) : 1;
-    this.ring.style.strokeDashoffset = String(RING * (1 - t));
+    const frac = x => (next ? Math.max(0, Math.min(1, Math.log(x / prev) / Math.log(next[0] / prev))) : 1);
+    this.ring.style.strokeDashoffset = String(RING * (1 - frac(S)));
+    // lighter arc ahead of it: what has been rolled up but not grown into yet
+    this.ringNext.style.strokeDashoffset = String(RING * (1 - frac(Math.max(S, futureS))));
     if (secondsLeft === null) {
       this.timeBox.hidden = true;
     } else {
@@ -80,6 +91,61 @@ export class HUD {
     this.toasts.appendChild(el);
     while (this.toasts.children.length > 3) this.toasts.firstChild.remove();
     setTimeout(() => el.remove(), 3000);
+  }
+
+  /** "+1.2 cm" floating off the gauge */
+  gain(dS, S) {
+    if (!(dS > 0)) return;
+    const el = document.createElement('div');
+    el.className = 'gain' + (dS > S * 0.04 ? ' big' : '');
+    el.textContent = '+' + fmt(dS);
+    this.gains.appendChild(el);
+    while (this.gains.children.length > 4) this.gains.firstChild.remove();
+    setTimeout(() => el.remove(), 1150);
+  }
+
+  /** the pickup streak: shown from 3 on, hotter colours as it grows */
+  combo(n, mult) {
+    if (n < 3) return;
+    const box = this.comboBox;
+    box.hidden = false;
+    box.classList.remove('out', 'tick', 'done');
+    box.classList.toggle('hot', n >= 10);
+    box.classList.toggle('fire', n >= 20 && n < 30);
+    box.classList.toggle('five', n >= 30);
+    this.comboN.textContent = n;
+    const pct = Math.round((mult - 1) * 100);
+    this.comboBonus.textContent = pct > 0 ? `长大 +${pct}%` : '';
+    void box.offsetWidth;
+    box.classList.add('tick');
+    clearTimeout(this._comboHide);
+  }
+
+  /** streak over: a long one shows what it was worth for a moment, then the counter fades */
+  comboEnd(n, extra) {
+    const box = this.comboBox;
+    clearTimeout(this._comboHide);
+    const fade = () => {
+      box.classList.add('out');
+      this._comboHide = setTimeout(() => (box.hidden = true), 400);
+    };
+    if (n >= 8 && extra > 0) {
+      this.comboBonus.textContent = `多长了 ${fmt(extra)}`;
+      box.classList.add('done');
+      this._comboHide = setTimeout(fade, 1400);
+    } else fade();
+  }
+
+  /** a size goal reached: big stamp, and what can be rolled up now */
+  stamp(sizeText, sub) {
+    const box = this.stampBox;
+    this.stampSize.innerHTML = `<em>${sizeText}</em>！`;
+    this.stampSub.textContent = sub || '';
+    box.hidden = true;
+    void box.offsetWidth;
+    box.hidden = false;
+    clearTimeout(this._stampHide);
+    this._stampHide = setTimeout(() => (box.hidden = true), 2700);
   }
 
   fadeKeys() {

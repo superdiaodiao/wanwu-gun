@@ -14,6 +14,9 @@ set('ferris_base', { hubY: 31.5 });
 set('turbine_tower', { hubY: 83.1, hubZ: 4.6 });
 // long thin extras (a balloon's string) shouldn't make something feel bigger than it is
 set('balloon', { pickScale: 0.5 });
+// wall segments are long and thin: count them about as big as they are tall
+set('wall_seg', { pickScale: 0.6 });
+set('wall_slogan', { pickScale: 0.6 });
 set('kid_balloon', { pickScale: 0.75 });
 set('spinning_top', { mover: { kind: 'spin', axis: 'y', speed: 14 } });
 // high-speed rail: rail top at 12.62 m, tracks 2.5 m either side of the viaduct's centre line;

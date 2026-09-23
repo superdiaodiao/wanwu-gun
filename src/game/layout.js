@@ -185,7 +185,7 @@ export function buildLayout(world, seed = 20260923) {
     block(Math.min(x0, x1) - 0.4, Math.min(z0, z1) - 0.4, Math.max(x0, x1) + 0.4, Math.max(z0, z1) + 0.4);
   };
   wallRun(CX0, CZ0, CX1, CZ0);
-  wallRun(CX0, CZ0, CX0, CZ1);
+  // (the west side stays open: a ball that has eaten the courtyard bare can always wander out)
   wallRun(CX1, CZ0, CX1, CZ1);
   wallRun(CX0, CZ1, -8, CZ1);
   wallRun(8, CZ1, CX1, CZ1);
@@ -279,6 +279,15 @@ export function buildLayout(world, seed = 20260923) {
   put('trash_bag', 15.5, 31.5, {});
   put('trash_bag', 20.8, 31.2, {});
   put('tv_old', 23, 31.8, { yaw: 2.4 });
+  // the strip between the north row and the wall: bikes parked along the wall and odds and ends,
+  // so a ball of a metre or two that wanders in there finds something to eat
+  for (let x = CX0 + 6; x <= CX1 - 6; x += 2.4) {
+    if (Math.abs(x) < 12 || rng.r() < 0.4) continue; // leave the gate clear
+    put(rng.pick(['shared_bike', 'ebike', 'shared_bike', 'kick_scooter']), x + rng.range(-0.4, 0.4), CZ1 - 1.4, { yaw: HALF + rng.range(-0.15, 0.15) });
+  }
+  scatter(HOUSE, 40, inRect(CX0 + 4, 35, CX1 - 4, CZ1 - 2.6), { margin: 0.3 });
+  scatter(SMALL, 50, inRect(CX0 + 4, 35, CX1 - 4, CZ1 - 2.6), { margin: 0.1 });
+  scatter(CATS, 4, inRect(CX0 + 6, 35, CX1 - 6, CZ1 - 3), { margin: 0.4 });
   // courtyard walkers along the paths
   const cyLoop = path([[-40, -12.5], [40, -12.5], [40, -13], [-40, -13]], true);
   const cySpine = path([[0, -40], [0, 34]]);
@@ -471,7 +480,14 @@ export function buildLayout(world, seed = 20260923) {
     margin: 0.3,
     inside: (x, z) => !inPond(x, z, 1.1),
   });
-  scatter(PEOPLE_WALK, 10, inRect(KX0 + 10, KZ0 + 10, KX1 - 10, KZ1 - 10), { margin: 1, inside: (x, z) => !inPond(x, z, 1.2), o: { mover: { kind: 'wander', speed: 0.7 }, moverState: { radius: 20 } } });
+  scatter(PEOPLE_WALK, 18, inRect(KX0 + 10, KZ0 + 10, KX1 - 10, KZ1 - 10), { margin: 1, inside: (x, z) => !inPond(x, z, 1.2), o: { mover: { kind: 'wander', speed: 0.7 }, moverState: { radius: 20 } } });
+  // picnics, kites and whatever people leave on the grass: something for a ball of a metre or two
+  scatter([...HOUSE, ['football', 3], ['kite', 1.5], ['umbrella', 2], ['takeout_bag', 3], ['watermelon', 2]], 70, inRect(KX0 + 4, KZ0 + 4, KX1 - 4, KZ1 - 4), {
+    margin: 0.4,
+    inside: (x, z) => !inPond(x, z, 1.15),
+  });
+  scatter(SMALL, 90, inRect(KX0 + 4, KZ0 + 4, KX1 - 4, KZ1 - 4), { margin: 0.1, inside: (x, z) => !inPond(x, z, 1.1) });
+  scatter(CATS, 5, inRect(KX0 + 8, KZ0 + 8, KX1 - 8, KZ1 - 8), { margin: 0.4, inside: (x, z) => !inPond(x, z, 1.2) });
   scatter([['butterfly', 1]], 12, inRect(KX0, KZ0, KX1, KZ1), { margin: 0.2, inside: (x, z) => !inPond(x, z, 1.1) });
   // temple and pagoda on the north side of the park
   Z('stone', poly.rect(-230, -200, -150, -130));

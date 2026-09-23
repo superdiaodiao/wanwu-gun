@@ -11,11 +11,14 @@
   <div id="hud-size">
     <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
       <circle class="track" cx="60" cy="60" r="52"></circle>
+      <circle id="size-ring-next" class="bar next" cx="60" cy="60" r="52"></circle>
       <circle id="size-ring" class="bar" cx="60" cy="60" r="52"></circle>
     </svg>
     <div class="num"><span id="size-num">12</span><span id="size-unit">cm</span></div>
     <div class="goal">目标 <b id="goal-text">30 cm</b></div>
+    <div id="hud-gains" aria-hidden="true"></div>
   </div>
+  <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
   <div id="hud-last" hidden>
     <div id="last-view"></div>
@@ -31,6 +34,7 @@
 </div>
 
 <div id="toast-stack" aria-live="polite"></div>
+<div id="stamp" hidden aria-live="polite"><div class="big" id="stamp-size">20 cm</div><div class="sub" id="stamp-sub"></div></div>
 
 <div id="dialog" hidden>
   <div id="dialog-portrait"></div>
@@ -47,7 +51,7 @@
     <h1 class="logo"><span>万</span><span>物</span><span>皆</span><span>可</span><span>滚</span></h1>
     <p class="pitch">天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。</p>
     <div class="actions">
-      <button id="btn-timed" class="btn primary"><b>开始补天</b><small>限时 8 分钟</small></button>
+      <button id="btn-timed" class="btn primary"><b>开始补天</b><small>限时 6 分钟</small></button>
       <button id="btn-free" class="btn ghost"><b>自由滚</b><small>不限时 · 随时补天</small></button>
     </div>
     <div class="settings">

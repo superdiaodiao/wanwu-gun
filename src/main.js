@@ -11,7 +11,7 @@ import { Ground } from './game/ground.js';
 import { World } from './game/world.js';
 import { buildLayout } from './game/layout.js';
 import { Movers } from './game/movers.js';
-import { Ball, GROW, PICK_RATIO, STUCK } from './game/ball.js';
+import { Ball, GROW, PICK_RATIO, STUCK, COMBO } from './game/ball.js';
 import { Player } from './game/player.js';
 import { CameraRig } from './game/camera.js';
 import { Input, Driver } from './game/input.js';
@@ -22,7 +22,7 @@ import { Dialog } from './game/dialog.js';
 import * as story from './game/story.js';
 import { audio } from './audio/audio.js';
 
-const GAME_SECONDS = 480;
+const GAME_SECONDS = 360;
 const START_SIZE = 0.06;
 const $ = id => document.getElementById(id);
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
@@ -35,6 +35,7 @@ const G = {
   state: 'loading', mode: 'timed', time: 0, t: 0, milestone: 0, events: [],
   finale: null, toastCd: 0, tickSec: -1, hurry: false, cullT: 0, patched: false, prelaunch: null,
   hinted: new Set(), hintCd: 0, idleT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
+  gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0,
 };
 let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material;
 let driver = new Driver();
@@ -237,6 +238,9 @@ function resetGame(mode) {
   const s = layout.start;
   ball.reset(START_SIZE, s.x, s.z, s.heading);
   driver = new Driver();
+  G.gainAcc = 0;
+  G.comboShown = 0;
+  G.unlockLimit = START_SIZE * PICK_RATIO;
   ap.target = null;
   ap.skip.clear();
   ap.escape = 0;
@@ -499,7 +503,7 @@ function updateGlints(dt) {
       picks.push(o);
     }
     picks.sort((a, b) => b.glintV - a.glintV);
-    glints.list = picks.slice(0, 6);
+    glints.list = picks.slice(0, 4);
   }
   for (const o of glints.list) {
     if (o.state !== 0 || Math.random() > dt * 4) continue;
@@ -521,7 +525,10 @@ function updateView(S) {
   ball.lodDist = cam.position.distanceTo(ball.group.position) - ball.displayS * 0.25;
   STUCK.max = engine.q.stuck;
   // beyond 2 fog lengths everything is >98 % fog: don't draw it
-  G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ((LOD_PART * F) / 1.5) * det, focus, engine.q.shadows ? shadowR * 1.25 : 0);
+  // gold / red edges on what the ball can and can't take yet (see world.js highlight)
+  const hi = G.state === 'play' || G.state === 'pause' ? G.hi || (G.hi = {}) : null;
+  if (hi) Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t });
+  G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ((LOD_PART * F) / 1.5) * det, focus, engine.q.shadows ? shadowR * 1.25 : 0, hi);
   engine.updateShadow(focus, shadowR);
 }
 
@@ -617,7 +624,22 @@ function step(dt) {
   engine.scene.fog.density = 1 / Math.min(S * 320 + 1100, 6000);
   updateView(S);
 
-  if (G.state === 'play') hud.update(ball.S, G.milestone, G.mode === 'timed' ? GAME_SECONDS - G.time : null, ball.stats.count);
+  if (G.state === 'play') {
+    hud.update(ball.S, G.milestone, G.mode === 'timed' ? GAME_SECONDS - G.time : null, ball.stats.count, ball.futureS);
+    // "+size" pop-ups, a few a second at most
+    G.gainT -= dt;
+    if (G.gainAcc > 0 && G.gainT <= 0) {
+      hud.gain(G.gainAcc, ball.S);
+      G.gainAcc = 0;
+      G.gainT = 0.3;
+    }
+    // streak over?
+    if (G.comboShown && G.t - ball.combo.t > COMBO.window) {
+      hud.comboEnd(G.comboShown, ball.comboExtra);
+      G.comboShown = 0;
+    }
+  }
+  MU.time.value = G.t;
   G.toastCd -= dt;
   G.hintCd -= dt;
 }
@@ -628,7 +650,13 @@ function handleEvents() {
       case 'pickup': {
         const o = e.o;
         G.idleT = 0;
-        audio.pickup(o.spec.sfx, e.rel, o.size);
+        G.gainAcc += e.gain || 0;
+        audio.pickup(o.spec.sfx, e.rel, o.size, e.combo);
+        if (e.combo >= 3) {
+          hud.combo(e.combo, e.mult);
+          G.comboShown = e.combo;
+          if (e.combo % 10 === 0) audio.comboChime(e.combo / 10);
+        }
         fx.pickup(o.centerX(), o.y + o.h * 0.5, o.centerZ(), o.size, ball.S);
         if (e.rel > 0.04 || !lastPreview.spec) {
           hud.lastItem(o.spec.name, o.size);
@@ -677,11 +705,36 @@ function checkMilestones() {
   }
   if (reached >= 0) {
     const [size, line] = story.MILESTONES[reached];
-    hud.toast(`<em>${fmt(size)}</em> 达成！`, true);
+    const names = newlyEdible();
+    hud.stamp(fmt(size), names.length ? `现在能滚起：${names.join('、')}` : '');
     audio.milestone(Math.min(8, reached + 1));
     dialog.interrupt(line);
     hud.bump();
+    // a burst of the five colours round the ball, and a little punch of the lens
+    const S = ball.S;
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + G.t;
+      fx.firework(ball.pos.x + Math.cos(a) * S * 0.7, ball.centerY + S * (0.9 + 0.4 * i), ball.pos.z + Math.sin(a) * S * 0.7, S * 0.8);
+    }
+    rig.fovBoost += 10;
   }
+}
+
+/** the commonest kinds of thing that became small enough to roll up since the last goal */
+function newlyEdible() {
+  const limit = ball.pickLimit(), prev = G.unlockLimit;
+  G.unlockLimit = limit;
+  const seen = new Set(), out = [];
+  const types = [...world.types.values()]
+    .filter(t => !t.spec.hidden && t.spec.name && t.all.length >= 3 && t.spec.pickSize > prev && t.spec.pickSize <= limit)
+    .sort((a, b) => b.all.length - a.all.length);
+  for (const t of types) {
+    if (seen.has(t.spec.name)) continue;
+    seen.add(t.spec.name);
+    out.push(t.spec.name);
+    if (out.length === 3) break;
+  }
+  return out;
 }
 
 // ---- finale ------------------------------------------------------------------------------------
@@ -801,7 +854,7 @@ function showResults() {
   const big = st.biggest ? `${st.biggest.name}（${fmt(st.biggest.size)}）` : '—';
   $('res-stats').innerHTML =
     `<span>滚起<b>${st.count}</b>件</span><span>用时<b>${mins}:${String(secs).padStart(2, '0')}</b></span>` +
-    `<span>最大的一件<b>${big}</b></span><span>掉落<b>${st.lost}</b>件</span>`;
+    `<span>最大的一件<b>${big}</b></span><span>最长连滚<b>×${st.bestCombo || 0}</b></span><span>掉落<b>${st.lost}</b>件</span>`;
   const top = Object.entries(st.byType).sort((a, b) => b[1] - a[1]).slice(0, 18);
   $('res-items').innerHTML = top.map(([id, n]) => `<span>${(CATALOG.get(id) || {}).name || id} <b>×${n}</b></span>`).join('');
   $('res-brag').textContent = bragLine(size, rank, st);
@@ -888,6 +941,7 @@ function autopilot(dt) {
       ap.escH = ball.heading + Math.PI * (0.6 + Math.random() * 0.8);
       if (ap.target) ap.skip.add(ap.target);
       ap.target = null;
+      cp.target = null;
     }
     ap.px = ball.pos.x;
     ap.pz = ball.pos.z;
@@ -896,6 +950,7 @@ function autopilot(dt) {
     ap.escape -= dt;
     return { dir: ap.escH, m: 1, quick: false, turnImpulse: 0, dash: false };
   }
+  if (G.autopilot === 'casual') return casualPilot(dt);
   ap.retarget -= dt;
   const S = ball.S, limit = ball.pickLimit();
   ap.chase += dt;
@@ -927,6 +982,39 @@ function autopilot(dt) {
   return { dir: want, m: 1, quick: false, turnImpulse: 0, dash: Math.abs(diff) < 0.15 && Math.hypot(dx, dz) > S * 5 && Math.random() < 0.03 };
 }
 
+// a stand-in for a casual player, for pacing tests: goes for some roughly-in-front thing it can take
+// (any, not the best), now and then just wanders, and only rethinks every so often
+const cp = { t: 0, dir: 0, target: null, cands: [], look: 0 };
+function casualPilot(dt) {
+  const S = ball.S, limit = ball.pickLimit();
+  cp.t -= dt;
+  cp.look -= dt;
+  if (cp.t <= 0 || (cp.target && cp.target.state !== 0)) {
+    cp.t = 1.5 + Math.random() * 1.5;
+    cp.target = null;
+    if (Math.random() < 0.25) cp.dir = ball.heading + (Math.random() - 0.5) * 2.4;
+    else {
+      const picks = [];
+      for (const o of world.grid.query(ball.pos.x, ball.pos.z, S * 8, cp.cands, S / 90)) {
+        if (o.state !== 0 || o.size > limit || o.size < S * 0.05 || o.y > S) continue;
+        const a = Math.atan2(o.x - ball.pos.x, -(o.z - ball.pos.z));
+        let d = (a - ball.heading) % (Math.PI * 2);
+        if (d > Math.PI) d -= Math.PI * 2;
+        if (d < -Math.PI) d += Math.PI * 2;
+        if (Math.abs(d) < 1.8) picks.push(o);
+      }
+      if (picks.length) cp.target = picks[(Math.random() * picks.length) | 0];
+      else cp.dir = ball.heading + (Math.random() - 0.5) * 3;
+    }
+  }
+  // a person reacts a few times a second, not every frame
+  if (cp.target && cp.look <= 0) {
+    cp.look = 0.25;
+    cp.dir = Math.atan2(cp.target.x - ball.pos.x, -(cp.target.z - ball.pos.z));
+  }
+  return { dir: cp.dir, m: 1, quick: false, turnImpulse: 0, dash: false };
+}
+
 window.__wanwu = {
   G,
   get ball() { return ball; },
@@ -940,9 +1028,9 @@ window.__wanwu = {
   skipIntro() { dialog.clear(); beginPlay(); },
   autopilot(on = true) { G.autopilot = on; },
   /** fast-forward the game with the autopilot, no rendering; returns [seconds, size] samples */
-  sim(seconds, dt = 1 / 30) {
+  sim(seconds, dt = 1 / 30, mode = true) {
     if (G.state !== 'play') { dialog.clear(); beginPlay(); }
-    G.autopilot = true;
+    G.autopilot = mode;
     const out = [];
     for (let i = 0, n = Math.round(seconds / dt); i < n; i++) {
       G.t += dt;

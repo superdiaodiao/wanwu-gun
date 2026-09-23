@@ -167,7 +167,7 @@ export class FX {
 
   /** a twinkle just above something worth rolling up (top = its top; see main.js updateGlints) */
   glint(x, top, z, size, S) {
-    const s = S * 0.12 + Math.min(size, S) * 0.3;
+    const s = S * 0.07 + Math.min(size, S) * 0.14;
     this.sparks.emit(x, top + s * (0.4 + Math.random() * 0.5), z, 0, s * 0.8, 0, Math.random() < 0.5 ? 0xfff6c8 : 0xffd566, s, 0.5 + Math.random() * 0.25, 0, 2, 1);
   }
 

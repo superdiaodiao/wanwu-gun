@@ -143,6 +143,16 @@ class Packed {
     this.mesh = instMesh(this.world, t, t.spec.geometry, cap, id, t.hasTint);
     this.lod = t.spec.lod ? instMesh(this.world, t, t.spec.lod, cap, id + ':lod', t.hasTint) : null;
     this.shadow = null; // made on first use
+    // per-instance highlight (see objectMaterial): lives on the geometry, which only these two
+    // meshes draw with the highlight material
+    const hi = g => {
+      const a = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
+      a.setUsage(THREE.DynamicDrawUsage);
+      g.setAttribute('iHi', a);
+      return a;
+    };
+    this.hiF = hi(t.spec.geometry);
+    this.hiL = t.spec.lod ? hi(t.spec.lod) : null;
   }
 
   shadowMesh() {
@@ -230,7 +240,7 @@ class Packed {
    * (stand-in beyond lodDist); and, for the shadow pass, whatever lies within shadowR of `focus`.
    * The GPU buffers are only rewritten when the packed set or any matrix changed.
    */
-  pack(cam, planes, maxDist, lodDist, focus, shadowR) {
+  pack(cam, planes, maxDist, lodDist, focus, shadowR, hi) {
     const objs = this.objs, t = this.type, n = objs.length;
     const sph = this.sph, lod = this.lod;
     const far = lod ? lodDist : Infinity;
@@ -277,6 +287,8 @@ class Packed {
       }
     }
     this.dirty = false;
+    this.highlight(this.hiF, lastF, nf, hi);
+    if (lod) this.highlight(this.hiL, lastL, nl, hi);
     if (this.shadow) {
       const m = this.shadow;
       m.count = ns;
@@ -288,6 +300,46 @@ class Packed {
       }
     }
     return nf + nl;
+  }
+
+  /**
+   * Edge glow for what is drawn near the ball: gold for things it can take right now (brighter the
+   * closer they are to the most it can take), red for things still just too big. hi = { limit, S, x,
+   * z, t } from the ball; limit 0 turns it off.
+   */
+  highlight(attr, idx, count, hi) {
+    const a = attr.array, objs = this.objs;
+    const was = attr.lit || 0;
+    let lit = 0;
+    if (hi && hi.limit > 0) {
+      const { limit, S, x, z, t } = hi;
+      const g0 = S * 7, g1 = S * 16, r0 = S * 2.5, r1 = S * 6;
+      for (let s = 0; s < count; s++) {
+        const o = objs[idx[s]];
+        const rel = o.size / limit;
+        let v = 0;
+        if (rel <= 2.2) {
+          const d = Math.hypot(o.x - x, o.z - z);
+          if (rel <= 1) {
+            if (d < g1 && o.state === 0 && t >= o.noPickUntil) v = Math.min(1, (rel - 0.12) / 0.7) * Math.min(1, (g1 - d) / (g1 - g0));
+          } else if (d < r1) {
+            v = -0.8 * Math.min(1, (2.2 - rel) / 0.6) * Math.min(1, (r1 - d) / (r1 - r0));
+          }
+        }
+        if (v > -0.02 && v < 0.02) v = 0;
+        a[s] = v;
+        if (v) lit = s + 1;
+      }
+    }
+    // zero what was lit last frame beyond this frame's last lit slot
+    for (let s = lit; s < was; s++) a[s] = 0;
+    const n = Math.max(lit, was);
+    attr.lit = lit;
+    if (n) {
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, n);
+      attr.needsUpdate = true;
+    }
   }
 
   copyAll(dst, idx, count) {
@@ -417,7 +469,7 @@ export class World {
 
   /** Create the instanced meshes once every object is placed. */
   finalize() {
-    this.material = objectMaterial(atlasTexture());
+    this.material = objectMaterial(atlasTexture(), { highlight: true });
     for (const t of this.types.values()) {
       for (const o of t.all) t.size = Math.max(t.size, t.spec.maxDim * o.scale);
       t.dyn = new Packed(this, t, t.all.length + 4);
@@ -583,7 +635,7 @@ export class World {
    * `focus`/`keep`: packed things this close to the ball are drawn even when off screen, so they
    * still cast their shadows into view. Returns how many packed instances were drawn.
    */
-  updateVisibility(camera, fogDist, sizeK, lodK, focus, shadowR) {
+  updateVisibility(camera, fogDist, sizeK, lodK, focus, shadowR, hi = null) {
     const cam = camera.position;
     camera.updateMatrixWorld();
     _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -599,7 +651,7 @@ export class World {
     for (const t of this.types.values()) {
       if (!t.dyn) continue;
       t.dd = Math.min(fogDist, sizeK * t.size);
-      drawn += t.dyn.pack(cam, _planes, t.dd, lodK * t.size, focus, shadowR);
+      drawn += t.dyn.pack(cam, _planes, t.dd, lodK * t.size, focus, shadowR, hi);
     }
     return drawn;
   }

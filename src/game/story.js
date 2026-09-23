@@ -7,7 +7,7 @@ export const INTRO = [
   '这颗五色石给你当核心。推着它，把人间的东西统统滚进来——越滚越大！',
   '比球小的，一碰就粘上；比球大的会把你弹开，先绕着走，等长大了再来。',
 ];
-export const INTRO_TIMED = '天黑之前——八分钟——滚得越大越好。本宫要拿它补天，去吧！';
+export const INTRO_TIMED = '天黑之前——六分钟——滚得越大越好。本宫要拿它补天，去吧！';
 export const INTRO_FREE = '不着急，慢慢滚。想补天了就按 Esc，本宫随叫随到。';
 
 // size (m) → 女娲's comment. The HUD goal is always the next entry.

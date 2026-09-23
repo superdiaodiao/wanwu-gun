@@ -218,7 +218,8 @@ export function characterVoice(ctx, dest, t, key, { vel = 0.8, pitch = 1, pan = 
 export function pickupSound(ctx, dest, t, { key = 'hard', rel = 0.1, size = 0.5, combo = 0, character = true, pan = rnd(-0.25, 0.25) } = {}) {
   const r = clamp(Math.log(clamp(rel, 0.004, 2) / 0.02) / Math.log(35), 0, 1);
   const vol = lerp(0.4, 1, r);
-  const idx = clamp(Math.round(lerp(13, 0, r)) + (combo % 5) + (Math.random() < 0.3 ? 1 : 0), 0, POP_SCALE.length - 1);
+  // a streak climbs the scale (and stays up there once it's long)
+  const idx = clamp(Math.round(lerp(13, 0, r)) + Math.min(combo, 9) + (Math.random() < 0.3 ? 1 : 0), 0, POP_SCALE.length - 1);
   pop(ctx, dest, t, { freq: mtof(POP_SCALE[idx]), vel: 0.85 * vol, pan, weight: clamp((r - 0.55) * 2.2) });
   if (!character) return;
   const p = clamp(Math.pow(0.5 / clamp(size || 0.5, 0.005, 5000), 0.12), 0.55, 1.6);
@@ -275,6 +276,18 @@ export function dash(ctx, dest, t) {
   perc(og.gain, t, 0.14, 0.05, 0.25);
   v.conn(o, og, v.out);
   return v.done();
+}
+
+// Pickup streak, every ten: three quick bright plucks and a woodblock, climbing with the level.
+export function comboChime(ctx, out, t, { level = 1 } = {}) {
+  const L = clamp(Math.round(level) || 1, 1, 8);
+  const dest = mkBus(ctx, out, 0.85);
+  const scale = pentaRange(KEY_PC, 72, 106);
+  for (let i = 0; i < 3; i++) {
+    I.pluck(ctx, dest, t + i * 0.06, { midi: scale[Math.min(scale.length - 1, L - 1 + i * 2)], vel: 0.5 + 0.12 * i, dur: 0.28, pan: -0.25 + 0.25 * i, send: 0.3 });
+  }
+  I.woodblock(ctx, dest, t, { pitch: 1.35, vel: 0.4 });
+  if (L >= 3) I.woodblock(ctx, dest, t + 0.12, { pitch: 1.6, vel: 0.35 });
 }
 
 // Size milestone fanfare: quick pentatonic run then a held "ta-da"; grander with level.
