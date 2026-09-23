@@ -1,4 +1,5 @@
-// Particles: five-coloured sparkles on pickups, dust behind the ball, stars on impacts, fireworks.
+// Particles: five-coloured sparkles on pickups, twinkles over things worth taking, dust behind the
+// ball, stars on impacts, fireworks.
 import * as THREE from 'three';
 
 const VERT = /* glsl */ `
@@ -162,6 +163,12 @@ export class FX {
       x - fx * back + (Math.random() - 0.5) * S * 0.5, S * 0.05, z - fz * back + (Math.random() - 0.5) * S * 0.5,
       (Math.random() - 0.5) * S * 0.4, S * 0.25, (Math.random() - 0.5) * S * 0.4,
       0xd9cfbc, S * (0.18 + Math.random() * 0.12), 0.7 + Math.random() * 0.4, 0, 1.5, 0.45);
+  }
+
+  /** a twinkle just above something worth rolling up (top = its top; see main.js updateGlints) */
+  glint(x, top, z, size, S) {
+    const s = S * 0.12 + Math.min(size, S) * 0.3;
+    this.sparks.emit(x, top + s * (0.4 + Math.random() * 0.5), z, 0, s * 0.8, 0, Math.random() < 0.5 ? 0xfff6c8 : 0xffd566, s, 0.5 + Math.random() * 0.25, 0, 2, 1);
   }
 
   bump(x, y, z, S) {

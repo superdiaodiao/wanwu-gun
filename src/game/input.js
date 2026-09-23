@@ -1,5 +1,5 @@
 // Keyboard, mouse drag, touch joystick and gamepad → raw controls; Driver turns them into
-// { throttle, turn, turnImpulse, dash } for the ball.
+// { dir, m, quick, turnImpulse, dash } for the ball and the camera.
 export class Input {
   constructor(canvas) {
     this.keys = new Set();
@@ -86,8 +86,9 @@ export class Input {
   wasPressed(code) { return this.pressed.has(code); }
 
   /**
-   * Raw controls this frame. Keyboard: W forward, S turn around, A/D steer. A stick (touch or pad)
-   * gives a direction: { a: angle from straight ahead (+ = right), m: 0..1 }.
+   * Raw controls this frame: WASD / arrows, and a stick (touch or pad) as a direction on screen,
+   * { a: angle from straight up (+ = right), m: 0..1 }. Mouse drags and the pad's right stick turn
+   * the view (turnImpulse, padTurn).
    */
   poll() {
     const k = this.keys;
@@ -138,60 +139,47 @@ const angDiff = (from, to) => {
 };
 
 /**
- * Turns raw controls into { throttle 0..1, turn } for the ball, which never reverses: rolling towards
- * the camera means rolling blind, and a thumb drifting a little downwards shouldn't back the ball up.
+ * Turns raw controls into { dir, m, quick } for the ball: `dir` is the world heading to roll towards
+ * (null when nothing is pressed), m how hard (0..1). The stick and WASD point on screen — up is away
+ * from the camera — and the ball goes that way almost at once; the camera then swings round behind
+ * it at its own pace (camera.js), so a thumb held to one side curves gently.
  *
- * Stick (touch or pad): up rolls straight ahead (as seen by the camera behind the ball), tilting it
- * steers while still rolling forwards, and pulling it back swings the ball round in a U-turn, after
- * which it rolls on. Keyboard: W rolls, A/D steer, S does the U-turn.
+ * Pointing back towards the camera is a turn-around: the ball heads the way the stick points, fixed
+ * in the world while it stays back there (the view swinging round would otherwise drag the
+ * direction with it), and `quick` tells the camera to swing round fast.
  */
 export class Driver {
   constructor() {
-    this.uTarget = null; // U-turn: heading to reach
-    this.uDone = false;
+    this.lock = null; // world heading held during a turn-around
   }
 
-  update(raw, heading) {
-    const BACK = 1.75; // ~100°: further round than this means "turn around"
-    let m = 0, a = 0, wantBack = false;
+  update(raw, camYaw) {
+    let a = null, m = 0;
     if (raw.stick) {
-      m = raw.stick.m;
       a = raw.stick.a;
-      wantBack = Math.abs(a) > BACK;
+      m = raw.stick.m;
     } else {
-      m = raw.fwd || raw.back ? 1 : 0;
-      wantBack = raw.back && !raw.fwd;
-      a = raw.keyTurn < 0 ? -Math.PI : Math.PI;
+      const x = raw.keyTurn, y = (raw.fwd ? 1 : 0) - (raw.back ? 1 : 0);
+      if (x || y) {
+        a = Math.atan2(x, y);
+        m = 1;
+      }
     }
-    if (!wantBack) {
-      this.uTarget = null;
-      this.uDone = false;
-    } else if (this.uTarget === null) {
-      // lock the heading to reach, turning the way the stick leans
-      this.uTarget = heading + (a >= 0 ? 1 : -1) * (Math.PI - 0.02);
-      this.uDone = false;
+    const out = { dir: null, m: 0, quick: false, turnImpulse: raw.turnImpulse + (raw.padTurn || 0) * 0.04, dash: raw.dash };
+    if (a === null) {
+      this.lock = null;
+      return out;
     }
-
-    let throttle, turn;
-    if (this.uTarget !== null && !this.uDone) {
-      const d = angDiff(heading, this.uTarget);
-      if (Math.abs(d) < 0.12) this.uDone = true;
-      turn = Math.sign(d) * 1.5;
-      throttle = 0.35 * m;
-    } else if (this.uTarget !== null) {
-      // round: roll on
-      turn = raw.stick ? 0 : raw.keyTurn;
-      throttle = m;
-    } else if (raw.stick) {
-      // a few degrees either side of straight up still means straight
-      const k = Math.max(0, Math.abs(a) - 0.12) / 0.95;
-      turn = Math.sign(a) * Math.min(1, k ** 1.25);
-      throttle = m * (1 - 0.3 * Math.abs(turn));
+    // into the back zone past ~130°, out of it only below ~115° (no flicker at the edge)
+    if (Math.abs(a) > (this.lock === null ? 2.28 : 2.0)) {
+      if (this.lock === null) this.lock = camYaw + a;
+      out.dir = this.lock;
+      out.quick = true;
     } else {
-      turn = raw.keyTurn;
-      throttle = raw.fwd ? 1 : 0;
+      this.lock = null;
+      out.dir = camYaw + a;
     }
-    if (raw.padTurn) turn = Math.max(-1.5, Math.min(1.5, turn + raw.padTurn));
-    return { throttle, turn, turnImpulse: raw.turnImpulse, dash: raw.dash };
+    out.m = m;
+    return out;
   }
 }

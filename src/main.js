@@ -475,6 +475,39 @@ function hourFor() {
   return 8 + cyc * 13;
 }
 
+// ---- twinkles over the best things the ball can take right now -------------------------------
+// Small things blur into the ground; the few most worth having (big for their distance, in view)
+// twinkle, so the player can see what to go for.
+const glints = { t: 0, list: [], cands: [] };
+function updateGlints(dt) {
+  if (G.state !== 'play') {
+    glints.list.length = 0;
+    return;
+  }
+  const S = ball.S;
+  glints.t -= dt;
+  if (glints.t <= 0) {
+    glints.t = 0.3;
+    const limit = ball.pickLimit();
+    const cam = engine.camera.position;
+    const vx = Math.sin(rig.yaw), vz = -Math.cos(rig.yaw);
+    const picks = [];
+    for (const o of world.grid.query(ball.pos.x, ball.pos.z, Math.max(1.2, S * 12), glints.cands, S / 90)) {
+      if (o.state !== 0 || o.size > limit || o.size < S * 0.15 || G.t < o.noPickUntil) continue;
+      if ((o.x - cam.x) * vx + (o.z - cam.z) * vz < 0) continue; // behind the camera
+      o.glintV = o.size ** 1.5 / (Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z) + S);
+      picks.push(o);
+    }
+    picks.sort((a, b) => b.glintV - a.glintV);
+    glints.list = picks.slice(0, 6);
+  }
+  for (const o of glints.list) {
+    if (o.state !== 0 || Math.random() > dt * 4) continue;
+    const j = () => (Math.random() - 0.5) * 1.2;
+    fx.glint(o.centerX() + j() * o.hw, o.y + o.bob + o.h, o.centerZ() + j() * o.hd, o.size, S);
+  }
+}
+
 /** what to draw this frame, and where the sun's shadow frustum sits */
 function updateView(S) {
   const focus = G.state === 'play' || G.state === 'pause' || G.state === 'finale' ? ball.group.position : rig.look;
@@ -494,13 +527,15 @@ function updateView(S) {
 
 function step(dt) {
   const raw = input.poll();
-  const inp = G.state === 'play' ? driver.update(raw, ball.heading) : { throttle: 0, turn: 0, turnImpulse: 0, dash: false };
+  const inp = G.state === 'play' ? driver.update(raw, rig.yaw) : { dir: null, m: 0, quick: false, turnImpulse: 0, dash: false };
   if (G.autopilot && G.state === 'play') Object.assign(inp, autopilot(dt));
   G.events.length = 0;
 
   if (G.state === 'play') {
     G.time += dt;
-    ball.heading += inp.turnImpulse;
+    // mouse drags turn the view (and so where "up" on the stick / W goes)
+    rig.yaw += inp.turnImpulse;
+    rig.quick = inp.quick;
     ball.update(dt, inp, G.t, G.events);
     if (G.mode === 'timed') {
       const left = GAME_SECONDS - G.time;
@@ -563,6 +598,7 @@ function step(dt) {
   player.update(dt, ball, G.t, false);
   rig.update(dt, ball, G.t);
   updateGiant(dt, G.t);
+  updateGlints(dt);
   fx.update(dt);
 
   // light, sky, fog
@@ -858,10 +894,7 @@ function autopilot(dt) {
   }
   if (ap.escape > 0) {
     ap.escape -= dt;
-    let d = (ap.escH - ball.heading) % (Math.PI * 2);
-    if (d > Math.PI) d -= Math.PI * 2;
-    if (d < -Math.PI) d += Math.PI * 2;
-    return { throttle: Math.abs(d) < 0.6 ? 1 : 0.3, turn: Math.max(-1, Math.min(1, d * 3)), turnImpulse: 0, dash: false };
+    return { dir: ap.escH, m: 1, quick: false, turnImpulse: 0, dash: false };
   }
   ap.retarget -= dt;
   const S = ball.S, limit = ball.pickLimit();
@@ -885,16 +918,13 @@ function autopilot(dt) {
     }
     if (ap.target !== prev) ap.chase = 0;
   }
-  if (!ap.target) return { throttle: 1, turn: Math.sin(G.t * 0.7), turnImpulse: 0, dash: false };
+  if (!ap.target) return { dir: ball.heading + Math.sin(G.t * 0.7) * 0.6, m: 1, quick: false, turnImpulse: 0, dash: false };
   const dx = ap.target.x - ball.pos.x, dz = ap.target.z - ball.pos.z;
   const want = Math.atan2(dx, -dz);
   let diff = (want - ball.heading) % (Math.PI * 2);
   if (diff > Math.PI) diff -= Math.PI * 2;
   if (diff < -Math.PI) diff += Math.PI * 2;
-  const ad = Math.abs(diff);
-  // like a person would: stop and turn when the target is off to the side
-  const throttle = ad < 0.25 ? 1 : ad < 0.6 ? 0.35 : 0;
-  return { throttle, turn: Math.max(-1, Math.min(1, diff * 3)), turnImpulse: 0, dash: ad < 0.15 && Math.hypot(dx, dz) > S * 5 && Math.random() < 0.03 };
+  return { dir: want, m: 1, quick: false, turnImpulse: 0, dash: Math.abs(diff) < 0.15 && Math.hypot(dx, dz) > S * 5 && Math.random() < 0.03 };
 }
 
 window.__wanwu = {
@@ -903,6 +933,8 @@ window.__wanwu = {
   get world() { return world; },
   get engine() { return engine; },
   get layout() { return layout; },
+  get rig() { return rig; },
+  get glints() { return glints.list.map(o => [o.spec.id, +o.size.toFixed(3), +Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z).toFixed(2)]); },
   GROW,
   start: mode => startGame(mode || 'timed'),
   skipIntro() { dialog.clear(); beginPlay(); },

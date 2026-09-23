@@ -10,7 +10,11 @@ export const PICK_RATIO = 0.6; // roll up things smaller than 0.6 × diameter
 // Growth first lands in a `pending` pool that the ball absorbs at most `rate` (fraction of its
 // diameter) per second, so a burst of pickups snowballs smoothly instead of all at once.
 // The rate eases off as the ball grows: quick early, a steady ~×2 per 40 s late.
-export const GROW = { P: 1.5, C: 1.0, cap: 0.1, rate: S => 0.016 + 0.03 / (1 + S / 1.5), speed: 4.1 };
+export const GROW = { P: 1.5, C: 1.0, cap: 0.1, rate: S => 0.016 + 0.03 / (1 + S / 1.5), speed: 3.4 };
+// handling: the heading swings to where the player points at TURN rad/s, and the velocity eases
+// towards the wanted one at ACC (pushing) / BRAKE (let go) per second — brisk, so the ball goes
+// where it is pointed instead of sailing past what the player was aiming for
+const TURN = 10, ACC = 8, BRAKE = 5;
 // most stuck items drawn at once (the smallest go first); set per quality (engine.js QUALITY.stuck)
 export const STUCK = { max: 1400 };
 // The visible stone core shrinks relative to the ball as items pile up (0.9 → 0.7 of the radius),
@@ -114,42 +118,39 @@ export class Ball {
     return rc + (this.displayS / 2 - rc) * 0.55 * this.covered;
   }
   forward(out = _v) { return out.set(Math.sin(this.heading), 0, -Math.cos(this.heading)); }
-  maxSpeed() { return GROW.speed * Math.pow(this.S, 0.93) + 0.24; }
+  maxSpeed() { return GROW.speed * Math.pow(this.S, 0.93) + 0.12; }
   pickLimit() { return this.S * PICK_RATIO; }
   speed() { return Math.hypot(this.vel.x, this.vel.z); }
 
   /**
-   * input: { throttle 0..1, turn -1..1 (a U-turn may pass up to ±1.5), dash bool }
+   * input: { dir: world heading to roll towards (null: let go), m: 0..1 how hard, dash bool }
    * events: array receiving { type: 'pickup' | 'bump' | 'knock', ... }
    */
   update(dt, input, now, events) {
     const vmax = this.maxSpeed();
-    // steering: slower turns at speed, like a heavy ball
-    const sp = this.speed();
-    const turnRate = 3.0 - 1.0 * Math.min(1, sp / vmax);
-    this.heading += input.turn * turnRate * dt;
-
+    const m = input.dir === null || input.dir === undefined ? 0 : input.m;
+    if (m > 0) {
+      let d = (input.dir - this.heading) % (Math.PI * 2);
+      if (d > Math.PI) d -= Math.PI * 2;
+      if (d < -Math.PI) d += Math.PI * 2;
+      const step = TURN * dt;
+      this.heading += Math.max(-step, Math.min(step, d));
+    }
     const fx = Math.sin(this.heading), fz = -Math.cos(this.heading);
-    const rx = -fz, rz = fx;
-    let vf = this.vel.x * fx + this.vel.z * fz;
-    let vr = this.vel.x * rx + this.vel.z * rz;
-
     if (input.dash && now >= this.dashReady) {
       this.dashT = 0.55;
       this.dashReady = now + 1.4;
-      vf = Math.max(vf, 0) + vmax * 1.1;
+      this.vel.x += fx * vmax * 1.1;
+      this.vel.z += fz * vmax * 1.1;
       events.push({ type: 'dash' });
     }
     const dashing = this.dashT > 0;
     this.dashT -= dt;
-    const cap = vmax * (dashing ? 1.85 : 1);
-    const acc = vmax * 1.7;
-    if (input.throttle > 0.05) vf += input.throttle * acc * dt;
-    else vf *= Math.exp(-1.4 * dt);
-    vf = Math.max(-vmax * 0.55, Math.min(cap, vf));
-    if (!dashing && vf > vmax) vf += (vmax - vf) * Math.min(1, dt * 3);
-    vr *= Math.exp(-7 * dt);
-    this.vel.set(fx * vf + rx * vr, 0, fz * vf + rz * vr);
+    // a dash carries on for its half second even if the stick is let go
+    const want = dashing ? Math.max(m, 0.6) * vmax * 1.85 : m * vmax;
+    const k = 1 - Math.exp(-(m > 0 || dashing ? ACC : BRAKE) * dt);
+    this.vel.x += (fx * want - this.vel.x) * k;
+    this.vel.z += (fz * want - this.vel.z) * k;
 
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
@@ -257,7 +258,18 @@ export class Ball {
     if (ct.low && o.h < this.r * 0.5) return;
     this.pos.x += ct.nx * ct.depth;
     this.pos.z += ct.nz * ct.depth;
+    // still leaning on it from the last few frames: slide along, it's not a fresh crash (the ball
+    // keeps being pushed into a wall, which mustn't count as hitting it again and again)
+    const leaning = now - (o.touchT ?? -9) < 0.25;
+    o.touchT = now;
     let vn = this.vel.x * ct.nx + this.vel.z * ct.nz;
+    if (leaning) {
+      if (vn < 0) {
+        this.vel.x -= vn * ct.nx;
+        this.vel.z -= vn * ct.nz;
+      }
+      return;
+    }
     // moving vehicles shove the ball
     const mv = o.mover;
     let shove = 0;
@@ -276,9 +288,9 @@ export class Ball {
         this.bumpCd = now + 0.3;
         events.push({ type: 'bump', strength: Math.min(1, impact), o, shove });
         const hardShove = shove > this.maxSpeed() * 0.5;
-        if ((impact > 0.72 || hardShove) && now > (this.knockCd || 0)) {
-          this.knockCd = now + 1.2;
-          this.knockOff(Math.min(6, 1 + Math.floor((impact - 0.72) * 4)), now, events);
+        if ((impact > 0.8 || hardShove) && now > (this.knockCd || 0)) {
+          this.knockCd = now + 1.5;
+          this.knockOff(Math.min(5, 1 + Math.floor((impact - 0.8) * 4)), now, events);
         }
       }
     }

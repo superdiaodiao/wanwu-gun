@@ -15,7 +15,8 @@ export class CameraRig {
     this._cands = [];
     this._ct = {};
     this.lift = 1;
-    this.yaw = 0;
+    this.yaw = 0; // which way the camera looks; the ball's controls are read relative to it
+    this.quick = false; // a turn-around is on: swing round fast
     this.pos = new THREE.Vector3(0, 1, 3);
     this.look = new THREE.Vector3();
     this.shakeT = 0;
@@ -41,7 +42,7 @@ export class CameraRig {
     const z = this.zoom;
     const fx = Math.sin(yaw), fz = -Math.cos(yaw);
     const dist = (S * 2.15 + 0.2) * z;
-    const height = (S * 1.3 + 0.1) * z;
+    const height = (S * 1.65 + 0.13) * z; // looking down ~27°: the ground around the ball reads
     const cy = ball.centerY;
     outPos.set(ball.pos.x - fx * dist, cy + height, ball.pos.z - fz * dist);
     outLook.set(ball.pos.x + fx * S * 0.9, cy + S * 0.05, ball.pos.z + fz * S * 0.9);
@@ -64,11 +65,19 @@ export class CameraRig {
       return;
     }
     this.zoom += (ZOOMS[this.zoomIdx] - this.zoom) * Math.min(1, dt * 3);
-    // swing round the ball on turns (a straight lerp would cut across it on a U-turn)
+    // swing round behind the way the ball rolls: slowly while steering (the controls are read
+    // relative to the view, so a quick swing would drag the steering round with it), fast for a
+    // turn-around, and not at all while the ball rolls towards the camera or stands still
     let dy = (ball.heading - this.yaw) % (Math.PI * 2);
     if (dy > Math.PI) dy -= Math.PI * 2;
     if (dy < -Math.PI) dy += Math.PI * 2;
-    this.yaw += dy * Math.min(1, dt * 6);
+    const moving = Math.min(1, ball.speed() / Math.max(1e-4, ball.maxSpeed()) * 1.5);
+    if (this.quick) this.yaw += dy * Math.min(1, dt * 5);
+    else if (Math.abs(dy) < 2.4) {
+      // at most ~20°/s: holding the stick to the side should mostly go sideways
+      const w = Math.min(0.5 * Math.abs(dy), 0.35) * moving;
+      this.yaw += Math.sign(dy) * Math.min(Math.abs(dy), w * dt);
+    }
     this.desired(ball, _d, _l, this.yaw);
     // camera collision: walk from the ball out to the wanted spot and stop before anything tall
     // (a building wall behind the ball would otherwise swallow the camera)
