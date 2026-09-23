@@ -159,9 +159,35 @@ export function WHITE() {
   return [8 / size, 1 - 8 / size, 8 / size, 1 - 8 / size];
 }
 
+const FONT_CSS =
+  'https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@700&family=ZCOOL+KuaiLe&display=swap';
+
+/**
+ * Attach the Google Fonts stylesheet from script instead of a <link> in <head>: a head stylesheet is
+ * render-blocking, so on networks where Google is unreachable (mainland China without a VPN) the page
+ * would sit blank until the request times out. Injected here, nothing waits for it; system fonts are
+ * used until (and unless) the web fonts arrive. Resolves true once loaded, false on failure.
+ */
+let fontCss = null;
+export function injectFontCss() {
+  if (fontCss) return fontCss;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = FONT_CSS;
+  fontCss = new Promise(res => {
+    link.onload = () => res(true);
+    link.onerror = () => res(false);
+  });
+  document.head.appendChild(link);
+  return fontCss;
+}
+
 /** Wait for the web fonts (if any are reachable) so decal text renders with them. */
 export async function loadFonts(timeoutMs = 2500) {
   if (!document.fonts || !document.fonts.load) return;
+  const timeout = new Promise(r => setTimeout(() => r(false), timeoutMs));
+  // the @font-face rules only exist once the stylesheet has arrived
+  if (!(await Promise.race([injectFontCss(), timeout]))) return;
   const probes = [
     '40px "Ma Shan Zheng"',
     '40px "ZCOOL KuaiLe"',
