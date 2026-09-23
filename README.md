@@ -29,7 +29,7 @@
 
 ## 技术要点
 
-- **单个 HTML 文件（约 1.1 MB），没有任何图片、模型或音频文件。** 238 种模型全部由代码拼出低多边形，文字和图案用 Canvas 现画进一张图集，音乐和音效用 Web Audio 实时合成（原创五声音阶配乐，古筝用 Karplus–Strong 拨弦算法）。
+- **没有任何图片、模型或音频文件，整个游戏就是一段约 1.1 MB 的脚本。** 238 种模型全部由代码拼出低多边形，文字和图案用 Canvas 现画进一张图集，音乐和音效用 Web Audio 实时合成（原创五声音阶配乐，古筝用 Karplus–Strong 拨弦算法）。
 - three.js r186 + esbuild 打包内联；所有物件按类型实例化渲染，每帧逐个做视锥和距离剔除（越小的东西画得越近），远处自动换成去掉细节的低面数版本，阴影只画球附近的。
 - 对数深度缓冲 + 随球大小缩放的镜头、阴影和雾：同一个世界里从 1 厘米的瓜子到几百米的山都能看清。
 - 成长速度有上限（每秒最多长大约 1.6–3%），滚雪球越滚越快但不会一下失控；物件粘在球面上随球一起长大，旧的太小了才会被“吃进去”。
@@ -38,10 +38,16 @@
 
 ```bash
 npm install
-npm run build         # 构建单文件 dist/index.html，并复制到仓库根目录的 index.html
+npm run build         # 单文件版 dist/index.html；网站版 dist/site/ 复制到仓库根目录（index.html + wanwu.<hash>.js）
 npm run dev           # 不压缩的开发版，改代码自动重建
 npm run gallery       # 模型图鉴：dist/gallery.html（?filter=cat 只看某类）
 ```
+
+线上的 GitHub Pages 只放一个 30 KB 的页面，游戏脚本单独一个文件：国内（按时区判断）从腾讯云 COS 广州的
+`wan-wu-gun-1318514885` 桶加载，github.io 在国内太慢；其他地方从页面旁边加载，任何一边失败或超过 12 秒就换另一边。
+每次构建脚本名字都会变，所以发版时要把 `dist/cos/` 里压缩好的同名文件传到桶的根目录，并设置
+`Content-Encoding: gzip`、`Content-Type: application/javascript; charset=utf-8`、
+`Cache-Control: public, max-age=31536000, immutable`。国内的字体走 Google 自己的国内镜像 fonts.googleapis.cn。
 
 ## 目录
 

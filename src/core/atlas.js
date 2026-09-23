@@ -159,8 +159,16 @@ export function WHITE() {
   return [8 / size, 1 - 8 / size, 8 / size, 1 - 8 / size];
 }
 
-const FONT_CSS =
-  'https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@700&family=ZCOOL+KuaiLe&display=swap';
+// in mainland China (going by the time zone) fonts.googleapis.com is unreachable, but Google's own
+// mirror there, fonts.googleapis.cn (fonts from fonts.gstatic.cn), works
+const IN_CN = (() => {
+  try {
+    return /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  } catch (e) {
+    return false;
+  }
+})();
+const FONT_CSS = `https://fonts.googleapis.${IN_CN ? 'cn' : 'com'}/css2?family=Baloo+2:wght@600;800&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@700&family=ZCOOL+KuaiLe&display=swap`;
 
 /**
  * Attach the Google Fonts stylesheet from script instead of a <link> in <head>: a head stylesheet is
