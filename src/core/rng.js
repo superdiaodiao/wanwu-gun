@@ -19,9 +19,25 @@ export function hashString(s) {
   return h >>> 0;
 }
 
+// mulberry32 as a class with visible state: its state just steps by a constant per draw, so a
+// stream can be fast-forwarded (Model uses this to keep a LOD build in step with the full one)
+const STEP = 0x6d2b79f5;
+
 export class RNG {
   constructor(seed = 1) {
-    this.next = mulberry32(typeof seed === 'string' ? hashString(seed) : seed);
+    this.a = (typeof seed === 'string' ? hashString(seed) : seed) | 0;
+    this.calls = 0;
+  }
+  next() {
+    this.calls++;
+    const a = (this.a = (this.a + STEP) | 0);
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  /** set the state to `a` advanced by n draws */
+  seek(a, n) {
+    this.a = (a + Math.imul(n, STEP)) | 0;
   }
   r() { return this.next(); }
   range(a, b) { return a + (b - a) * this.next(); }

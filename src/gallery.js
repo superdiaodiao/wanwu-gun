@@ -1,9 +1,10 @@
 // Model gallery: renders every registered catalog model in a grid (one scissored viewport per cell).
-//   gallery.html?filter=cat      only ids / names containing "cat"
+//   gallery.html?filter=cat,dog  only ids / names containing "cat" or "dog"
 //   gallery.html?cols=4          grid columns
 //   gallery.html?spin            rotate models continuously
 //   gallery.html?atlas           also show the decal atlas
 //   gallery.html?view=top|front|side|back   camera direction (default 3/4 front)
+//   gallery.html?lod             show each model's far-away stand-in to the right of it
 import * as THREE from 'three';
 import { CATALOG } from './catalog/registry.js';
 import { buildAtlas, loadFonts, atlasCanvas } from './core/atlas.js';
@@ -14,6 +15,7 @@ const params = new URLSearchParams(location.search);
 const filter = params.get('filter') || '';
 const spin = params.has('spin');
 const view = params.get('view') || '34';
+const showLod = params.has('lod');
 if (params.get('cols')) document.documentElement.style.setProperty('--cols', params.get('cols'));
 
 const VIEW_DIRS = {
@@ -30,7 +32,8 @@ async function main() {
   const mat = objectMaterial(tex);
 
   const grid = document.getElementById('grid');
-  const specs = [...CATALOG.values()].filter(s => !filter || s.id.includes(filter) || (s.name || '').includes(filter));
+  const terms = filter.split(',').filter(Boolean);
+  const specs = [...CATALOG.values()].filter(s => !terms.length || terms.some(f => s.id.includes(f) || (s.name || '').includes(f)));
   const cells = [];
   let totalTris = 0, errors = 0;
 
@@ -53,7 +56,8 @@ async function main() {
       for (const k of ['name', 'cat', 'sfx']) if (!spec[k]) warns.push(`missing ${k}`);
       label.innerHTML = `<b>${spec.name || '?'}</b> <span class="meta">${spec.id}</span><br>` +
         `<span class="meta">${formatLength(w)} × ${formatLength(h)} × ${formatLength(d)} · ${spec.tris} tris · ${spec.cat || '-'} · ${spec.sfx || '-'}` +
-        `${spec.mover ? ' · ' + spec.mover.kind : ''}${spec.tints ? ' · tint×' + spec.tints.length : ''}</span>` +
+        `${spec.mover ? ' · ' + spec.mover.kind : ''}${spec.tints ? ' · tint×' + spec.tints.length : ''}` +
+        `${spec.lod ? ' · LOD ' + spec.lodTris : ''}</span>` +
         (warns.length ? `<br><span class="warn">${warns.join('; ')}</span>` : '');
 
       const scene = new THREE.Scene();
@@ -74,6 +78,24 @@ async function main() {
         mesh.computeBoundingSphere();
       } else {
         mesh = new THREE.Mesh(spec.geometry, mat);
+      }
+      if (showLod && spec.lod) {
+        // the stand-in, same instances, one model-width to the right
+        const n = mesh.isInstancedMesh ? mesh.count : 0;
+        const lm = n ? new THREE.InstancedMesh(spec.lod, mat, n) : new THREE.Mesh(spec.lod, mat);
+        for (let i = 0; i < n; i++) {
+          const m4 = new THREE.Matrix4(), c = new THREE.Color();
+          mesh.getMatrixAt(i, m4);
+          lm.setMatrixAt(i, m4);
+          mesh.getColorAt(i, c);
+          lm.setColorAt(i, c);
+        }
+        const group = new THREE.Group();
+        const span = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3()).x * 1.1;
+        lm.position.x = span;
+        group.add(mesh, lm);
+        if (lm.isInstancedMesh) lm.computeBoundingSphere();
+        mesh = group;
       }
       scene.add(mesh);
       const ground = new THREE.Mesh(

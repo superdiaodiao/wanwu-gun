@@ -4,17 +4,17 @@ import './catalog/index.js';
 import { CATALOG } from './catalog/registry.js';
 import { buildAtlas, loadFonts, atlasTexture, repaintAtlas } from './core/atlas.js';
 import { objectMaterial, U as MU } from './core/materials.js';
-import { buildSpec } from './core/assets.js';
+import { buildSpec, LOD_PART } from './core/assets.js';
 import { Engine } from './game/engine.js';
 import { Sky } from './game/sky.js';
 import { Ground } from './game/ground.js';
 import { World } from './game/world.js';
 import { buildLayout } from './game/layout.js';
 import { Movers } from './game/movers.js';
-import { Ball, GROW, PICK_RATIO } from './game/ball.js';
+import { Ball, GROW, PICK_RATIO, STUCK } from './game/ball.js';
 import { Player } from './game/player.js';
 import { CameraRig } from './game/camera.js';
-import { Input } from './game/input.js';
+import { Input, Driver } from './game/input.js';
 import { FX } from './game/fx.js';
 import { Preview } from './game/preview.js';
 import { HUD, fmt } from './game/hud.js';
@@ -34,9 +34,10 @@ const store = {
 const G = {
   state: 'loading', mode: 'timed', time: 0, t: 0, milestone: 0, events: [],
   finale: null, toastCd: 0, tickSec: -1, hurry: false, cullT: 0, patched: false, prelaunch: null,
-  hinted: new Set(), hintCd: 0, idleT: 0, nudgeCd: 20,
+  hinted: new Set(), hintCd: 0, idleT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
 };
 let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material;
+let driver = new Driver();
 let giant = null; // 女娲 towering in the sky during the intro and the finale
 let ballCam = null; // results-screen portrait of the finished ball
 let lastT = performance.now() / 1000;
@@ -64,7 +65,8 @@ async function boot() {
   const fontsDone = loadFonts(12000);
   await Promise.race([fontsDone, new Promise(r => setTimeout(r, 600))]);
   T.fonts = performance.now();
-  fontsDone.then(() => repaintAtlas());
+  // late fonts get repainted into the atlas, but not mid-game: the re-upload would hitch
+  fontsDone.then(() => (G.atlasStale = true));
   await nextFrame();
   buildAtlas();
   material = objectMaterial(atlasTexture());
@@ -113,6 +115,7 @@ async function boot() {
   resetGame('timed');
   enterTitle();
   // compile shaders before the first visible frame
+  updateView(ball.displayS);
   engine.renderer.compile(engine.scene, engine.camera);
   T.compile = performance.now();
   const r = k => Math.round(T[k] - T.t0);
@@ -233,6 +236,10 @@ function resetGame(mode) {
   movers = new Movers(world, layout);
   const s = layout.start;
   ball.reset(START_SIZE, s.x, s.z, s.heading);
+  driver = new Driver();
+  ap.target = null;
+  ap.skip.clear();
+  ap.escape = 0;
   ball.group.visible = true;
   player.visible = true;
   sky.u.uHole.value = 1;
@@ -411,12 +418,52 @@ function togglePause(force) {
 function loop() {
   requestAnimationFrame(loop);
   const now = performance.now() / 1000;
-  let dt = Math.min(0.05, Math.max(0, now - lastT));
+  const raw = now - lastT;
+  let dt = Math.min(0.05, Math.max(0, raw));
   lastT = now;
   if (G.state === 'pause') dt = 0;
   G.t += dt;
+  if (G.atlasStale && G.state !== 'play' && G.state !== 'finale') {
+    G.atlasStale = false;
+    repaintAtlas();
+  }
   step(dt);
   render(dt);
+  adaptResolution(raw);
+}
+
+// ---- adaptive resolution: trade sharpness for frame rate on slow devices ------------------------
+// Every 2 s of play: under ~45 fps, render fewer pixels (down to 60 %); if that didn't help, the GPU
+// wasn't the bottleneck (or the display is capped at 30 Hz), so undo it and stop trying. Back up
+// again after a while at a solid 60.
+const perf = { acc: 0, n: 0, good: 0, prev: 0, lock: false, fps: 0 };
+function adaptResolution(raw) {
+  if (G.state !== 'play' || raw <= 0 || raw > 0.25) return;
+  perf.acc += raw;
+  perf.n++;
+  if (perf.acc < 2) return;
+  const avg = perf.acc / perf.n;
+  perf.acc = perf.n = 0;
+  perf.fps = 1 / avg;
+  const k = engine.scale;
+  if (perf.prev && avg > perf.prev * 0.92) {
+    // the last step down bought nothing
+    perf.prev = 0;
+    perf.lock = true;
+    engine.setScale(Math.min(1, k / 0.85));
+    return;
+  }
+  perf.prev = 0;
+  if (avg > 1 / 45 && !perf.lock && k > 0.61) {
+    perf.prev = avg;
+    perf.good = 0;
+    engine.setScale(Math.max(0.6, k * 0.85));
+  } else if (avg < 1 / 57 && k < 1) {
+    if (++perf.good >= 3) {
+      perf.good = 0;
+      engine.setScale(Math.min(1, k / 0.85));
+    }
+  } else perf.good = 0;
 }
 
 function hourFor() {
@@ -428,8 +475,26 @@ function hourFor() {
   return 8 + cyc * 13;
 }
 
+/** what to draw this frame, and where the sun's shadow frustum sits */
+function updateView(S) {
+  const focus = G.state === 'play' || G.state === 'pause' || G.state === 'finale' ? ball.group.position : rig.look;
+  const shadowR = Math.max(3, S * 16);
+  // screen pixels covered by 1 m at 1 m: things are drawn while they cover about two pixels, and
+  // keep their full model while the smallest parts it has over the stand-in cover one or two
+  const cam = engine.camera;
+  const F = engine.height / (2 * Math.tan((cam.fov * Math.PI) / 360));
+  const det = engine.q.detail;
+  ball.lodK = ((LOD_PART * F) / 1.5) * det;
+  ball.lodDist = cam.position.distanceTo(ball.group.position) - ball.displayS * 0.25;
+  STUCK.max = engine.q.stuck;
+  // beyond 2 fog lengths everything is >98 % fog: don't draw it
+  G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ((LOD_PART * F) / 1.5) * det, focus, engine.q.shadows ? shadowR * 1.25 : 0);
+  engine.updateShadow(focus, shadowR);
+}
+
 function step(dt) {
-  const inp = G.state === 'play' ? input.poll() : (input.poll(), { throttle: 0, turn: 0, turnImpulse: 0, dash: false });
+  const raw = input.poll();
+  const inp = G.state === 'play' ? driver.update(raw, ball.heading) : { throttle: 0, turn: 0, turnImpulse: 0, dash: false };
   if (G.autopilot && G.state === 'play') Object.assign(inp, autopilot(dt));
   G.events.length = 0;
 
@@ -499,7 +564,6 @@ function step(dt) {
   rig.update(dt, ball, G.t);
   updateGiant(dt, G.t);
   fx.update(dt);
-  world.flush();
 
   // light, sky, fog
   sky.setHour(hourFor());
@@ -515,10 +579,7 @@ function step(dt) {
   engine.scene.fog.color.copy(sky.fogColor);
   // thin haze that follows the ball's scale, capped so the edge of the world always melts into the sky
   engine.scene.fog.density = 1 / Math.min(S * 320 + 1100, 6000);
-  // beyond ~2.6 fog lengths everything is >99.8 % fog: don't draw it
-  world.cullFar(engine.camera.position, 2.6 / engine.scene.fog.density);
-  const focus = G.state === 'play' || G.state === 'pause' || G.state === 'finale' ? ball.group.position : rig.look;
-  engine.updateShadow(focus, Math.max(3, S * 16));
+  updateView(S);
 
   if (G.state === 'play') hud.update(ball.S, G.milestone, G.mode === 'timed' ? GAME_SECONDS - G.time : null, ball.stats.count);
   G.toastCd -= dt;
@@ -771,6 +832,8 @@ function render(dt) {
   r.setViewport(0, 0, engine.width, engine.height);
   r.clear();
   r.render(engine.scene, engine.camera);
+  G.info.calls = r.info.render.calls;
+  G.info.tris = r.info.render.triangles;
   if (G.state === 'play' || G.state === 'pause') lastPreview.render(r, dt);
   if (dialog.active) nuwaPreview.render(r, dt);
   if (G.state === 'results' && G.prelaunch) renderBallPortrait(r, G.t);
@@ -778,8 +841,28 @@ function render(dt) {
 
 // ---- test autopilot: steers to the nearest thing it can roll up ------------------------------
 
-const ap = { target: null, retarget: 0, chase: 0, cands: [], skip: new Set() };
+const ap = { target: null, retarget: 0, chase: 0, cands: [], skip: new Set(), probe: 3, px: 0, pz: 0, escape: 0, escH: 0 };
 function autopilot(dt) {
+  // hardly moved in 3 s (pressed against something too big): give up on that and back off elsewhere
+  ap.probe -= dt;
+  if (ap.probe <= 0) {
+    ap.probe = 3;
+    if (Math.hypot(ball.pos.x - ap.px, ball.pos.z - ap.pz) < ball.S * 1.2 && ap.escape <= 0) {
+      ap.escape = 2.5;
+      ap.escH = ball.heading + Math.PI * (0.6 + Math.random() * 0.8);
+      if (ap.target) ap.skip.add(ap.target);
+      ap.target = null;
+    }
+    ap.px = ball.pos.x;
+    ap.pz = ball.pos.z;
+  }
+  if (ap.escape > 0) {
+    ap.escape -= dt;
+    let d = (ap.escH - ball.heading) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return { throttle: Math.abs(d) < 0.6 ? 1 : 0.3, turn: Math.max(-1, Math.min(1, d * 3)), turnImpulse: 0, dash: false };
+  }
   ap.retarget -= dt;
   const S = ball.S, limit = ball.pickLimit();
   ap.chase += dt;
@@ -838,6 +921,22 @@ window.__wanwu = {
     return out;
   },
   teleport(x, z) { ball.pos.x = x; ball.pos.z = z; rig.snap(ball); },
+  /** average ms for n synchronous frames (update + render + wait for the GPU) */
+  bench(n = 60) {
+    const r = engine.renderer, gl = r.getContext(), px = new Uint8Array(4);
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) {
+      G.t += 1 / 60;
+      step(1 / 60);
+      render(1 / 60);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    }
+    return +((performance.now() - t0) / n).toFixed(2);
+  },
+  /** what the last frame drew */
+  perf() {
+    return { calls: G.info.calls, tris: G.info.tris, instances: G.drawn, scale: engine.scale, fps: +perf.fps.toFixed(1), lock: perf.lock };
+  },
   grow(S) { ball.S = S; ball.Sp = S ** GROW.P; ball.displayS = S; },
   finale: () => startFinale(),
   /** debug camera: look from (x,y,z) at (lx,ly,lz); call with no args to release */

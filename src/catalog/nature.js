@@ -4,7 +4,7 @@
 // lattice surfaces of revolution pushed by seeded noise and painted per face by height and slope.
 import * as THREE from 'three';
 import { def } from './registry.js';
-import { D, shade, mix } from '../core/modeler.js';
+import { D, shade, mix, lodSwap } from '../core/modeler.js';
 import { decal, fitText, FONTS } from '../core/atlas.js';
 
 // ---- noise (seeded 3D value noise) ----------------------------------------------------------------
@@ -65,13 +65,18 @@ function speck(m, base, amt = 0.06, top = 0.1, part = 0.08) {
 const ICO = [0, 1, 2].map(d => new THREE.IcosahedronGeometry(1, d));
 const DOD = new THREE.DodecahedronGeometry(1, 0);
 // cushion: flat-bottomed, domed-top foliage pad (pine tiers, lily clumps)
-const PAD = (() => {
-  const g = ICO[1].clone();
+const cushion = src => {
+  const g = src.clone();
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setY(i, y > 0 ? y * 0.5 : y * 0.2); }
   g.computeVertexNormals();
   return g;
-})();
+};
+const PAD = cushion(ICO[1]);
+// far-away stand-ins use the next coarser sphere
+lodSwap(ICO[2], ICO[1]);
+lodSwap(ICO[1], ICO[0]);
+lodSwap(PAD, cushion(ICO[0]));
 // double-sided leaf / petal with a folded midrib; base at the origin, tip at +Y, face ±Z
 const LEAF = (() => {
   const L = [0, 0, 0], R = [0.5, 0.36, -0.14], T = [0, 1, 0], Q = [-0.5, 0.36, -0.14];

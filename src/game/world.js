@@ -1,9 +1,10 @@
 // World objects: instanced meshes per catalog type, a spatial grid for contact queries, swap-remove
 // when the ball takes something, and knocked-off items flying back into the world.
 //
-// Static instances of big types (buildings, trees, mountains…) are split into spatial chunks so the
-// renderer can frustum-cull them — including in the shadow pass, whose frustum hugs the ball.
-// Moving things (and anything knocked off the ball) live in one per-type "dynamic" container.
+// Every instance is culled on its own each frame and the survivors packed into their type's GPU
+// buffers: each type has a draw distance proportional to its size (a 5 cm dumpling is not drawn
+// 300 m away) and a lighter stand-in model for far away; the shadow pass only gets what is near the
+// ball, whose surroundings the sun's shadow frustum hugs.
 import * as THREE from 'three';
 import { CATALOG } from '../catalog/registry.js';
 import { buildSpec } from '../core/assets.js';
@@ -24,8 +25,10 @@ const Y = new THREE.Vector3(0, 1, 0);
 const X = new THREE.Vector3(1, 0, 0);
 const Z = new THREE.Vector3(0, 0, 1);
 
-const CHUNK = 320; // metres
-const CHUNK_MIN_SIZE = 1; // static types bigger than this (m) are chunked; small items stay in one mesh
+const _ct2 = {};
+const _frustum = new THREE.Frustum();
+const _pv = new THREE.Matrix4();
+const _planes = new Float32Array(24);
 
 export class WorldObject {
   constructor(type, x, y, z, yaw, scale, tint) {
@@ -55,6 +58,25 @@ export class WorldObject {
       this.ox = (sp.hit.ox || 0) * scale;
       this.oz = (sp.hit.oz || 0) * scale;
     }
+    this.parts = null;
+    if (sp.hits) {
+      // several boxes (pillars and a beam, so a small ball can roll through a gate); the object's
+      // own box becomes their union, used by the grid and the camera
+      this.parts = sp.hits.map(p => ({ ox: (p.ox || 0) * scale, oz: (p.oz || 0) * scale, hw: p.hw * scale, hd: p.hd * scale, y0: (p.y0 || 0) * scale, h: p.h * scale }));
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, top = 0;
+      for (const p of this.parts) {
+        x0 = Math.min(x0, p.ox - p.hw);
+        x1 = Math.max(x1, p.ox + p.hw);
+        z0 = Math.min(z0, p.oz - p.hd);
+        z1 = Math.max(z1, p.oz + p.hd);
+        top = Math.max(top, p.y0 + p.h);
+      }
+      this.ox = (x0 + x1) / 2;
+      this.oz = (z0 + z1) / 2;
+      this.hw = (x1 - x0) / 2;
+      this.hd = (z1 - z0) / 2;
+      this.h = top;
+    }
     this.cyl = sp.shape === 'cyl';
     this.cr = Math.max(this.hw, this.hd) * 0.92; // cylinder radius
     this.gridR = Math.hypot(this.hw + Math.abs(this.ox), this.hd + Math.abs(this.oz));
@@ -74,50 +96,85 @@ export class WorldObject {
   centerZ() { return this.z - this.ox * Math.sin(this.yaw) + this.oz * Math.cos(this.yaw); }
 }
 
-/** one InstancedMesh holding some of a type's instances */
-class Container {
-  constructor(world, type, cap, dynamic) {
+// Instanced meshes for the shadow pass live on this layer only: the sun's shadow camera renders
+// it, the main camera doesn't (see Packed).
+export const SHADOW_LAYER = 2;
+
+function instMesh(world, t, geometry, cap, name, color) {
+  const mesh = new THREE.InstancedMesh(geometry, world.material, cap);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  if (color) {
+    mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
+    mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  }
+  mesh.count = 0;
+  mesh.frustumCulled = false; // culled per instance in pack()
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  mesh.name = name;
+  mesh.visible = false;
+  world.scene.add(mesh);
+  return mesh;
+}
+
+/**
+ * All instances of one type. Matrices live in a CPU-side array; every frame the instances near
+ * enough and in view are packed into the GPU buffers — near ones into the full model's, far ones
+ * into the far-away stand-in's — and only those are drawn. A third mesh, seen only by the shadow
+ * camera, gets the ones close to the ball.
+ */
+class Packed {
+  constructor(world, type, cap) {
     this.world = world;
     this.type = type;
-    this.dynamic = dynamic;
     this.objs = [];
-    this.cap = Math.max(1, cap);
-    this.mesh = this.makeMesh(this.cap);
-    this.dirty = false;
-    this.colorDirty = false;
+    this.cap = Math.max(4, cap);
+    this.mats = new Float32Array(this.cap * 16);
+    this.cols = type.hasTint ? new Float32Array(this.cap * 3).fill(1) : null;
+    this.sph = new Float32Array(this.cap * 4); // bounding sphere per instance: x, y, z, r
+    this.dirty = true; // something moved, came or went since the last pack
+    this.lastF = new Int32Array(this.cap).fill(-1);
+    this.lastL = new Int32Array(this.cap).fill(-1);
+    this.makeMeshes(this.cap);
   }
 
-  makeMesh(cap) {
-    const t = this.type;
-    const mesh = new THREE.InstancedMesh(t.spec.geometry, this.world.material, cap);
-    mesh.instanceMatrix.setUsage(this.dynamic ? THREE.DynamicDrawUsage : THREE.StaticDrawUsage);
-    if (t.hasTint) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
-    mesh.count = 0;
-    mesh.frustumCulled = !this.dynamic;
-    mesh.castShadow = t.castShadow;
-    mesh.receiveShadow = true;
-    mesh.name = t.spec.id;
-    mesh.visible = t.visible;
-    this.world.scene.add(mesh);
-    return mesh;
+  makeMeshes(cap) {
+    const t = this.type, id = t.spec.id;
+    this.mesh = instMesh(this.world, t, t.spec.geometry, cap, id, t.hasTint);
+    this.lod = t.spec.lod ? instMesh(this.world, t, t.spec.lod, cap, id + ':lod', t.hasTint) : null;
+    this.shadow = null; // made on first use
+  }
+
+  shadowMesh() {
+    if (!this.shadow) {
+      const t = this.type;
+      const m = (this.shadow = instMesh(this.world, t, t.spec.geometry, this.cap, t.spec.id + ':shadow', false));
+      m.castShadow = true;
+      m.layers.set(SHADOW_LAYER);
+    }
+    return this.shadow;
   }
 
   grow() {
-    const old = this.mesh;
+    const old = [this.mesh, this.lod, this.shadow];
     this.cap *= 2;
-    this.mesh = this.makeMesh(this.cap);
-    for (let i = 0; i < this.objs.length; i++) {
-      old.getMatrixAt(i, _m);
-      this.mesh.setMatrixAt(i, _m);
-      if (this.type.hasTint) {
-        old.getColorAt(i, _c);
-        this.mesh.setColorAt(i, _c);
-      }
+    const grow = (arr, n, fill = 0) => {
+      const out = new arr.constructor(this.cap * n).fill(fill);
+      out.set(arr);
+      return out;
+    };
+    this.mats = grow(this.mats, 16);
+    if (this.cols) this.cols = grow(this.cols, 3, 1);
+    this.sph = grow(this.sph, 4);
+    this.lastF = new Int32Array(this.cap).fill(-1);
+    this.lastL = new Int32Array(this.cap).fill(-1);
+    this.makeMeshes(this.cap);
+    for (const m of old) {
+      if (!m) continue;
+      this.world.scene.remove(m);
+      m.dispose();
     }
-    this.mesh.count = this.objs.length;
-    this.world.scene.remove(old);
-    old.dispose();
-    this.dirty = this.colorDirty = true;
+    this.dirty = true;
   }
 
   add(o) {
@@ -125,36 +182,143 @@ class Container {
     o.idx = this.objs.length;
     o.cont = this;
     this.objs.push(o);
-    this.mesh.count = this.objs.length;
-    if (o.tint != null) {
-      this.mesh.setColorAt(o.idx, _c.setHex(o.tint));
-      this.colorDirty = true;
+    if (this.cols) {
+      _c.setHex(o.tint != null ? o.tint : 0xffffff);
+      const j = o.idx * 3;
+      this.cols[j] = _c.r;
+      this.cols[j + 1] = _c.g;
+      this.cols[j + 2] = _c.b;
     }
+    this.dirty = true;
   }
 
   remove(o) {
     const i = o.idx;
     const last = this.objs.pop();
     if (last !== o) {
+      const n = this.objs.length;
       this.objs[i] = last;
       last.idx = i;
-      this.mesh.getMatrixAt(this.objs.length, _m);
-      this.mesh.setMatrixAt(i, _m);
-      if (this.type.hasTint) {
-        this.mesh.getColorAt(this.objs.length, _c);
-        this.mesh.setColorAt(i, _c);
-        this.colorDirty = true;
-      }
+      this.mats.copyWithin(i * 16, n * 16, n * 16 + 16);
+      this.sph.copyWithin(i * 4, n * 4, n * 4 + 4);
+      if (this.cols) this.cols.copyWithin(i * 3, n * 3, n * 3 + 3);
     }
-    this.mesh.count = this.objs.length;
-    this.dirty = true;
     o.idx = -1;
     o.cont = null;
+    this.dirty = true;
   }
 
   clear() {
     this.objs.length = 0;
-    this.mesh.count = 0;
+    this.dirty = true;
+  }
+
+  setMatrix(o, m) {
+    m.toArray(this.mats, o.idx * 16);
+    const t = this.type, j = o.idx * 4;
+    // generous: pitch, roll and spin can swing parts beyond the upright bounding sphere
+    const r = t.vr0 * o.scale * (o.mover || o.state === 2 ? 1.5 : 1.05);
+    this.sph[j] = o.x;
+    this.sph[j + 1] = o.y + o.bob + t.vcy0 * o.scale;
+    this.sph[j + 2] = o.z;
+    this.sph[j + 3] = r;
+    this.dirty = true;
+  }
+
+  /**
+   * Pack what is worth drawing this frame: within maxDist of the camera and inside the view planes
+   * (stand-in beyond lodDist); and, for the shadow pass, whatever lies within shadowR of `focus`.
+   * The GPU buffers are only rewritten when the packed set or any matrix changed.
+   */
+  pack(cam, planes, maxDist, lodDist, focus, shadowR) {
+    const objs = this.objs, t = this.type, n = objs.length;
+    const sph = this.sph, lod = this.lod;
+    const far = lod ? lodDist : Infinity;
+    const cx = cam.x, cy = cam.y, cz = cam.z;
+    const lastF = this.lastF, lastL = this.lastL;
+    let nf = 0, nl = 0, changed = this.dirty;
+    const shadows = shadowR > 0 && t.castShadow && t.visible;
+    const sd = shadows ? this.shadowMesh().instanceMatrix.array : null, src = this.mats;
+    const fx = focus.x, fz = focus.z;
+    let ns = 0;
+    if (t.visible) {
+      for (let i = 0; i < n; i++) {
+        const j = i * 4;
+        const x = sph[j], y = sph[j + 1], z = sph[j + 2], r = sph[j + 3];
+        if (shadows) {
+          const ex = x - fx, ez = z - fz, R = shadowR + r;
+          if (ex * ex + ez * ez < R * R) {
+            const a = i * 16, b = ns++ * 16;
+            for (let k = 0; k < 16; k++) sd[b + k] = src[a + k];
+          }
+        }
+        const dx = x - cx, dy = y - cy, dz = z - cz;
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
+        if (d > maxDist) continue;
+        let p = 0;
+        for (; p < 24; p += 4) if (planes[p] * x + planes[p + 1] * y + planes[p + 2] * z + planes[p + 3] < -r) break;
+        if (p < 24) continue;
+        if (d > far) {
+          if (lastL[nl] !== i) { lastL[nl] = i; changed = true; }
+          nl++;
+        } else {
+          if (lastF[nf] !== i) { lastF[nf] = i; changed = true; }
+          nf++;
+        }
+      }
+    }
+    if (nf !== this.mesh.count || (lod && nl !== lod.count)) changed = true;
+    if (changed) {
+      this.copyAll(this.mesh.instanceMatrix.array, lastF, nf);
+      this.commit(this.mesh, lastF, nf);
+      if (lod) {
+        this.copyAll(lod.instanceMatrix.array, lastL, nl);
+        this.commit(lod, lastL, nl);
+      }
+    }
+    this.dirty = false;
+    if (this.shadow) {
+      const m = this.shadow;
+      m.count = ns;
+      m.visible = ns > 0;
+      if (ns) {
+        m.instanceMatrix.clearUpdateRanges();
+        m.instanceMatrix.addUpdateRange(0, ns * 16);
+        m.instanceMatrix.needsUpdate = true;
+      }
+    }
+    return nf + nl;
+  }
+
+  copyAll(dst, idx, count) {
+    const src = this.mats;
+    for (let s = 0; s < count; s++) {
+      const a = idx[s] * 16, b = s * 16;
+      for (let k = 0; k < 16; k++) dst[b + k] = src[a + k];
+    }
+  }
+
+  commit(mesh, idx, count) {
+    mesh.count = count;
+    mesh.visible = count > 0;
+    if (!count) return;
+    const im = mesh.instanceMatrix;
+    im.clearUpdateRanges();
+    im.addUpdateRange(0, count * 16);
+    im.needsUpdate = true;
+    const ic = mesh.instanceColor;
+    if (ic) {
+      const src = this.cols, dst = ic.array;
+      for (let s = 0; s < count; s++) {
+        const a = idx[s] * 3, b = s * 3;
+        dst[b] = src[a];
+        dst[b + 1] = src[a + 1];
+        dst[b + 2] = src[a + 2];
+      }
+      ic.clearUpdateRanges();
+      ic.addUpdateRange(0, count * 3);
+      ic.needsUpdate = true;
+    }
   }
 }
 
@@ -162,23 +326,22 @@ class TypeRec {
   constructor(spec) {
     this.spec = spec;
     this.all = [];
-    this.chunks = new Map();
-    this.dyn = null;
+    this.dyn = null; // the Packed container, made in finalize()
     this.visible = true;
     this.castShadow = true;
-    this.chunked = spec.maxDim > CHUNK_MIN_SIZE;
     this.hasTint = !!(spec.tints && spec.tints.length && spec.geometry.userData.tinted);
-  }
-
-  *containers() {
-    yield* this.chunks.values();
-    if (this.dyn) yield this.dyn;
+    // bounding sphere of the model around its origin's vertical axis (unscaled)
+    const g = spec.geometry;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    const bs = g.boundingSphere;
+    this.vr0 = Math.hypot(bs.center.x, bs.center.z) + bs.radius;
+    this.vcy0 = bs.center.y;
+    this.size = spec.maxDim; // largest instance's size, from finalize()
+    this.dd = Infinity; // current draw distance
   }
 
   get count() {
-    let n = 0;
-    for (const c of this.containers()) n += c.objs.length;
-    return n;
+    return this.dyn ? this.dyn.objs.length : 0;
   }
 }
 
@@ -245,59 +408,20 @@ export class World {
     return o;
   }
 
-  chunkKey(x, z) {
-    return (Math.floor(x / CHUNK) + 512) * 1024 + (Math.floor(z / CHUNK) + 512);
-  }
-
-  /** the container an object belongs in right now */
+  /** the container an object belongs in */
   containerFor(o) {
     const t = o.type;
-    if (o.mover || o.state === 2 || !t.chunked) {
-      if (!t.dyn) t.dyn = new Container(this, t, t._dynCap || 4, !!o.mover || o.state === 2);
-      return t.dyn;
-    }
-    const k = this.chunkKey(o.x, o.z);
-    let c = t.chunks.get(k);
-    if (!c) {
-      c = new Container(this, t, (t._chunkCaps && t._chunkCaps.get(k)) || 4, false);
-      t.chunks.set(k, c);
-    }
-    return c;
+    if (!t.dyn) t.dyn = new Packed(this, t, t.all.length + 4);
+    return t.dyn;
   }
 
   /** Create the instanced meshes once every object is placed. */
   finalize() {
     this.material = objectMaterial(atlasTexture());
     for (const t of this.types.values()) {
-      // size containers to their contents up front
-      t._chunkCaps = new Map();
-      let loose = 0;
-      let moving = false;
-      for (const o of t.all) {
-        if (o.mover || !t.chunked) {
-          loose++;
-          if (o.mover) moving = true;
-        } else {
-          const k = this.chunkKey(o.x, o.z);
-          t._chunkCaps.set(k, (t._chunkCaps.get(k) || 0) + 1);
-        }
-      }
-      t._dynCap = Math.max(4, loose + 4);
-      // the loose container of a type that has movers must never be frustum-culled
-      if (moving || t.chunked) t.dyn = new Container(this, t, t._dynCap, true);
+      for (const o of t.all) t.size = Math.max(t.size, t.spec.maxDim * o.scale);
+      t.dyn = new Packed(this, t, t.all.length + 4);
       for (const o of t.all) this.attach(o);
-    }
-    this.refreshBounds();
-  }
-
-  refreshBounds() {
-    for (const t of this.types.values()) {
-      for (const c of t.containers()) {
-        if (c.mesh.frustumCulled && c.objs.length) {
-          c.mesh.boundingSphere = null;
-          c.mesh.computeBoundingSphere();
-        }
-      }
     }
   }
 
@@ -305,7 +429,7 @@ export class World {
   resetAll() {
     this.grid = new SpatialGrid();
     this.flyers.length = 0;
-    for (const t of this.types.values()) for (const c of t.containers()) c.clear();
+    for (const t of this.types.values()) if (t.dyn) t.dyn.clear();
     for (const o of this.objects) {
       const g = o.orig;
       o.x = g.x;
@@ -324,7 +448,6 @@ export class World {
       o.mover = g.mover ? JSON.parse(JSON.stringify(g.mover)) : null;
       this.attach(o);
     }
-    this.refreshBounds();
   }
 
   /** put o into its container and the grid */
@@ -368,23 +491,7 @@ export class World {
 
   writeMatrix(o) {
     if (!o.cont) return;
-    o.cont.mesh.setMatrixAt(o.idx, this.composeMatrix(o, _m));
-    o.cont.dirty = true;
-  }
-
-  flush() {
-    for (const t of this.types.values()) {
-      for (const c of t.containers()) {
-        if (c.dirty) {
-          c.mesh.instanceMatrix.needsUpdate = true;
-          c.dirty = false;
-        }
-        if (c.colorDirty && c.mesh.instanceColor) {
-          c.mesh.instanceColor.needsUpdate = true;
-          c.colorDirty = false;
-        }
-      }
-    }
+    o.cont.setMatrix(o, this.composeMatrix(o, _m));
   }
 
   /**
@@ -392,10 +499,26 @@ export class World {
    * { nx, nz, depth, low } with the horizontal push-out normal (object → ball).
    */
   contact(o, c, r, out) {
+    if (o.parts) {
+      // deepest contact over the parts
+      let best = null, depth = -1;
+      const cs = Math.cos(o.yaw), sn = Math.sin(o.yaw);
+      for (const p of o.parts) {
+        const cx = o.x + p.ox * cs + p.oz * sn, cz = o.z - p.ox * sn + p.oz * cs;
+        const y0 = o.y + o.bob + p.y0;
+        const ct = this.boxContact(cx, cz, o.yaw, p.hw, p.hd, y0, y0 + p.h, c, r, _ct2);
+        if (ct && ct.depth > depth) {
+          depth = ct.depth;
+          best = Object.assign(out, ct);
+        }
+      }
+      return best;
+    }
+    if (!o.cyl) return this.boxContact(o.centerX(), o.centerZ(), o.yaw, o.hw, o.hd, o.y + o.bob, o.y + o.bob + o.h, c, r, out);
     const cx = o.centerX(), cz = o.centerZ();
     const y0 = o.y + o.bob, y1 = y0 + o.h;
     let px, pz;
-    if (o.cyl) {
+    {
       const dx = c.x - cx, dz = c.z - cz;
       const d = Math.hypot(dx, dz);
       if (d > o.cr) {
@@ -405,16 +528,24 @@ export class World {
         px = c.x;
         pz = c.z;
       }
-    } else {
-      const cs = Math.cos(o.yaw), sn = Math.sin(o.yaw);
-      const wx = c.x - cx, wz = c.z - cz;
-      let lx = wx * cs - wz * sn;
-      let lz = wx * sn + wz * cs;
-      lx = Math.max(-o.hw, Math.min(o.hw, lx));
-      lz = Math.max(-o.hd, Math.min(o.hd, lz));
-      px = cx + lx * cs + lz * sn;
-      pz = cz - lx * sn + lz * cs;
     }
+    return this.finishContact(cx, cz, px, pz, y0, y1, c, r, out);
+  }
+
+  /** sphere (c, r) against a box centred at (cx, cz), turned by yaw, spanning y0..y1 */
+  boxContact(cx, cz, yaw, hw, hd, y0, y1, c, r, out) {
+    const cs = Math.cos(yaw), sn = Math.sin(yaw);
+    const wx = c.x - cx, wz = c.z - cz;
+    let lx = wx * cs - wz * sn;
+    let lz = wx * sn + wz * cs;
+    lx = Math.max(-hw, Math.min(hw, lx));
+    lz = Math.max(-hd, Math.min(hd, lz));
+    const px = cx + lx * cs + lz * sn;
+    const pz = cz - lx * sn + lz * cs;
+    return this.finishContact(cx, cz, px, pz, y0, y1, c, r, out);
+  }
+
+  finishContact(cx, cz, px, pz, y0, y1, c, r, out) {
     const py = Math.max(y0, Math.min(y1, c.y));
     const dx = c.x - px, dy = c.y - py, dz = c.z - pz;
     const d2 = dx * dx + dy * dy + dz * dz;
@@ -440,29 +571,37 @@ export class World {
   /** hide types that became negligible next to the ball (saves GPU) */
   cullTiny(ballDiameter) {
     for (const t of this.types.values()) {
-      const vis = t.spec.maxDim > ballDiameter / 220;
-      const cast = t.spec.maxDim > ballDiameter / 60;
-      if (vis === t.visible && cast === t.castShadow) continue;
-      t.visible = vis;
-      t.castShadow = cast;
-      for (const c of t.containers()) {
-        c.mesh.visible = vis && !c.far;
-        c.mesh.castShadow = cast;
-      }
+      t.visible = t.spec.maxDim > ballDiameter / 220;
+      t.castShadow = t.spec.maxDim > ballDiameter / 60;
     }
   }
 
-  /** skip static chunks the fog has already swallowed */
-  cullFar(cam, maxDist) {
-    for (const t of this.types.values()) {
-      for (const c of t.chunks.values()) {
-        const bs = c.mesh.boundingSphere;
-        if (!bs) continue;
-        const d = Math.hypot(bs.center.x - cam.x, bs.center.y - cam.y, bs.center.z - cam.z) - bs.radius;
-        c.far = d > maxDist;
-        c.mesh.visible = t.visible && !c.far && c.objs.length > 0;
-      }
+  /**
+   * Decide what gets drawn this frame. Each type is drawn out to `sizeK` × its size (about where it
+   * shrinks to a pixel or two) or to `fogDist`, whichever is nearer, and as its stand-in beyond
+   * `lodK` × its size. Chunks are switched on or off; packed things are culled one by one.
+   * `focus`/`keep`: packed things this close to the ball are drawn even when off screen, so they
+   * still cast their shadows into view. Returns how many packed instances were drawn.
+   */
+  updateVisibility(camera, fogDist, sizeK, lodK, focus, shadowR) {
+    const cam = camera.position;
+    camera.updateMatrixWorld();
+    _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    _frustum.setFromProjectionMatrix(_pv, camera.coordinateSystem);
+    for (let i = 0; i < 6; i++) {
+      const pl = _frustum.planes[i];
+      _planes[i * 4] = pl.normal.x;
+      _planes[i * 4 + 1] = pl.normal.y;
+      _planes[i * 4 + 2] = pl.normal.z;
+      _planes[i * 4 + 3] = pl.constant;
     }
+    let drawn = 0;
+    for (const t of this.types.values()) {
+      if (!t.dyn) continue;
+      t.dd = Math.min(fogDist, sizeK * t.size);
+      drawn += t.dyn.pack(cam, _planes, t.dd, lodK * t.size, focus, shadowR);
+    }
+    return drawn;
   }
 
   /** knocked-off items: simple ballistic flight, then they rejoin the world */
@@ -475,9 +614,7 @@ export class World {
     o.pitch = 0;
     o.roll = 0;
     o.bob = 0;
-    const c = this.containerFor(o);
-    c.add(o);
-    c.mesh.frustumCulled = false; // it may land outside the container's original bounds
+    this.containerFor(o).add(o);
     this.writeMatrix(o);
     this.flyers.push(o);
     o.noPickUntil = now + 1.2;
@@ -501,7 +638,7 @@ export class World {
           f.vx *= 0.6;
           f.vz *= 0.6;
         } else {
-          // settle upright and rejoin the world (it stays in the dynamic container)
+          // settle upright and rejoin the world
           o.pitch = 0;
           o.roll = 0;
           o.y = o.baseY || 0;
@@ -509,6 +646,7 @@ export class World {
           o.state = 0;
           this.flyers.splice(i, 1);
           this.grid.insert(o);
+
           if (o.mover) {
             // landed somewhere new: amble around here instead of snapping back to a path or lane
             const k = o.mover.kind;

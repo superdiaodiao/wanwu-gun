@@ -1,4 +1,5 @@
-// Keyboard, mouse drag, touch joystick and gamepad → { throttle, turn, turnImpulse, dash }.
+// Keyboard, mouse drag, touch joystick and gamepad → raw controls; Driver turns them into
+// { throttle, turn, turnImpulse, dash } for the ball.
 export class Input {
   constructor(canvas) {
     this.keys = new Set();
@@ -84,32 +85,35 @@ export class Input {
 
   wasPressed(code) { return this.pressed.has(code); }
 
+  /**
+   * Raw controls this frame. Keyboard: W forward, S turn around, A/D steer. A stick (touch or pad)
+   * gives a direction: { a: angle from straight ahead (+ = right), m: 0..1 }.
+   */
   poll() {
     const k = this.keys;
-    let throttle = 0, turn = 0;
-    if (k.has('KeyW') || k.has('ArrowUp')) throttle += 1;
-    if (k.has('KeyS') || k.has('ArrowDown')) throttle -= 1;
-    if (k.has('KeyA') || k.has('ArrowLeft')) turn -= 1;
-    if (k.has('KeyD') || k.has('ArrowRight')) turn += 1;
+    const fwd = k.has('KeyW') || k.has('ArrowUp');
+    const back = k.has('KeyS') || k.has('ArrowDown');
+    let keyTurn = 0;
+    if (k.has('KeyA') || k.has('ArrowLeft')) keyTurn -= 1;
+    if (k.has('KeyD') || k.has('ArrowRight')) keyTurn += 1;
     let dash = this.pressed.has('Space') || this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight') || this.touchDash;
     this.touchDash = false;
 
+    let stick = null;
     if (this.joy.id !== null) {
-      const dx = (this.joy.x - this.joy.x0) / 46, dy = (this.joy.y - this.joy.y0) / 46;
-      const mag = Math.min(1, Math.hypot(dx, dy));
-      if (mag > 0.12) {
-        throttle = Math.max(-1, Math.min(1, -dy));
-        turn = Math.max(-1, Math.min(1, dx)) * 0.9;
-      }
+      const sx = (this.joy.x - this.joy.x0) / 46, sy = -(this.joy.y - this.joy.y0) / 46;
+      const m = Math.min(1, Math.hypot(sx, sy));
+      if (m > 0.15) stick = { a: Math.atan2(sx, sy), m };
     }
 
+    let padTurn = 0;
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = pads && [...pads].find(p => p && p.connected);
     if (gp) {
       const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, rx = gp.axes[2] || 0;
-      if (Math.abs(ay) > 0.15) throttle = -ay;
-      if (Math.abs(ax) > 0.15) turn = ax;
-      if (Math.abs(rx) > 0.15) turn = Math.max(-1, Math.min(1, turn + rx));
+      const m = Math.min(1, Math.hypot(ax, ay));
+      if (m > 0.2 && !stick) stick = { a: Math.atan2(ax, -ay), m };
+      if (Math.abs(rx) > 0.15) padTurn = rx;
       const d = !!(gp.buttons[0] && gp.buttons[0].pressed);
       if (d && !this.gpDashPrev) dash = true;
       this.gpDashPrev = d;
@@ -121,7 +125,73 @@ export class Input {
     const impulse = this.turnImpulse;
     this.turnImpulse = 0;
     this.pressed.clear();
-    if (!this.enabled) return { throttle: 0, turn: 0, turnImpulse: 0, dash: false };
-    return { throttle, turn, turnImpulse: impulse, dash };
+    if (!this.enabled) return { fwd: false, back: false, keyTurn: 0, padTurn: 0, stick: null, turnImpulse: 0, dash: false };
+    return { fwd, back, keyTurn, padTurn, stick, turnImpulse: impulse, dash };
+  }
+}
+
+const angDiff = (from, to) => {
+  let d = (to - from) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+};
+
+/**
+ * Turns raw controls into { throttle 0..1, turn } for the ball, which never reverses: rolling towards
+ * the camera means rolling blind, and a thumb drifting a little downwards shouldn't back the ball up.
+ *
+ * Stick (touch or pad): up rolls straight ahead (as seen by the camera behind the ball), tilting it
+ * steers while still rolling forwards, and pulling it back swings the ball round in a U-turn, after
+ * which it rolls on. Keyboard: W rolls, A/D steer, S does the U-turn.
+ */
+export class Driver {
+  constructor() {
+    this.uTarget = null; // U-turn: heading to reach
+    this.uDone = false;
+  }
+
+  update(raw, heading) {
+    const BACK = 1.75; // ~100°: further round than this means "turn around"
+    let m = 0, a = 0, wantBack = false;
+    if (raw.stick) {
+      m = raw.stick.m;
+      a = raw.stick.a;
+      wantBack = Math.abs(a) > BACK;
+    } else {
+      m = raw.fwd || raw.back ? 1 : 0;
+      wantBack = raw.back && !raw.fwd;
+      a = raw.keyTurn < 0 ? -Math.PI : Math.PI;
+    }
+    if (!wantBack) {
+      this.uTarget = null;
+      this.uDone = false;
+    } else if (this.uTarget === null) {
+      // lock the heading to reach, turning the way the stick leans
+      this.uTarget = heading + (a >= 0 ? 1 : -1) * (Math.PI - 0.02);
+      this.uDone = false;
+    }
+
+    let throttle, turn;
+    if (this.uTarget !== null && !this.uDone) {
+      const d = angDiff(heading, this.uTarget);
+      if (Math.abs(d) < 0.12) this.uDone = true;
+      turn = Math.sign(d) * 1.5;
+      throttle = 0.35 * m;
+    } else if (this.uTarget !== null) {
+      // round: roll on
+      turn = raw.stick ? 0 : raw.keyTurn;
+      throttle = m;
+    } else if (raw.stick) {
+      // a few degrees either side of straight up still means straight
+      const k = Math.max(0, Math.abs(a) - 0.12) / 0.95;
+      turn = Math.sign(a) * Math.min(1, k ** 1.25);
+      throttle = m * (1 - 0.3 * Math.abs(turn));
+    } else {
+      turn = raw.keyTurn;
+      throttle = raw.fwd ? 1 : 0;
+    }
+    if (raw.padTurn) turn = Math.max(-1.5, Math.min(1.5, turn + raw.padTurn));
+    return { throttle, turn, turnImpulse: raw.turnImpulse, dash: raw.dash };
   }
 }

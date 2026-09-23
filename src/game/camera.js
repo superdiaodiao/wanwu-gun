@@ -15,6 +15,7 @@ export class CameraRig {
     this._cands = [];
     this._ct = {};
     this.lift = 1;
+    this.yaw = 0;
     this.pos = new THREE.Vector3(0, 1, 3);
     this.look = new THREE.Vector3();
     this.shakeT = 0;
@@ -35,10 +36,10 @@ export class CameraRig {
     this.shakeT = 0.35;
   }
 
-  desired(ball, outPos, outLook) {
+  desired(ball, outPos, outLook, yaw = ball.heading) {
     const S = ball.displayS;
     const z = this.zoom;
-    const fx = Math.sin(ball.heading), fz = -Math.cos(ball.heading);
+    const fx = Math.sin(yaw), fz = -Math.cos(yaw);
     const dist = (S * 2.15 + 0.2) * z;
     const height = (S * 1.3 + 0.1) * z;
     const cy = ball.centerY;
@@ -48,6 +49,7 @@ export class CameraRig {
 
   snap(ball) {
     this.zoom = ZOOMS[this.zoomIdx];
+    this.yaw = ball.heading;
     this.desired(ball, this.pos, this.look);
     this.apply(0, 0);
   }
@@ -62,7 +64,12 @@ export class CameraRig {
       return;
     }
     this.zoom += (ZOOMS[this.zoomIdx] - this.zoom) * Math.min(1, dt * 3);
-    this.desired(ball, _d, _l);
+    // swing round the ball on turns (a straight lerp would cut across it on a U-turn)
+    let dy = (ball.heading - this.yaw) % (Math.PI * 2);
+    if (dy > Math.PI) dy -= Math.PI * 2;
+    if (dy < -Math.PI) dy += Math.PI * 2;
+    this.yaw += dy * Math.min(1, dt * 6);
+    this.desired(ball, _d, _l, this.yaw);
     // camera collision: walk from the ball out to the wanted spot and stop before anything tall
     // (a building wall behind the ball would otherwise swallow the camera)
     let pull = 1;

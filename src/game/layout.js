@@ -169,7 +169,8 @@ export function buildLayout(world, seed = 20260923) {
   // buildings
   for (const x of [-24, 24]) solid('res_6f', x, -52, { yaw: 0 }, 0.6);
   for (const x of [-27, 27]) solid('res_6f', x, 28, { yaw: PI }, 0.6);
-  solid('res_6f', -61, -12, { yaw: HALF }, 0.6);
+  // (no building on the west side: a ball too big for the gaps between the others, but not yet
+  // big enough to eat them, can always leave that way through the perimeter wall)
   solid('res_6f', 61, -12, { yaw: -HALF }, 0.6);
   // perimeter wall with the gate gap on the south side
   const wallRun = (x0, z0, x1, z1) => {

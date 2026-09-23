@@ -8,6 +8,8 @@ varying vec3 vDir;
 void main() {
   vDir = position;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // pin it to the far plane: drawn last, the depth test leaves only the pixels nothing else covered
+  gl_Position.z = gl_Position.w;
 }`;
 
 const FRAG = /* glsl */ `
@@ -159,11 +161,11 @@ export class Sky {
       fragmentShader: FRAG,
       side: THREE.BackSide,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       fog: false,
     });
     this.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
-    this.mesh.renderOrder = -100;
+    this.mesh.renderOrder = 1000; // after every opaque thing, before the transparent effects
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
     this.hour = 9;
@@ -206,8 +208,8 @@ export class Sky {
 
   update(camera, time) {
     this.mesh.position.copy(camera.position);
-    // drawn first without depth, so its distance only has to stay well inside the far plane
-    // (a huge radius loses float precision in the clip test and drops triangles)
+    // any radius works (the vertex shader pins depth to the far plane); a huge one would lose
+    // float precision in the clip test and drop triangles
     this.mesh.scale.setScalar(1200);
     this.u.uTime.value = time;
   }

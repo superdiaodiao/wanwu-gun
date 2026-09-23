@@ -179,9 +179,10 @@ export class Movers {
       const m = o.mover;
       const dxb = o.x - bx, dzb = o.z - bz;
       const db = Math.hypot(dxb, dzb);
-      // far movers tick less often
+      // far movers tick less often, and ones too far away to be drawn at all hardly ever
       m.acc += dt;
-      if (db > near && (this.frame + i) % 4 !== 0 && m.kind !== 'spin' && m.kind !== 'drive') continue;
+      const every = db > o.type.dd + 30 ? 12 : db > near && m.kind !== 'spin' && m.kind !== 'drive' ? 4 : 1;
+      if (every > 1 && (this.frame + i) % every !== 0) continue;
       const step = Math.min(0.25, m.acc);
       m.acc = 0;
 

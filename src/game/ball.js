@@ -10,8 +10,9 @@ export const PICK_RATIO = 0.6; // roll up things smaller than 0.6 × diameter
 // Growth first lands in a `pending` pool that the ball absorbs at most `rate` (fraction of its
 // diameter) per second, so a burst of pickups snowballs smoothly instead of all at once.
 // The rate eases off as the ball grows: quick early, a steady ~×2 per 40 s late.
-export const GROW = { P: 1.5, C: 1.0, cap: 0.1, rate: S => 0.016 + 0.014 / (1 + S / 2), speed: 4.1 };
-const MAX_VISIBLE = 1400;
+export const GROW = { P: 1.5, C: 1.0, cap: 0.1, rate: S => 0.016 + 0.03 / (1 + S / 1.5), speed: 4.1 };
+// most stuck items drawn at once (the smallest go first); set per quality (engine.js QUALITY.stuck)
+export const STUCK = { max: 1400 };
 // The visible stone core shrinks relative to the ball as items pile up (0.9 → 0.7 of the radius),
 // so recent pickups stay on the surface for a long while instead of sinking straight in.
 const ATTACH_K = 0.9; // stuck item centres sit at this × (S / 2)
@@ -81,6 +82,9 @@ export class Ball {
     this.Sp = size ** GROW.P;
     this.pending = 0;
     this.displayS = size;
+    this.expand = 1;
+    this.lodK = 12;
+    this.lodDist = 0;
     this.pos = new THREE.Vector3(x, 0, z);
     this.vel = new THREE.Vector3();
     this.heading = heading;
@@ -110,19 +114,19 @@ export class Ball {
     return rc + (this.displayS / 2 - rc) * 0.55 * this.covered;
   }
   forward(out = _v) { return out.set(Math.sin(this.heading), 0, -Math.cos(this.heading)); }
-  maxSpeed() { return GROW.speed * Math.pow(this.S, 0.93) + 0.12; }
+  maxSpeed() { return GROW.speed * Math.pow(this.S, 0.93) + 0.24; }
   pickLimit() { return this.S * PICK_RATIO; }
   speed() { return Math.hypot(this.vel.x, this.vel.z); }
 
   /**
-   * input: { throttle -1..1, turn -1..1, dash bool }
+   * input: { throttle 0..1, turn -1..1 (a U-turn may pass up to ±1.5), dash bool }
    * events: array receiving { type: 'pickup' | 'bump' | 'knock', ... }
    */
   update(dt, input, now, events) {
     const vmax = this.maxSpeed();
     // steering: slower turns at speed, like a heavy ball
     const sp = this.speed();
-    const turnRate = 2.3 - 0.9 * Math.min(1, sp / vmax);
+    const turnRate = 3.0 - 1.0 * Math.min(1, sp / vmax);
     this.heading += input.turn * turnRate * dt;
 
     const fx = Math.sin(this.heading), fz = -Math.cos(this.heading);
@@ -141,7 +145,6 @@ export class Ball {
     const cap = vmax * (dashing ? 1.85 : 1);
     const acc = vmax * 1.7;
     if (input.throttle > 0.05) vf += input.throttle * acc * dt;
-    else if (input.throttle < -0.05) vf += input.throttle * acc * (vf > 0 ? 1.6 : 0.8) * dt;
     else vf *= Math.exp(-1.4 * dt);
     vf = Math.max(-vmax * 0.55, Math.min(cap, vf));
     if (!dashing && vf > vmax) vf += (vmax - vf) * Math.min(1, dt * 3);
@@ -153,14 +156,17 @@ export class Ball {
 
     // contacts
     this.pos.y = this.r;
-    const cands = this.world.grid.query(this.pos.x, this.pos.z, this.r * 1.02, this._cands || (this._cands = []), this.S / 90);
+    // things small enough to take are grabbed from a little way off, so near misses still count
+    const MAGNET = 1.15;
+    const cands = this.world.grid.query(this.pos.x, this.pos.z, this.r * MAGNET, this._cands || (this._cands = []), this.S / 90);
     const limit = this.pickLimit();
     for (let i = 0; i < cands.length; i++) {
       const o = cands[i];
       if (o.state !== 0) continue;
-      const ct = this.world.contact(o, this.pos, this.r, _ct);
+      const pickable = o.size <= limit && now >= o.noPickUntil;
+      const ct = this.world.contact(o, this.pos, pickable ? this.r * MAGNET : this.r, _ct);
       if (!ct) continue;
-      if (o.size <= limit && now >= o.noPickUntil) this.pick(o, now, events);
+      if (pickable) this.pick(o, now, events);
       else this.collide(o, ct, now, events);
     }
 
@@ -181,11 +187,14 @@ export class Ball {
       this.pending -= a;
       this.S = this.Sp ** (1 / GROW.P);
     }
-    // grow smoothly toward the true size; stuck items ride outward with the surface
+    // grow smoothly toward the true size; stuck items ride outward with the surface (in steps of
+    // half a percent, so the whole ball isn't rewritten every frame)
     const prevDisp = this.displayS;
     this.displayS += (this.S - this.displayS) * Math.min(1, dt * 5);
-    if (this.displayS !== prevDisp && prevDisp > 0) {
-      const f = this.displayS / prevDisp;
+    if (prevDisp > 0) this.expand *= this.displayS / prevDisp;
+    if (Math.abs(this.expand - 1) > 0.005) {
+      const f = this.expand;
+      this.expand = 1;
       for (let i = 0; i < this.visible.length; i++) {
         const e = this.visible[i];
         e.pos.multiplyScalar(f);
@@ -281,7 +290,7 @@ export class Ball {
     const id = o.spec.id;
     let st = this.stuckTypes.get(id);
     if (!st) {
-      st = { spec: o.spec, cap: 8, mesh: null, entries: [], hasTint: o.type.hasTint, dirty: false };
+      st = { spec: o.spec, cap: 8, mesh: null, entries: [], hasTint: o.type.hasTint, dirty: false, lod: false };
       st.mesh = this.makeStuckMesh(st, st.cap);
       this.stuckTypes.set(id, st);
     }
@@ -305,7 +314,7 @@ export class Ball {
   }
 
   makeStuckMesh(st, cap) {
-    const mesh = new THREE.InstancedMesh(st.spec.geometry, this.material, cap);
+    const mesh = new THREE.InstancedMesh(st.lod ? st.spec.lod : st.spec.geometry, this.material, cap);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     if (st.hasTint) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
     mesh.count = 0;
@@ -387,6 +396,15 @@ export class Ball {
   }
 
   cleanup() {
+    // things that have become small next to the ball switch to their far-away stand-ins (lodDist and
+    // lodK come from the camera, see main.js updateView)
+    for (const st of this.stuckTypes.values()) {
+      const lod = !!st.spec.lod && st.spec.maxDim * this.lodK < this.lodDist;
+      if (lod !== st.lod) {
+        st.lod = lod;
+        st.mesh.geometry = lod ? st.spec.lod : st.spec.geometry;
+      }
+    }
     // items keep riding on the surface; only drop what has become a speck next to the ball
     const speck = this.S * 0.012;
     for (let i = this.visible.length - 1; i >= 0; i--) {
@@ -397,9 +415,9 @@ export class Ball {
         this.buried++;
       }
     }
-    if (this.visible.length > MAX_VISIBLE) {
+    if (this.visible.length > STUCK.max) {
       const sorted = [...this.visible].sort((a, b) => a.o.radius - b.o.radius || a.born - b.born);
-      const n = this.visible.length - MAX_VISIBLE;
+      const n = this.visible.length - STUCK.max;
       for (let i = 0; i < n; i++) {
         this.removeStuck(sorted[i]);
         this.buried++;
@@ -482,7 +500,8 @@ export class Ball {
       if (e.t < 1) {
         e.t = Math.min(1, e.t + dt / 0.16);
         this.writeStuck(e, time);
-      } else if (e.wiggle || e.moved) {
+      } else if (e.moved || (e.wiggle && e.o.radius > this.r * 0.08)) {
+        // (people and animals too small to see among the clutter stop wriggling)
         this.writeStuck(e, time);
       }
       e.moved = false;

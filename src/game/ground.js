@@ -1,7 +1,8 @@
 // Ground: flat zone layers (grass, asphalt, tiled sidewalks, plaza stone, bricks, water, fields…)
-// painted procedurally in world space so they read at 1 cm and at 1 km. Layers are drawn in order
-// without depth (no z-fighting between coplanar zones); a depth-only plane then lets the ground
-// hide anything below y = 0 (items stuck to the bottom of the ball).
+// painted procedurally in world space so they read at 1 cm and at 1 km. Layers are drawn without
+// depth (no z-fighting between coplanar zones), topmost first, each marking the stencil so the ones
+// below skip those pixels: every ground pixel runs one zone shader. A depth-only plane then lets
+// the ground hide anything below y = 0 (items stuck to the bottom of the ball).
 import * as THREE from 'three';
 
 export const ZONES = [
@@ -146,6 +147,10 @@ function zoneMaterial(kind) {
   const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   mat.depthTest = false;
   mat.depthWrite = false;
+  mat.stencilWrite = true;
+  mat.stencilRef = 1;
+  mat.stencilFunc = THREE.NotEqualStencilFunc;
+  mat.stencilZPass = THREE.ReplaceStencilOp;
   mat.onBeforeCompile = sh => {
     sh.uniforms.uTime = shared.uTime;
     sh.vertexShader = sh.vertexShader
@@ -153,7 +158,10 @@ function zoneMaterial(kind) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${COMMON}\nvec3 zoneColor(vec2 p, vec2 fw) {\n${KIND_CODE[kind]}\n}`)
-      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( zoneColor(vWPos.xz, fwidth(vWPos.xz)), opacity );');
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( zoneColor(vWPos.xz, fwidth(vWPos.xz)), opacity );')
+      // no depth test or write, so no need for the log-depth write, which would also turn off the
+      // early stencil test that skips covered layers
+      .replace('#include <logdepthbuf_fragment>', '');
   };
   mat.customProgramCacheKey = () => 'zone-' + kind;
   return mat;
@@ -214,7 +222,8 @@ export class Ground {
   /** zones: { kind: [polygon, ...] } where polygon = [[x, z], ...] */
   build(zones, baseRadius = 20000) {
     const base = new THREE.CircleGeometry(baseRadius, 96).rotateX(-Math.PI / 2);
-    this.addMesh('grass', base, -60);
+    // drawn last of the ground: it only fills what no zone covers
+    this.addMesh('grass', base, -43);
     ZONES.forEach((kind, i) => {
       const polys = zones[kind];
       if (!polys || !polys.length) return;
@@ -242,7 +251,7 @@ export class Ground {
       const nor = new Float32Array(pos.length);
       for (let j = 1; j < nor.length; j += 3) nor[j] = 1;
       g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-      this.addMesh(kind, g, -58 + i);
+      this.addMesh(kind, g, -44 - i); // later zones sit on top, so they draw first
     });
     // depth-only plane so the ground occludes what is below it
     const depth = new THREE.Mesh(

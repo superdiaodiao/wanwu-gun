@@ -25,7 +25,32 @@ export function buildSpec(spec) {
   const footprintAspect = Math.max(w, d) / Math.max(1e-6, Math.min(w, d));
   spec.shape = spec.shape || (footprintAspect < 1.5 ? 'cyl' : 'box');
   spec.tris = m.tris;
+  buildLod(spec, g, m.draws);
   return spec;
+}
+
+// parts smaller than this fraction of the model's size are dropped from its far-away stand-in
+export const LOD_PART = 0.02;
+
+/** A lighter stand-in used far away (see Model's lod option); kept only if it saves a good share. */
+function buildLod(spec, g, replay) {
+  spec.lod = null;
+  if (spec.tris < 240) return;
+  const m = new Model(hashString(spec.id), { minPart: spec.maxDim * LOD_PART, replay });
+  try {
+    spec.build(m, spec);
+  } catch (e) {
+    return;
+  }
+  if (!m.tris || m.tris > spec.tris * 0.75) return;
+  const lg = m.build({ lift: false });
+  // same placement as the full model even if its lowest part was dropped
+  if (g.userData.liftedBy) lg.translate(0, g.userData.liftedBy, 0);
+  lg.boundingSphere = g.boundingSphere.clone();
+  lg.boundingBox = g.boundingBox.clone();
+  lg.userData.tinted = g.userData.tinted;
+  spec.lod = lg;
+  spec.lodTris = m.tris;
 }
 
 /** Human readable length: 3.2 mm / 4.5 cm / 1.25 m / 1.3 km */

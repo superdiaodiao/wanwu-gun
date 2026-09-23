@@ -77,8 +77,33 @@ function unitPrism(kind) {
   });
 }
 
+// geometries with a lighter equivalent for LOD builds (e.g. a finer icosphere → a coarser one)
+const LOD_SWAP = new Map();
+export function lodSwap(g, lighter) { LOD_SWAP.set(g, lighter); }
+
+// bounding-box size of each (cached, unit) primitive geometry
+const boxSize = new WeakMap();
+function sizeOf(g) {
+  let s = boxSize.get(g);
+  if (!s) {
+    g.computeBoundingBox();
+    s = new THREE.Vector3();
+    g.boundingBox.getSize(s);
+    boxSize.set(g, s);
+  }
+  return s;
+}
+const _ext = [0, 0, 0];
+
 export class Model {
-  constructor(seed = 1) {
+  /**
+   * lod: build a lighter stand-in for far away — { minPart, replay } drops parts that would shrink
+   * below a pixel or two at the distance it is used from (tiny blobs, thin short bars) and halves the
+   * segment counts of round things. Colour functions draw random numbers per vertex, so fewer
+   * vertices would shift everything built after them: `replay` (the full build's `draws`) puts the
+   * random stream back where the full build had it after every part, so colours and layout match.
+   */
+  constructor(seed = 1, lod = null) {
     this.P = []; this.N = []; this.C = []; this.U = []; this.G = []; this.T = [];
     this.stack = [new THREE.Matrix4()];
     this._glow = 0;
@@ -86,6 +111,25 @@ export class Model {
     this._jitter = 0;
     this.rng = new RNG(seed);
     this.tris = 0;
+    this.minPart = lod ? lod.minPart : 0;
+    this.replay = lod ? lod.replay : null;
+    this.draws = []; // random numbers drawn inside each geo() call
+    this._decal = false;
+  }
+
+  /** segment count for round primitives (halved in a LOD build) */
+  seg(n, min = 4) { return this.minPart ? Math.max(min, Math.ceil(n / 2)) : n; }
+
+  /** in a LOD build: is this part (unit geometry g under matrix m) too small to keep? */
+  tooSmall(g, m) {
+    const s = sizeOf(g), e = m.elements;
+    _ext[0] = Math.hypot(e[0], e[1], e[2]) * s.x;
+    _ext[1] = Math.hypot(e[4], e[5], e[6]) * s.y;
+    _ext[2] = Math.hypot(e[8], e[9], e[10]) * s.z;
+    _ext.sort((a, b) => b - a);
+    const mp = this.minPart, big = _ext[0], mid = _ext[1];
+    if (this._decal) return mid < mp * 2; // lettering is unreadable long before it vanishes
+    return big < mp || (mid < mp * 0.5 && big < mp * 2.5);
   }
 
   get matrix() { return this.stack[this.stack.length - 1]; }
@@ -118,6 +162,15 @@ export class Model {
    * uvRect: optional atlas rectangle (from getUV) to map the geometry's own 0..1 uvs into.
    */
   geo(g, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, uvRect = null) {
+    const rng = this.rng, a0 = rng.a, c0 = rng.calls;
+    this.addGeo(g, col, x, y, z, rx, ry, rz, sx, sy, sz, uvRect);
+    if (this.replay) rng.seek(a0, this.replay[this.draws.length] || 0);
+    this.draws.push(rng.calls - c0);
+    return this;
+  }
+
+  addGeo(g, col, x, y, z, rx, ry, rz, sx, sy, sz, uvRect) {
+    if (this.minPart && LOD_SWAP.has(g)) g = LOD_SWAP.get(g);
     if (g.index) g = g.toNonIndexed();
     _local.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(sx, sy, sz));
     _m.multiplyMatrices(this.matrix, _local);
@@ -137,6 +190,7 @@ export class Model {
         cr *= k; cg *= k; cb *= k;
       }
     }
+    if (this.minPart && this.tooSmall(g, _m)) return this;
     const white = WHITE();
     for (let t = 0; t < n; t += 3) {
       for (let k = 0; k < 3; k++) {
@@ -173,6 +227,7 @@ export class Model {
 
   /** Box with rounded edges (toy look). More triangles: use for hero objects only. */
   rbox(w, h, d, radius, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
+    if (this.minPart) return this.box(w, h, d, col, x, y, z, rx, ry, rz);
     const r = Math.min(radius, w / 2, h / 2, d / 2) * 0.999;
     const key = `rbox:${w.toFixed(4)}:${h.toFixed(4)}:${d.toFixed(4)}:${r.toFixed(4)}`;
     const g = prim(key, () => roundedBox(w, h, d, r));
@@ -181,6 +236,7 @@ export class Model {
 
   /** Cylinder / truncated cone along local Y. */
   cyl(rTop, rBot, h, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seg = 8) {
+    seg = this.seg(seg);
     const R = Math.max(rTop, rBot, 1e-6);
     const a = (rTop / R).toFixed(3), b = (rBot / R).toFixed(3);
     const g = prim(`cyl:${seg}:${a}:${b}`, () => new THREE.CylinderGeometry(+a, +b, 1, seg, 1, false));
@@ -189,6 +245,7 @@ export class Model {
 
   /** Open tube wall (no caps), e.g. cups seen from above, pipes. */
   pipe(r, h, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seg = 10) {
+    seg = this.seg(seg);
     const g = prim(`pipe:${seg}`, () => {
       const outer = new THREE.CylinderGeometry(1, 1, 1, seg, 1, true);
       const inner = new THREE.CylinderGeometry(1, 1, 1, seg, 1, true).scale(-1, 1, 1);
@@ -198,12 +255,14 @@ export class Model {
   }
 
   cone(r, h, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seg = 8) {
+    seg = this.seg(seg);
     const g = prim(`cone:${seg}`, () => new THREE.CylinderGeometry(0, 1, 1, seg, 1, false));
     return this.geo(g, col, x, y, z, rx, ry, rz, r, h, r);
   }
 
   /** Sphere of radius r, optionally stretched (sx, sy, sz) and rotated. */
   sphere(r, col, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0, seg = 8) {
+    seg = this.seg(seg, 5);
     const rings = Math.max(3, Math.round(seg * 0.75));
     const g = prim(`sph:${seg}:${rings}`, () => new THREE.SphereGeometry(1, seg, rings));
     return this.geo(g, col, x, y, z, rx, ry, rz, r * sx, r * sy, r * sz);
@@ -216,6 +275,7 @@ export class Model {
 
   /** Upper half sphere (flat side down at the given centre y). */
   dome(r, col, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0, seg = 8) {
+    seg = this.seg(seg, 5);
     const rings = Math.max(2, Math.round(seg * 0.4));
     const g = prim(`dome:${seg}:${rings}`, () => new THREE.SphereGeometry(1, seg, rings, 0, Math.PI * 2, 0, Math.PI / 2));
     return this.geo(g, col, x, y, z, rx, ry, rz, r * sx, r * sy, r * sz);
@@ -223,13 +283,17 @@ export class Model {
 
   /** Capsule along local Y; total height = len + 2r. */
   capsule(r, len, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seg = 8) {
-    const key = `cap:${seg}:${(len / r).toFixed(3)}`;
-    const g = prim(key, () => new THREE.CapsuleGeometry(1, len / r, 2, seg));
+    seg = this.seg(seg);
+    const caps = this.minPart ? 1 : 2;
+    const key = `cap:${seg}:${caps}:${(len / r).toFixed(3)}`;
+    const g = prim(key, () => new THREE.CapsuleGeometry(1, len / r, caps, seg));
     return this.geo(g, col, x, y, z, rx, ry, rz, r, r, r);
   }
 
   /** Torus: ring radius R, tube radius t; lies in the local XY plane (rotate x by 90° to lay flat). */
   torus(R, t, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, arc = Math.PI * 2, radSeg = 6, tubSeg = 14) {
+    radSeg = this.seg(radSeg, 3);
+    tubSeg = this.seg(tubSeg, 6);
     const key = `tor:${(t / R).toFixed(3)}:${arc.toFixed(3)}:${radSeg}:${tubSeg}`;
     const g = prim(key, () => new THREE.TorusGeometry(1, t / R, radSeg, tubSeg, arc));
     return this.geo(g, col, x, y, z, rx, ry, rz, R, R, R);
@@ -237,6 +301,7 @@ export class Model {
 
   /** Lathe: profile [[radius, y], ...] from bottom to top, revolved around local Y. */
   lathe(profile, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seg = 10) {
+    seg = this.seg(seg, 5);
     const g = new THREE.LatheGeometry(profile.map(p => new THREE.Vector2(Math.max(0, p[0]), p[1])), seg);
     return this.geo(g, col, x, y, z, rx, ry, rz);
   }
@@ -258,6 +323,8 @@ export class Model {
 
   /** Smooth tube through 3D points [[x,y,z], ...] (handles, tails, hoses, strings). */
   tube(points, r, col, seg = 6, closed = false, tubular = 0) {
+    seg = this.seg(seg, 3);
+    if (this.minPart) tubular = Math.max(2, Math.ceil((tubular || Math.max(4, points.length * 4)) / 2));
     const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p[0], p[1], p[2])), closed);
     const g = new THREE.TubeGeometry(curve, tubular || Math.max(4, points.length * 4), r, seg, closed);
     return this.geo(g, col);
@@ -285,6 +352,7 @@ export class Model {
 
   /** Flat disc (double-sided) facing ±Y — puddles, plates, lily pads. */
   disc(r, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seg = 12) {
+    seg = this.seg(seg, 5);
     const g = prim(`disc:${seg}`, () => {
       const a = new THREE.CircleGeometry(1, seg).rotateX(-Math.PI / 2);
       const b = new THREE.CircleGeometry(1, seg).rotateX(Math.PI / 2);
@@ -299,8 +367,10 @@ export class Model {
    */
   decal(w, h, key, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, col = 0xffffff, double = false) {
     const uvr = getUV(key);
+    this._decal = true;
     this.geo(prim('quad', () => new THREE.PlaneGeometry(1, 1)), col, x, y, z, rx, ry, rz, w, h, 1, uvr);
     if (double) this.geo(prim('quadback', () => new THREE.PlaneGeometry(1, 1).rotateY(Math.PI)), col, x, y, z, rx, ry, rz, w, h, 1, uvr);
+    this._decal = false;
     return this;
   }
 
