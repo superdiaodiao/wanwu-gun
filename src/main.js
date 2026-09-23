@@ -18,6 +18,7 @@ import { Input, Driver } from './game/input.js';
 import { FX } from './game/fx.js';
 import { Preview } from './game/preview.js';
 import { HUD, fmt } from './game/hud.js';
+import { Maps } from './game/minimap.js';
 import { Dialog } from './game/dialog.js';
 import * as story from './game/story.js';
 import { audio } from './audio/audio.js';
@@ -35,9 +36,9 @@ const G = {
   state: 'loading', mode: 'timed', time: 0, t: 0, milestone: 0, events: [],
   finale: null, toastCd: 0, tickSec: -1, hurry: false, cullT: 0, patched: false, prelaunch: null,
   hinted: new Set(), hintCd: 0, idleT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
-  gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0,
+  gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0, mapWhole: true, redHinted: false, soundT: 0,
 };
-let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material;
+let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps;
 let driver = new Driver();
 let giant = null; // 女娲 towering in the sky during the intro and the finale
 let ballCam = null; // results-screen portrait of the finished ball
@@ -94,6 +95,9 @@ async function boot() {
   input = new Input($('game'));
   fx = new FX(engine.scene);
   hud = new HUD();
+  maps = new Maps(world, layout);
+  maps.attach($('minimap'));
+  input.lookSurface($('minimap-btn'));
   dialog = new Dialog(audio);
   lastPreview = new Preview($('last-view'), material);
   nuwaPreview = new Preview($('dialog-portrait'), material, { dir: [0.18, 0.1, 1], fill: 1.08, backdrop: 0xf2e3c2 });
@@ -249,6 +253,7 @@ function resetGame(mode) {
   sky.u.uHole.value = 1;
   sky.u.uPatch.value = 0;
   $('hud-last').hidden = true;
+  maps.reset();
   hud.update(ball.S, 0, mode === 'timed' ? GAME_SECONDS : null, 0);
   lastPreview.clear();
 }
@@ -315,6 +320,7 @@ function beginPlay() {
   hud.show(true);
   showTouch(true);
   audio.music('game', { fade: 2 });
+  syncSoundButton();
   setTimeout(() => hud.fadeKeys(), 12000);
 }
 
@@ -347,6 +353,27 @@ function setupUI() {
   cm.addEventListener('change', () => { store.set('music', cm.checked); applyAudioPrefs(); });
   cs.addEventListener('change', () => { store.set('sfx', cs.checked); applyAudioPrefs(); });
   $('btn-pause').addEventListener('click', () => togglePause());
+  $('btn-sound').addEventListener('click', async () => {
+    // silent because it never got going (or was muted): switch it on; otherwise mute
+    if (!audio.running || audio.muted) {
+      try { await audio.init(); } catch {}
+      audio.setMuted(false);
+      await audio.resume();
+    } else audio.setMuted(true);
+    syncSoundButton();
+  });
+  $('minimap-btn').addEventListener('click', () => {
+    if (!input.justSwiped() && G.state === 'play') togglePause(true);
+  });
+  const mapTab = whole => {
+    G.mapWhole = whole;
+    $('map-all').setAttribute('aria-pressed', String(whole));
+    $('map-near').setAttribute('aria-pressed', String(!whole));
+    drawPauseMap();
+  };
+  $('map-all').addEventListener('click', () => mapTab(true));
+  $('map-near').addEventListener('click', () => mapTab(false));
+  addEventListener('resize', drawPauseMap);
   $('btn-resume').addEventListener('click', () => togglePause(false));
   $('btn-restart').addEventListener('click', () => { $('pause').hidden = true; startGame(G.mode); });
   $('btn-home').addEventListener('click', () => { $('pause').hidden = true; audio.music(null); resetGame('timed'); enterTitle(); });
@@ -401,11 +428,25 @@ function setupUI() {
   window.addEventListener('pointerdown', wake);
 }
 
+function syncSoundButton() {
+  const off = !audio.running || audio.muted;
+  const b = $('btn-sound');
+  b.classList.toggle('off', off);
+  b.setAttribute('aria-label', off ? '打开声音' : '静音');
+}
+
+function drawPauseMap() {
+  if (G.state !== 'pause') return;
+  maps.drawBig($('bigmap'), ball, G.mapWhole);
+  $('lg-red').hidden = G.mapWhole;
+}
+
 function togglePause(force) {
   const on = force !== undefined ? force : G.state !== 'pause';
   if (on && G.state === 'play') {
     G.state = 'pause';
     $('pause').hidden = false;
+    drawPauseMap();
     $('btn-finish').hidden = G.mode !== 'free';
     audio.ui('pause');
     audio.suspend();
@@ -525,9 +566,12 @@ function updateView(S) {
   ball.lodDist = cam.position.distanceTo(ball.group.position) - ball.displayS * 0.25;
   STUCK.max = engine.q.stuck;
   // beyond 2 fog lengths everything is >98 % fog: don't draw it
-  // gold / red edges on what the ball can and can't take yet (see world.js highlight)
+  // gold edges / red stripes on what the ball can and can't take yet (see world.js highlight)
   const hi = G.state === 'play' || G.state === 'pause' ? G.hi || (G.hi = {}) : null;
-  if (hi) Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t });
+  if (hi) {
+    Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t, red: 0 });
+    MU.hiStripe.value = 1 / (hi.limit * 0.45);
+  }
   G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ((LOD_PART * F) / 1.5) * det, focus, engine.q.shadows ? shadowR * 1.25 : 0, hi);
   engine.updateShadow(focus, shadowR);
 }
@@ -637,6 +681,19 @@ function step(dt) {
     if (G.comboShown && G.t - ball.combo.t > COMBO.window) {
       hud.comboEnd(G.comboShown, ball.comboExtra);
       G.comboShown = 0;
+    }
+    const cam = engine.camera;
+    maps.update(dt, ball, rig.yaw, 2 * Math.atan(Math.tan((cam.fov * Math.PI) / 360) * cam.aspect));
+    // the first time something striped red comes up, say what the colours mean
+    if (!G.redHinted && G.hi && G.hi.red > 0 && G.time > 3 && G.toastCd <= 0) {
+      G.redHinted = true;
+      G.toastCd = 3;
+      hud.toast('<em>红纹</em>的还太大，先绕开 · <em>金边</em>的能滚起');
+    }
+    G.soundT -= dt;
+    if (G.soundT <= 0) {
+      G.soundT = 0.5;
+      syncSoundButton();
     }
   }
   MU.time.value = G.t;
@@ -1022,6 +1079,8 @@ window.__wanwu = {
   get engine() { return engine; },
   get layout() { return layout; },
   get rig() { return rig; },
+  get audio() { return audio; },
+  get maps() { return maps; },
   get glints() { return glints.list.map(o => [o.spec.id, +o.size.toFixed(3), +Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z).toFixed(2)]); },
   GROW,
   start: mode => startGame(mode || 'timed'),

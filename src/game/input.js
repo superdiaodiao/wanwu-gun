@@ -1,5 +1,5 @@
-// Keyboard, mouse drag, touch joystick and gamepad → raw controls; Driver turns them into
-// { dir, m, quick, turnImpulse, dash } for the ball and the camera.
+// Keyboard, mouse drag, touch joystick (plus a second finger swiping the view) and gamepad → raw
+// controls; Driver turns them into { dir, m, quick, turnImpulse, dash } for the ball and the camera.
 export class Input {
   constructor(canvas) {
     this.keys = new Set();
@@ -43,13 +43,44 @@ export class Input {
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
 
+    // touch: a finger anywhere but the joystick swipes the view round (the right thumb, while the
+    // left one steers)
+    this.look = { id: null, x: 0, x0: 0, y0: 0, moved: false, dragEnd: 0 };
+    this.lookStart = e => {
+      if (e.pointerType === 'mouse' || this.look.id !== null) return false;
+      const L = this.look;
+      L.id = e.pointerId;
+      L.x = L.x0 = e.clientX;
+      L.y0 = e.clientY;
+      L.moved = false;
+      return true;
+    };
+    window.addEventListener('pointermove', e => {
+      const L = this.look;
+      if (e.pointerId !== L.id) return;
+      // a comfortable thumb swipe (about half the screen's width) turns the view by ~90°
+      this.turnImpulse += (e.clientX - L.x) * (3.2 / Math.max(320, Math.min(innerWidth, innerHeight)));
+      L.x = e.clientX;
+      if (!L.moved && Math.hypot(e.clientX - L.x0, e.clientY - L.y0) > 10) L.moved = true;
+    });
+    const lookEnd = e => {
+      const L = this.look;
+      if (e.pointerId !== L.id) return;
+      L.id = null;
+      if (L.moved) L.dragEnd = performance.now();
+    };
+    window.addEventListener('pointerup', lookEnd);
+    window.addEventListener('pointercancel', lookEnd);
+    canvas.addEventListener('pointerdown', e => this.lookStart(e));
+
     // touch: virtual joystick anywhere on the left 65% of the screen
     const zone = document.getElementById('touch-zone');
     const stick = document.getElementById('touch-stick');
     const knob = document.getElementById('touch-knob');
     if (zone) {
       zone.addEventListener('pointerdown', e => {
-        if (this.joy.id !== null) return;
+        // a second finger down there while the stick is held looks around instead
+        if (this.joy.id !== null) { this.lookStart(e); return; }
         this.joy.id = e.pointerId;
         this.joy.x0 = this.joy.x = e.clientX;
         this.joy.y0 = this.joy.y = e.clientY;
@@ -85,10 +116,18 @@ export class Input {
 
   wasPressed(code) { return this.pressed.has(code); }
 
+  /** let a swipe that starts on this element look around too (e.g. the minimap) */
+  lookSurface(el) {
+    el.addEventListener('pointerdown', e => this.lookStart(e));
+  }
+
+  /** a swipe just ended: the click it may produce isn't a tap */
+  justSwiped() { return performance.now() - this.look.dragEnd < 350; }
+
   /**
    * Raw controls this frame: WASD / arrows, and a stick (touch or pad) as a direction on screen,
-   * { a: angle from straight up (+ = right), m: 0..1 }. Mouse drags and the pad's right stick turn
-   * the view (turnImpulse, padTurn).
+   * { a: angle from straight up (+ = right), m: 0..1 }. Mouse drags, touch swipes and the pad's
+   * right stick turn the view (turnImpulse, padTurn).
    */
   poll() {
     const k = this.keys;

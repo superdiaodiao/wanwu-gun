@@ -313,22 +313,27 @@ class Packed {
     let lit = 0;
     if (hi && hi.limit > 0) {
       const { limit, S, x, z, t } = hi;
-      const g0 = S * 7, g1 = S * 16, r0 = S * 2.5, r1 = S * 6;
+      // both fade in from far enough out to steer for (or round) them: gold from 16 ball widths
+      // away, red from 14; red covers what is up to twice too big, fading out by three times
+      const g0 = S * 7, g1 = S * 16, r0 = S * 7, r1 = S * 14;
       for (let s = 0; s < count; s++) {
         const o = objs[idx[s]];
         const rel = o.size / limit;
         let v = 0;
-        if (rel <= 2.2) {
+        if (rel < 3 && o.state === 0) {
           const d = Math.hypot(o.x - x, o.z - z);
           if (rel <= 1) {
-            if (d < g1 && o.state === 0 && t >= o.noPickUntil) v = Math.min(1, (rel - 0.12) / 0.7) * Math.min(1, (g1 - d) / (g1 - g0));
+            if (d < g1 && rel > 0.12 && t >= o.noPickUntil) v = Math.min(1, (rel - 0.12) / 0.7) * Math.min(1, (g1 - d) / (g1 - g0));
           } else if (d < r1) {
-            v = -0.8 * Math.min(1, (2.2 - rel) / 0.6) * Math.min(1, (r1 - d) / (r1 - r0));
+            v = -Math.min(1, 3 - rel) * Math.min(1, (r1 - d) / (r1 - r0));
           }
         }
         if (v > -0.02 && v < 0.02) v = 0;
         a[s] = v;
-        if (v) lit = s + 1;
+        if (v) {
+          lit = s + 1;
+          if (v < -0.3) hi.red++;
+        }
       }
     }
     // zero what was lit last frame beyond this frame's last lit slot

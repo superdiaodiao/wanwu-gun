@@ -20,6 +20,22 @@ export const DEFAULT_VOLUME = { master: 0.85, music: 0.6, sfx: 0.9 };
 const LOOKAHEAD = 0.15, TIMER_MS = 25, HURRY_TEMPO = 1.07, DANCE_LEVEL = 0.9;
 const MUSIC_TRACKS = ['title', 'game', 'finale'];
 const wallNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+const IOS = typeof navigator !== 'undefined' &&
+  (/iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
+// Half a second of 8-bit silence as a WAV data URL (for the iOS silent-switch workaround below).
+function silentWav() {
+  const n = 4000, b = new Uint8Array(44 + n), v = new DataView(b.buffer);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVEfmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  str(36, 'data'); v.setUint32(40, n, true);
+  b.fill(128, 44);
+  let s = '';
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return 'data:audio/wav;base64,' + btoa(s);
+}
 
 // ------------------------------------------------------------------ mixer
 // Cheap outdoor loudspeaker: band-limited (HP 350 Hz / LP 3.5 kHz, 24 dB/oct), honky mids, a touch
@@ -84,6 +100,8 @@ class AudioEngine {
 
   // ---------------------------------------------------------------- state
   get ready() { return !!(this.ctx && this.m); }
+  /** actually making sound: started (autoplay allowed) and not paused */
+  get running() { return !!(this.ctx && this.m && this.ctx.state === 'running' && !this._userSuspended); }
   get musicOn() { return this._musicOn; }
   get muted() { return this._muted; }
   get intensity() { return this._intensity; }
@@ -95,6 +113,7 @@ class AudioEngine {
       try {
         const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
         if (!AC) { resolve(false); return; }
+        this._session();
         let ctx;
         try { ctx = new AC({ latencyHint: 'interactive' }); } catch (e) { ctx = new AC(); }
         this.ctx = ctx;
@@ -129,17 +148,25 @@ class AudioEngine {
     return this._musicOn;
   }
   toggleMute() {
-    this._muted = !this._muted;
+    return this.setMuted(!this._muted);
+  }
+  setMuted(on) {
+    this._muted = !!on;
     try { this._applyVolumes(); } catch (e) { this._err(e); }
     return this._muted;
   }
   suspend() {
+    if (this._tag) this._tag.pause();
     if (!this.ctx) return Promise.resolve();
     try { this._userSuspended = true; return this.ctx.suspend().catch(() => {}); } catch (e) { this._err(e); return Promise.resolve(); }
   }
   resume() {
     if (!this.ctx) return Promise.resolve();
-    try { this._userSuspended = false; return this.ctx.resume().catch(() => {}); } catch (e) { this._err(e); return Promise.resolve(); }
+    try {
+      this._userSuspended = false;
+      this._session();
+      return this.ctx.resume().catch(() => {});
+    } catch (e) { this._err(e); return Promise.resolve(); }
   }
 
   // ---------------------------------------------------------------- music
@@ -411,12 +438,44 @@ class AudioEngine {
     if (this._unlockInstalled || typeof window === 'undefined') return;
     this._unlockInstalled = true;
     const h = () => this._unlock();
-    for (const ev of ['pointerdown', 'touchend', 'keydown', 'mousedown']) window.addEventListener(ev, h, { capture: true, passive: true });
+    // browsers differ in which of these count as the user's gesture (touch: only the lift)
+    for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'keydown', 'click']) {
+      window.addEventListener(ev, h, { capture: true, passive: true });
+    }
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) this._loop(); });
+  }
+  // iOS routes Web Audio through the ring/silent switch, so with the phone on silent the game makes
+  // no sound at all (while videos do). Ask for a media-playback audio session instead: newer Safari
+  // has navigator.audioSession for that; on older iOS a silent <audio> element looping alongside does it.
+  _session() {
+    if (typeof navigator === 'undefined') return;
+    try {
+      const s = navigator.audioSession;
+      if (s) {
+        if (s.type !== 'playback') s.type = 'playback';
+        return;
+      }
+    } catch (e) { /* not allowed here */ }
+    if (!IOS || typeof document === 'undefined') return;
+    try {
+      if (!this._tag) {
+        const a = document.createElement('audio');
+        a.setAttribute('x-webkit-airplay', 'deny');
+        a.setAttribute('playsinline', '');
+        a.disableRemotePlayback = true;
+        a.preload = 'auto';
+        a.loop = true;
+        a.src = silentWav();
+        this._tag = a;
+      }
+      if (this._tag.paused && !this._userSuspended) this._tag.play().catch(() => {});
+    } catch (e) { /* ignore */ }
   }
   _unlock() {
     const ctx = this.ctx;
-    if (!ctx || this._userSuspended || ctx.state === 'running' || ctx.state === 'closed') return;
+    if (!ctx || this._userSuspended || ctx.state === 'closed') return;
+    this._session();
+    if (ctx.state === 'running') return;
     try {
       ctx.resume().catch(() => {});
       const s = ctx.createBufferSource(); // iOS: play something inside the gesture
