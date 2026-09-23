@@ -71,6 +71,7 @@ async function boot() {
   fontsDone.then(() => (G.atlasStale = true));
   await nextFrame();
   buildAtlas();
+  T.atlas = performance.now();
   material = objectMaterial(atlasTexture());
   engine = new Engine($('game'), pickQuality());
   engine.scene.fog = new THREE.FogExp2(0xdfe8ee, 0.001);
@@ -141,10 +142,16 @@ function makeGiant() {
   if (!spec || !spec.geometry) return;
   const mat = material.clone();
   mat.fog = false;
-  // a goddess glows a little: keeps her readable against the night sky of the finale
-  mat.emissive = new THREE.Color(0x5a4a3e);
-  mat.onBeforeCompile = material.onBeforeCompile;
-  mat.customProgramCacheKey = () => 'wanwu-object-nofog';
+  // a goddess glows in her own colours: she stands against the sun in the intro and against the
+  // night sky in the finale, and would otherwise be a dark, muddy silhouette in both
+  mat.onBeforeCompile = sh => {
+    material.onBeforeCompile(sh);
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * 0.55;'
+    );
+  };
+  mat.customProgramCacheKey = () => 'wanwu-object-giant';
   const mesh = new THREE.Mesh(spec.geometry, mat);
   mesh.position.set(-spec.center.x, -spec.center.y, -spec.center.z);
   giant = new THREE.Group();

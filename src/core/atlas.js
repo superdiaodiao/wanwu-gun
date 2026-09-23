@@ -109,32 +109,55 @@ export function repaintAtlas() {
   texture.needsUpdate = true;
 }
 
+// Each decal is drawn on a small scratch canvas and then copied in, with its edge pixels smeared into
+// the padding (so mipmaps don't pull in the neighbours) by stretching 1-pixel strips of the scratch.
+// Never draw the atlas onto itself: Safari copies the whole 2048² canvas for every such call, which
+// with a few hundred decals kept iPhones on the loading screen for about 15 s.
+let scratch = null;
 function paint(canvas) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, 16, 16);
+  let mw = 1, mh = 1;
+  for (const r of rects.values()) {
+    mw = Math.max(mw, r.w);
+    mh = Math.max(mh, r.h);
+  }
+  if (!scratch) scratch = document.createElement('canvas');
+  if (scratch.width < mw || scratch.height < mh) {
+    scratch.width = Math.max(scratch.width, mw);
+    scratch.height = Math.max(scratch.height, mh);
+  }
+  const sc = scratch.getContext('2d');
   for (const [key, r] of rects) {
     if (key === '__white') continue;
     const reg = regs.get(key);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(r.x, r.y, r.w, r.h);
-    ctx.clip();
-    ctx.translate(r.x, r.y);
+    const { x, y, w, h } = r, P = PAD;
+    sc.clearRect(0, 0, w, h);
+    sc.save();
+    sc.beginPath();
+    sc.rect(0, 0, w, h);
+    sc.clip();
     try {
-      reg.draw(ctx, r.w, r.h);
+      reg.draw(sc, w, h);
     } catch (e) {
       console.error('[atlas] decal draw failed', key, e);
-      ctx.fillStyle = '#f0f';
-      ctx.fillRect(0, 0, r.w, r.h);
+      sc.fillStyle = '#f0f';
+      sc.fillRect(0, 0, w, h);
     }
-    ctx.restore();
-    // bleed edge pixels into the padding so mipmaps don't pull in neighbours
-    ctx.drawImage(canvas, r.x, r.y, 1, r.h, r.x - PAD, r.y, PAD, r.h);
-    ctx.drawImage(canvas, r.x + r.w - 1, r.y, 1, r.h, r.x + r.w, r.y, PAD, r.h);
-    ctx.drawImage(canvas, r.x - PAD, r.y, r.w + PAD * 2, 1, r.x - PAD, r.y - PAD, r.w + PAD * 2, PAD);
-    ctx.drawImage(canvas, r.x - PAD, r.y + r.h - 1, r.w + PAD * 2, 1, r.x - PAD, r.y + r.h, r.w + PAD * 2, PAD);
+    sc.restore();
+    ctx.drawImage(scratch, 0, 0, w, h, x, y, w, h);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(scratch, 0, 0, 1, h, x - P, y, P, h); // left edge
+    ctx.drawImage(scratch, w - 1, 0, 1, h, x + w, y, P, h); // right
+    ctx.drawImage(scratch, 0, 0, w, 1, x, y - P, w, P); // top
+    ctx.drawImage(scratch, 0, h - 1, w, 1, x, y + h, w, P); // bottom
+    ctx.drawImage(scratch, 0, 0, 1, 1, x - P, y - P, P, P); // corners
+    ctx.drawImage(scratch, w - 1, 0, 1, 1, x + w, y - P, P, P);
+    ctx.drawImage(scratch, 0, h - 1, 1, 1, x - P, y + h, P, P);
+    ctx.drawImage(scratch, w - 1, h - 1, 1, 1, x + w, y + h, P, P);
+    ctx.imageSmoothingEnabled = true;
   }
 }
 
