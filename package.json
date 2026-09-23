@@ -1,0 +1,17 @@
+{
+  "name": "wanwu-gun",
+  "version": "1.0.0",
+  "description": "万物皆可滚 · 女娲补天 —— 块魂同人 3D 网页小游戏，全部模型、贴图与音乐由代码实时生成的单文件 HTML",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs game && cp dist/index.html index.html",
+    "dev": "node build.mjs game --dev --watch",
+    "gallery": "node build.mjs gallery",
+    "audio-test": "node build.mjs audio"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.186.0"
+  }
+}

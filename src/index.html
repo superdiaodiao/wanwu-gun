@@ -1,0 +1,114 @@
+<!--HEAD-->
+<title>万物皆可滚</title>
+<meta name="description" content="女娲补天 × 块魂：推着五色石，从一颗瓜子滚起，把整个小区、整座城、连山带云都滚上天去补窟窿。全部模型、贴图与音乐均为程序实时生成。">
+<meta name="theme-color" content="#1f1b24">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@700&family=ZCOOL+KuaiLe&display=swap">
+<!--/HEAD-->
+<!--BODY-->
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+
+<div id="hud" hidden>
+  <div id="hud-size">
+    <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+      <circle class="track" cx="60" cy="60" r="52"></circle>
+      <circle id="size-ring" class="bar" cx="60" cy="60" r="52"></circle>
+    </svg>
+    <div class="num"><span id="size-num">12</span><span id="size-unit">cm</span></div>
+    <div class="goal">目标 <b id="goal-text">30 cm</b></div>
+  </div>
+  <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
+  <div id="hud-last" hidden>
+    <div id="last-view"></div>
+    <div class="info">
+      <div class="label">刚滚起</div>
+      <div id="last-name">—</div>
+      <div id="last-size"></div>
+    </div>
+  </div>
+  <div id="hud-count">已滚起 <b id="count-num">0</b> 件</div>
+  <div id="hud-keys"><kbd>W</kbd><kbd>S</kbd> 推/拉 <kbd>A</kbd><kbd>D</kbd> 转向 <kbd>空格</kbd> 冲刺 <kbd>C</kbd> 镜头 <kbd>Esc</kbd> 暂停</div>
+  <button id="btn-pause" class="icon-btn" aria-label="暂停"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="12" y="3" width="4" height="14" rx="1.2" fill="currentColor"/></svg></button>
+</div>
+
+<div id="toast-stack" aria-live="polite"></div>
+
+<div id="dialog" hidden>
+  <div id="dialog-portrait"></div>
+  <div class="bubble">
+    <div class="who">女娲</div>
+    <div id="dialog-text"></div>
+    <div class="next" id="dialog-next">点击继续 ▸</div>
+  </div>
+</div>
+
+<div id="title-screen" class="screen">
+  <div class="title-card">
+    <div class="eyebrow">女娲补天 · 块魂同人</div>
+    <h1 class="logo"><span>万</span><span>物</span><span>皆</span><span>可</span><span>滚</span></h1>
+    <p class="pitch">天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。</p>
+    <div class="actions">
+      <button id="btn-timed" class="btn primary"><b>开始补天</b><small>限时 8 分钟</small></button>
+      <button id="btn-free" class="btn ghost"><b>自由滚</b><small>不限时 · 随时补天</small></button>
+    </div>
+    <div class="settings">
+      <label for="sel-quality">画质</label>
+      <select id="sel-quality"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select>
+      <label class="check"><input type="checkbox" id="chk-music" checked> 音乐</label>
+      <label class="check"><input type="checkbox" id="chk-sfx" checked> 音效</label>
+    </div>
+    <div class="keys-help">
+      <span><kbd>W</kbd><kbd>S</kbd> 推 / 拉</span><span><kbd>A</kbd><kbd>D</kbd> 转向</span><span><kbd>空格</kbd> 冲刺</span><span>按住鼠标拖动也能转向 · 手机用左下摇杆</span>
+    </div>
+    <div id="best-line" class="best" hidden></div>
+    <div class="fine">非官方同人作品，致敬《块魂》。所有模型、贴图、音乐均为程序实时生成。</div>
+  </div>
+</div>
+
+<div id="loading" class="screen">
+  <div class="loading-card">
+    <div class="spinner"><i></i><i></i><i></i><i></i><i></i></div>
+    <div id="loading-text">女娲正在捏泥人……</div>
+  </div>
+</div>
+
+<div id="pause" class="screen" hidden>
+  <div class="panel">
+    <h2>暂停</h2>
+    <button id="btn-resume" class="btn primary"><b>继续滚</b></button>
+    <button id="btn-finish" class="btn ghost" hidden><b>现在就去补天</b></button>
+    <button id="btn-restart" class="btn ghost"><b>重新开始</b></button>
+    <button id="btn-home" class="btn ghost"><b>回到标题</b></button>
+  </div>
+</div>
+
+<div id="results" class="screen" hidden>
+  <div class="results-stack">
+  <div id="res-ball" aria-hidden="true"></div>
+  <div class="panel results">
+    <div class="eyebrow">补天石 · 最终尺寸</div>
+    <div id="res-size" class="res-size">0 m</div>
+    <div id="res-rank" class="res-rank"></div>
+    <p id="res-quote" class="res-quote"></p>
+    <div id="res-stats" class="res-stats"></div>
+    <div id="res-items" class="res-items"></div>
+    <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
+    <div class="actions">
+      <button id="btn-again" class="btn primary"><b>再滚一次</b></button>
+      <button id="btn-keep" class="btn ghost"><b>继续自由滚</b></button>
+      <button id="btn-title" class="btn ghost"><b>回到标题</b></button>
+    </div>
+  </div>
+  </div>
+</div>
+
+<div id="touch-zone" hidden></div>
+<div id="touch-stick" hidden><div id="touch-knob"></div></div>
+<button id="touch-dash" hidden aria-label="冲刺">冲</button>
+
+<div id="webgl-error" class="screen" hidden>
+  <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
+</div>
+<!--/BODY-->

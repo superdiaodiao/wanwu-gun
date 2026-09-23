@@ -1,0 +1,14 @@
+html, body { margin: 0; background: #e8e4da; color: #26221c; font: 13px/1.35 "Noto Sans SC", "PingFang SC", sans-serif; }
+header { padding: 10px 14px; font-size: 15px; }
+header span { color: #6d6457; font-size: 13px; margin-left: 10px; }
+#wrap { position: relative; }
+#c { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; }
+#grid { display: grid; grid-template-columns: repeat(var(--cols, 6), 1fr); gap: 8px; padding: 0 12px 12px; }
+.cell { height: 250px; border-radius: 8px; background: #f6f3ec; position: relative; overflow: hidden; }
+.cell .label { position: absolute; left: 8px; right: 8px; bottom: 6px; font-size: 12px; z-index: 2; }
+.cell .label b { font-size: 14px; }
+.cell .label .meta { color: #7a7166; font-size: 11px; }
+.cell .label .warn { color: #c0392b; font-size: 11px; }
+.cell.err { background: #fbe3df; }
+.cell.err .label { top: 8px; bottom: auto; color: #a02820; white-space: pre-wrap; font-size: 11px; }
+#atlas img { width: 100%; image-rendering: pixelated; background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 16px 16px; }

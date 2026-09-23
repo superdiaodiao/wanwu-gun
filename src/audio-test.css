@@ -1,0 +1,17 @@
+html, body { margin: 0; background: #efe9dc; color: #2a241c; font: 13px/1.4 "PingFang SC", "Noto Sans SC", system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 2; padding: 10px 16px; background: #2f2a22; color: #f6efe0; font-size: 15px; }
+header span { color: #d9c9a6; font-size: 12px; margin-left: 10px; }
+main { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; padding: 12px 16px; }
+section { background: #fbf7ee; border-radius: 10px; padding: 8px 12px 12px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+h2 { font-size: 14px; margin: 4px 0 8px; color: #8a3b1f; }
+button { font: inherit; margin: 2px; padding: 4px 9px; border: 1px solid #c9b58f; border-radius: 6px; background: #fffaf0; cursor: pointer; }
+button:hover { background: #f3e2bd; }
+button.key { min-width: 64px; }
+button.hot { background: #c0392b; color: #fff; border-color: #a02820; }
+label.slider { display: grid; grid-template-columns: 92px 1fr 52px; align-items: center; gap: 6px; margin: 3px 0; }
+label.slider output { font-variant-numeric: tabular-nums; text-align: right; color: #6b604f; }
+label.check { margin-right: 12px; }
+input[type=text] { width: 100%; box-sizing: border-box; padding: 5px; font: inherit; border: 1px solid #c9b58f; border-radius: 6px; }
+.row { margin: 4px 0; }
+.report { margin: 0 16px 16px; }
+pre#report { margin: 0; font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre; overflow-x: auto; }
