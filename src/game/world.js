@@ -59,10 +59,18 @@ export class WorldObject {
       this.oz = (sp.hit.oz || 0) * scale;
     }
     this.parts = null;
-    if (sp.hits) {
-      // several boxes (pillars and a beam, so a small ball can roll through a gate); the object's
-      // own box becomes their union, used by the grid and the camera
-      this.parts = sp.hits.map(p => ({ ox: (p.ox || 0) * scale, oz: (p.oz || 0) * scale, hw: p.hw * scale, hd: p.hd * scale, y0: (p.y0 || 0) * scale, h: p.h * scale }));
+    const hits = sp.hits || sp.autoHits;
+    if (hits) {
+      // several boxes (pillars and a beam, so a small ball can roll through a gate; a trunk under
+      // a crown); the object's own box becomes their union, used by the grid and the camera.
+      // { bbox: true, y0 } is the model's whole footprint from y0 up; cyl parts are round
+      this.parts = hits.map(p => {
+        const q = p.bbox
+          ? { ox: sp.center.x * scale, oz: sp.center.z * scale, hw: sp.dims.w * 0.5 * scale, hd: sp.dims.d * 0.5 * scale, y0: p.y0 * scale, h: (sp.dims.h - p.y0) * scale }
+          : { ox: (p.ox || 0) * scale, oz: (p.oz || 0) * scale, hw: p.hw * scale, hd: p.hd * scale, y0: (p.y0 || 0) * scale, h: p.h * scale };
+        q.cr = p.cyl ? Math.max(q.hw, q.hd) * 0.92 : 0;
+        return q;
+      });
       let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, top = 0;
       for (const p of this.parts) {
         x0 = Math.min(x0, p.ox - p.hw);
@@ -312,7 +320,7 @@ class Packed {
     const was = attr.lit || 0;
     let lit = 0;
     if (hi && hi.limit > 0) {
-      const { limit, S, x, z, t } = hi;
+      const { limit, S, x, z, t, warn, spot } = hi;
       // both fade in from far enough out to steer for (or round) them: gold from 16 ball widths
       // away, red from 14; red covers what is up to twice too big, fading out by three times
       const g0 = S * 7, g1 = S * 16, r0 = S * 7, r1 = S * 14;
@@ -329,6 +337,10 @@ class Packed {
           }
         }
         if (v > -0.02 && v < 0.02) v = 0;
+        // what the ball is about to run into (never something it can take): the big one gets a
+        // flashing spot where it would be hit, smaller ones flash all over (see objectMaterial)
+        if (o === spot) v -= 2;
+        else if (warn && warn.length && warn.includes(o)) v = -4;
         a[s] = v;
         if (v) {
           lit = s + 1;
@@ -563,7 +575,7 @@ export class World {
       for (const p of o.parts) {
         const cx = o.x + p.ox * cs + p.oz * sn, cz = o.z - p.ox * sn + p.oz * cs;
         const y0 = o.y + o.bob + p.y0;
-        const ct = this.boxContact(cx, cz, o.yaw, p.hw, p.hd, y0, y0 + p.h, c, r, _ct2);
+        const ct = p.cr ? this.cylContact(cx, cz, p.cr, y0, y0 + p.h, c, r, _ct2) : this.boxContact(cx, cz, o.yaw, p.hw, p.hd, y0, y0 + p.h, c, r, _ct2);
         if (ct && ct.depth > depth) {
           depth = ct.depth;
           best = Object.assign(out, ct);
@@ -572,19 +584,20 @@ export class World {
       return best;
     }
     if (!o.cyl) return this.boxContact(o.centerX(), o.centerZ(), o.yaw, o.hw, o.hd, o.y + o.bob, o.y + o.bob + o.h, c, r, out);
-    const cx = o.centerX(), cz = o.centerZ();
-    const y0 = o.y + o.bob, y1 = y0 + o.h;
+    return this.cylContact(o.centerX(), o.centerZ(), o.cr, o.y + o.bob, o.y + o.bob + o.h, c, r, out);
+  }
+
+  /** sphere (c, r) against an upright cylinder of radius cr at (cx, cz), spanning y0..y1 */
+  cylContact(cx, cz, cr, y0, y1, c, r, out) {
     let px, pz;
-    {
-      const dx = c.x - cx, dz = c.z - cz;
-      const d = Math.hypot(dx, dz);
-      if (d > o.cr) {
-        px = cx + (dx / d) * o.cr;
-        pz = cz + (dz / d) * o.cr;
-      } else {
-        px = c.x;
-        pz = c.z;
-      }
+    const dx = c.x - cx, dz = c.z - cz;
+    const d = Math.hypot(dx, dz);
+    if (d > cr) {
+      px = cx + (dx / d) * cr;
+      pz = cz + (dz / d) * cr;
+    } else {
+      px = c.x;
+      pz = c.z;
     }
     return this.finishContact(cx, cz, px, pz, y0, y1, c, r, out);
   }

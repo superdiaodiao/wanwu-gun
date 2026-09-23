@@ -41,6 +41,32 @@ set('arch_gate', {
     { hw: 1.9, hd: 1.45, y0: 4.45, h: 5.55 },
   ],
 });
+// trees: the trunk is solid, the crown only up where the leaves are, so a small ball rolls in under
+// the branches instead of bumping into thin air metres from the trunk
+const tree = (id, trunk, top, ox = 0) => set(id, { hits: [{ ox, hw: trunk, hd: trunk, h: top, cyl: true }, { bbox: true, y0: top, cyl: true }] });
+tree('tree_plane', 0.4, 3.3);
+tree('tree_willow', 0.45, 2.3, 0.12); // (its hanging strands come down to about here)
+tree('tree_pine', 0.45, 3.2, 0.05);
+tree('tree_ginkgo', 0.35, 3.9); // (the carpet of fallen leaves is flat: roll over it)
+tree('tree_peach', 0.25, 1.9);
+tree('tree_camphor', 0.55, 3.3);
+// street furniture with arms over the road: the pole is solid, the arm only up where it is
+set('street_lamp', {
+  hits: [
+    { hw: 0.28, hd: 0.28, h: 0.7 }, // footing
+    { hw: 0.13, hd: 0.13, y0: 0.7, h: 5.2 }, // pole
+    { hw: 0.55, hd: 0.06, y0: 3.25, h: 1.15 }, // banners
+    { hw: 1.9, hd: 0.2, y0: 5.25, h: 0.75 }, // arms and lamps
+  ],
+});
+set('traffic_light', {
+  hits: [
+    { ox: -1.55, hw: 0.3, hd: 0.3, h: 0.4 }, // footing
+    { ox: -1.55, hw: 0.13, hd: 0.13, y0: 0.4, h: 4.8 }, // pole
+    { ox: -1.25, hw: 0.2, hd: 0.15, y0: 2.7, h: 1.0 }, // signal on the pole
+    { ox: 0.25, hw: 1.85, hd: 0.2, y0: 4.2, h: 0.95 }, // arm and hanging signals
+  ],
+});
 set('koi', { sfx: 'splash' });
 set('duck', { sfx: 'quack' });
 set('clay_kid', { hidden: true });

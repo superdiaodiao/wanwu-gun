@@ -35,6 +35,7 @@ const _off = new THREE.Matrix4();
 const _c = new THREE.Color();
 const UP = new THREE.Vector3(0, 1, 0);
 const _ct = {};
+const _a = new THREE.Vector3();
 
 function buildCoreGeometry() {
   const m = new Model(5);
@@ -280,6 +281,39 @@ export class Ball {
     if (o.links) for (const l of o.links) if (l.state === 0) this.pick(l, now, events);
   }
 
+  /**
+   * What the ball would run into (or brush past) rolling `dist` further towards the world heading
+   * `dir` — only things it can't take, and not low ledges it rolls over: swept as overlapping spheres
+   * a little wider than the ball, each thing once, nearest first, into hits[] as
+   * { o, dist, x, y, z } (the point on it that would be hit). Returns how many (at most max).
+   */
+  ahead(dir, dist, hits, max = 3) {
+    const dx = Math.sin(dir), dz = -Math.cos(dir);
+    const r = this.r * 1.2, limit = this.pickLimit(), step = this.r * 0.6;
+    const cands = this._aheadC || (this._aheadC = []);
+    let n = 0;
+    for (let t = step; t <= dist && n < max; t += step) {
+      _a.set(this.pos.x + dx * t, this.pos.y, this.pos.z + dz * t);
+      // (only things bigger than it can take matter here: skip the grid levels of small stuff)
+      for (const o of this.world.grid.query(_a.x, _a.z, r, cands, limit * 0.5)) {
+        if (o.state !== 0 || o.size <= limit || n >= max) continue;
+        let seen = false;
+        for (let i = 0; i < n; i++) if (hits[i].o === o) seen = true;
+        if (seen) continue;
+        const ct = this.world.contact(o, _a, r, _ct);
+        if (!ct || (ct.low && o.h < this.r * 0.5)) continue;
+        const h = hits[n] || (hits[n] = {});
+        h.o = o;
+        h.dist = t;
+        h.x = ct.px;
+        h.y = ct.py;
+        h.z = ct.pz;
+        n++;
+      }
+    }
+    return n;
+  }
+
   collide(o, ct, now, events) {
     if (ct.low && o.h < this.r * 0.5) return;
     this.pos.x += ct.nx * ct.depth;
@@ -307,16 +341,19 @@ export class Ball {
       }
     }
     if (vn < 0) {
-      this.vel.x -= 1.35 * vn * ct.nx;
-      this.vel.z -= 1.35 * vn * ct.nz;
+      // a soft bounce: plain rolling into something just stops you, it doesn't cost anything; only
+      // crashing in at dash speed (or being rammed by a car) knocks things off the ball
+      this.vel.x -= 1.2 * vn * ct.nx;
+      this.vel.z -= 1.2 * vn * ct.nz;
       const impact = -vn / this.maxSpeed();
       if (impact > 0.22 && now > this.bumpCd) {
         this.bumpCd = now + 0.3;
-        events.push({ type: 'bump', strength: Math.min(1, impact), o, shove });
         const hardShove = shove > this.maxSpeed() * 0.5;
-        if ((impact > 0.8 || hardShove) && now > (this.knockCd || 0)) {
+        const knock = (impact > 1.15 || hardShove) && now > (this.knockCd || 0);
+        events.push({ type: 'bump', strength: Math.min(1, impact), o, shove });
+        if (knock) {
           this.knockCd = now + 1.5;
-          this.knockOff(Math.min(5, 1 + Math.floor((impact - 0.8) * 4)), now, events);
+          this.knockOff(Math.min(4, 1 + Math.floor(Math.max(0, impact - 1.15) * 4)), now, events);
         }
       }
     }

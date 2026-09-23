@@ -553,6 +553,65 @@ function updateGlints(dt) {
   }
 }
 
+// ---- what the ball is about to run into ------------------------------------------------------
+// Looks about 1.6 s ahead, both where the stick points and where the ball is actually rolling (it
+// curves from one to the other). The first few things in the way that the ball can't take flash
+// red, whatever their size (materials.js): small ones all over, and for the nearest big one (a
+// wall, a tree, a house) the part the ball would hit. So a bump never comes out of nowhere, even
+// where things stand close together.
+const warn = { list: [], spot: null, a: 0, hits: [], hits2: [] };
+function updateWarning(dt, inp) {
+  const sp = ball.speed(), vmax = ball.maxSpeed();
+  const pushing = inp.dir !== null && inp.m > 0.2;
+  const v = Math.max(sp, pushing ? vmax * inp.m : 0) * (ball.dashT > 0 ? 1.85 : 1);
+  const dist = Math.max(ball.S * 2.5, v * 1.6 + ball.r);
+  const n1 = pushing ? ball.ahead(inp.dir, dist, warn.hits) : 0;
+  const n2 = sp > vmax * 0.15 ? ball.ahead(Math.atan2(ball.vel.x, -ball.vel.z), dist, warn.hits2) : 0;
+  const all = warn.hits.slice(0, n1);
+  for (const h of warn.hits2.slice(0, n2)) if (!all.some(a => a.o === h.o)) all.push(h);
+  all.sort((a, b) => a.dist - b.dist);
+  edgeWarning(all[0], v);
+  warn.list.length = 0;
+  let spot = null;
+  for (const h of all.slice(0, 3)) {
+    warn.list.push(h.o);
+    if (!spot && Math.max(h.o.hw, h.o.hd) * 2 > ball.S * 2.5) spot = h;
+  }
+  if (spot) {
+    warn.spot = spot.o;
+    warn.a = Math.min(1, warn.a + dt / 0.15);
+    MU.warnPos.value.set(spot.x, spot.y, spot.z);
+  } else {
+    warn.a = Math.max(0, warn.a - dt / 0.35);
+    if (!warn.a) warn.spot = null;
+  }
+  MU.warn.value = warn.a;
+  MU.warnR.value = ball.S * 1.3;
+  MU.warnH.value = ball.S * 2.2;
+}
+
+// the nearest thing about to be hit is off screen (rolling sideways, the view still turning round):
+// a red "!" at the screen edge that way
+const _ew = new THREE.Vector3();
+function edgeWarning(h, v) {
+  const el = $('edge-warn');
+  let show = false;
+  if (h && h.dist < v * 1.1 + ball.r) {
+    _ew.set(h.x, Math.max(h.y, ball.r), h.z).project(engine.camera);
+    const behind = _ew.z > 1;
+    let x = behind ? -_ew.x : _ew.x, y = behind ? -_ew.y : _ew.y;
+    if (behind || Math.abs(x) > 0.92 || Math.abs(y) > 0.92) {
+      const k = 1 / Math.max(Math.abs(x), Math.abs(y), 1e-6);
+      x *= k;
+      y *= k;
+      const W = innerWidth, H = innerHeight, m = 34;
+      el.style.transform = `translate(${m + ((x + 1) / 2) * (W - 2 * m)}px, ${m + ((1 - y) / 2) * (H - 2 * m)}px)`;
+      show = true;
+    }
+  }
+  if (el.hidden === show) el.hidden = !show;
+}
+
 /** what to draw this frame, and where the sun's shadow frustum sits */
 function updateView(S) {
   const focus = G.state === 'play' || G.state === 'pause' || G.state === 'finale' ? ball.group.position : rig.look;
@@ -569,7 +628,7 @@ function updateView(S) {
   // gold edges / red stripes on what the ball can and can't take yet (see world.js highlight)
   const hi = G.state === 'play' || G.state === 'pause' ? G.hi || (G.hi = {}) : null;
   if (hi) {
-    Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t, red: 0 });
+    Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t, red: 0, warn: warn.list, spot: warn.spot });
     MU.hiStripe.value = 1 / (hi.limit * 0.45);
   }
   G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ((LOD_PART * F) / 1.5) * det, focus, engine.q.shadows ? shadowR * 1.25 : 0, hi);
@@ -588,6 +647,7 @@ function step(dt) {
     rig.yaw += inp.turnImpulse;
     rig.quick = inp.quick;
     ball.update(dt, inp, G.t, G.events);
+    updateWarning(dt, inp);
     if (G.mode === 'timed') {
       const left = GAME_SECONDS - G.time;
       if (left <= 60 && !G.hurry) { G.hurry = true; audio.setHurry(true); dialog.interrupt(story.HURRY); }
@@ -606,6 +666,7 @@ function step(dt) {
   } else if (G.state === 'title' || G.state === 'intro' || G.state === 'results') {
     ball.updateVisual(dt, G.t);
   }
+  if (G.state !== 'play') edgeWarning(null, 0);
 
   if (G.state !== 'pause') {
     movers.update(dt, G.t, ball, G.events);
@@ -732,7 +793,7 @@ function handleEvents() {
       }
       case 'bump': {
         audio.bump(e.strength);
-        rig.shake(0.08 * e.strength);
+        rig.shake(0.035 * e.strength);
         fx.bump(ball.pos.x, ball.centerY, ball.pos.z, ball.S);
         // teach the rule once per kind of thing: how big you need to be
         const o = e.o;
@@ -745,7 +806,10 @@ function handleEvents() {
       }
       case 'knock':
         audio.knock(e.count);
-        if (G.toastCd <= 0) { hud.toast(`哎呀，掉了 <em>${e.count}</em> 件！`); G.toastCd = 1; }
+        if (G.toastCd <= 0) {
+          hud.toast(ball.dashT > -0.3 ? `冲太猛撞上了，掉了 <em>${e.count}</em> 件` : `被撞掉了 <em>${e.count}</em> 件`);
+          G.toastCd = 1;
+        }
         break;
       case 'dash': audio.dash(); break;
       case 'scream': audio.voice(e.o.spec.sfx, 0.8); break;
@@ -1081,6 +1145,7 @@ window.__wanwu = {
   get rig() { return rig; },
   get audio() { return audio; },
   get maps() { return maps; },
+  get warn() { return warn; },
   get glints() { return glints.list.map(o => [o.spec.id, +o.size.toFixed(3), +Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z).toFixed(2)]); },
   GROW,
   start: mode => startGame(mode || 'timed'),

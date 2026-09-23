@@ -198,6 +198,18 @@ kbd {
 #btn-sound.off .waves { display: none; }
 #btn-sound.off .slash { display: inline; }
 
+/* about to run into something the camera doesn't show: a red "!" at the screen edge that way */
+#edge-warn {
+  position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--red); border: 3px solid var(--paper);
+  box-shadow: 0 4px 14px rgba(10, 6, 14, 0.5);
+  animation: edge-warn 0.5s ease-in-out infinite alternate;
+}
+#edge-warn i { font: 900 26px/1 var(--num); font-style: normal; color: var(--paper); }
+@keyframes edge-warn { to { scale: 1.15; } }
+
 /* minimap: under the last-item card, same size as the size gauge on the other side */
 #minimap-btn {
   position: absolute; pointer-events: auto;
@@ -522,5 +534,5 @@ kbd {
   #hud-keys { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp { animation: none !important; }
+  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn { animation: none !important; }
 }
