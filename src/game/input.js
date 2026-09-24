@@ -56,6 +56,7 @@ export class Input {
     // touch: a finger anywhere but the joystick swipes the view round (the right thumb, while the
     // left one steers)
     this.look = { id: null, x: 0, x0: 0, y0: 0, moved: false, dragEnd: 0 };
+    this.lookDist = 0; // how far (px) thumbs have swiped the view round, all told
     this.lookStart = e => {
       if (e.pointerType === 'mouse' || this.look.id !== null) return false;
       const L = this.look;
@@ -70,6 +71,7 @@ export class Input {
       if (e.pointerId !== L.id) return;
       // a comfortable thumb swipe (about half the screen's width) turns the view by ~90°
       this.turnImpulse += (e.clientX - L.x) * (3.2 / Math.max(320, Math.min(innerWidth, innerHeight)));
+      this.lookDist += Math.abs(e.clientX - L.x);
       L.x = e.clientX;
       if (!L.moved && Math.hypot(e.clientX - L.x0, e.clientY - L.y0) > 10) L.moved = true;
     });
@@ -188,33 +190,53 @@ const angDiff = (from, to) => {
 };
 
 /**
- * Turns raw controls into { dir, m, quick } for the ball: `dir` is the world heading to roll towards
- * (null when nothing is pressed), m how hard (0..1). The stick and WASD point on screen — up is away
- * from the camera — and the ball goes that way almost at once; the camera then swings round behind
- * it at its own pace (camera.js), so a thumb held to one side curves gently.
+ * Turns raw controls into { dir, m, quick, hold, turnImpulse, dash } for the ball: `dir` is the world
+ * heading to roll towards (null when nothing is pressed), m how hard (0..1), turnImpulse how far the
+ * player turned the view this frame (mouse, a thumb swiping, the pad's right stick, A / D).
+ *
+ * The stick points on screen — up is away from the camera — and a push to the side sends the ball
+ * that way at once, gently near straight up and fully at 90° (so a thumb wobbling round "up" rolls
+ * straight on); the camera then swings round behind it at its own pace (camera.js), so a thumb held
+ * to one side curves. Back near straight up (`hold`) while rolling, the ball keeps going the way it
+ * goes now while the view catches up behind it, instead of swinging back to where the view looks;
+ * from a standstill, straight up is where the view looks (look round, then go).
+ *
+ * Keys steer like a car: W rolls on, A / D turn the view and the ball together (slowly for a tap,
+ * faster when held), S turns round.
  *
  * Pointing back towards the camera is a turn-around: the ball heads the way the stick points, fixed
  * in the world while it stays back there (the view swinging round would otherwise drag the
  * direction with it), and `quick` tells the camera to swing round fast.
  */
+const HOLD = 14 * (Math.PI / 180); // stick within this of straight up: keep the course
+const KEY_TURN = [1.2, 2.2]; // rad/s: a tap, held (after ~0.35 s)
+/** stick angle → heading offset: a fraction of it near straight up, all of it at 90° and beyond */
+function ease(a) {
+  const q = Math.PI / 2, x = Math.abs(a);
+  return x >= q ? a : Math.sign(a) * q * Math.pow(x / q, 1.7);
+}
+
 export class Driver {
   constructor() {
     this.lock = null; // world heading held during a turn-around
+    this.keyHeld = 0; // how long A / D have been held
   }
 
-  update(raw, camYaw) {
-    let a = null, m = 0;
+  update(raw, camYaw, heading, dt, rolling = true) {
+    let a = null, m = 0, keyTurn = 0;
     if (raw.stick) {
       a = raw.stick.a;
       m = raw.stick.m;
     } else {
-      const x = raw.keyTurn, y = (raw.fwd ? 1 : 0) - (raw.back ? 1 : 0);
-      if (x || y) {
-        a = Math.atan2(x, y);
-        m = 1;
-      }
+      keyTurn = raw.keyTurn;
+      if (raw.back) a = Math.PI;
+      else if (raw.fwd || keyTurn) a = 0;
+      if (a !== null) m = 1;
     }
-    const out = { dir: null, m: 0, quick: false, turnImpulse: raw.turnImpulse + (raw.padTurn || 0) * 0.04, dash: raw.dash };
+    this.keyHeld = keyTurn ? this.keyHeld + dt : 0;
+    const keyRate = KEY_TURN[0] + (KEY_TURN[1] - KEY_TURN[0]) * Math.min(1, this.keyHeld / 0.35);
+    const turn = raw.turnImpulse + (raw.padTurn || 0) * 2.4 * dt + keyTurn * keyRate * dt;
+    const out = { dir: null, m: 0, quick: false, hold: false, turnImpulse: turn, dash: raw.dash };
     if (a === null) {
       this.lock = null;
       return out;
@@ -224,9 +246,14 @@ export class Driver {
       if (this.lock === null) this.lock = camYaw + a;
       out.dir = this.lock;
       out.quick = true;
+    } else if (Math.abs(a) < HOLD) {
+      // (the course turns along with the view when the player turns that)
+      this.lock = null;
+      out.dir = rolling ? heading + turn : camYaw + turn + ease(a);
+      out.hold = true;
     } else {
       this.lock = null;
-      out.dir = camYaw + a;
+      out.dir = camYaw + turn + ease(a);
     }
     out.m = m;
     return out;

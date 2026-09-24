@@ -32,7 +32,7 @@
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
-  <div id="hud-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 往哪按往哪滚 · 拖动鼠标转镜头 <kbd>空格</kbd> 冲刺 <kbd>C</kbd> 镜头 <kbd>Esc</kbd> 暂停·地图</div>
+  <div id="hud-keys"><kbd>W</kbd> 前进 <kbd>A</kbd><kbd>D</kbd> 转弯 <kbd>S</kbd> 掉头 · 拖动鼠标转镜头 <kbd>空格</kbd> 冲刺 <kbd>C</kbd> 镜头 <kbd>Esc</kbd> 暂停·地图</div>
   <button id="btn-sound" class="icon-btn" aria-label="声音开关"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9.5h3.2L12 5.2v13.6l-4.8-4.3H4z" fill="currentColor"/><g class="waves" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/></g><path class="slash" d="M15.5 9l6 6m0-6l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
   <button id="btn-pause" class="icon-btn" aria-label="暂停"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="12" y="3" width="4" height="14" rx="1.2" fill="currentColor"/></svg></button>
 </div>
@@ -66,7 +66,7 @@
       <label class="check" title="每秒画 30 帧而不是 60 帧：手机不容易发烫，更省电"><input type="checkbox" id="chk-save"> 省电</label>
     </div>
     <div class="keys-help">
-      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 往哪按往哪滚</span><span><kbd>空格</kbd> 冲刺</span><span>拖动鼠标转镜头 · 手机：左手摇杆往哪推球就往哪滚，右手在屏幕上左右滑动转镜头</span><span><b class="k-gold">金边</b>的能滚起，<b class="k-red">红纹</b>的还太大、先绕开；平时撞一下不掉东西，冲刺撞上才会掉</span>
+      <span><kbd>W</kbd> 前进 <kbd>A</kbd><kbd>D</kbd> 转弯 <kbd>S</kbd> 掉头</span><span><kbd>空格</kbd> 冲刺</span><span>拖动鼠标转镜头 · 手机：左手摇杆往哪推球就往哪滚，右手在屏幕右边左右滑动转镜头</span><span><b class="k-gold">金边</b>的能滚起，<b class="k-red">红纹</b>的还太大、先绕开；平时撞一下不掉东西，冲刺撞上才会掉</span>
     </div>
     <div id="best-line" class="best" hidden></div>
     <div class="fine">非官方同人作品，致敬《块魂》。所有模型、贴图、音乐均为程序实时生成。</div>
@@ -123,6 +123,7 @@
 <div id="touch-zone" hidden></div>
 <div id="touch-stick" hidden><div id="touch-knob"></div></div>
 <button id="touch-dash" hidden aria-label="冲刺">冲</button>
+<div id="swipe-hint" hidden aria-hidden="true"><div class="track"><i class="dot"></i></div><span>右手左右滑 · 转镜头</span></div>
 
 <div id="webgl-error" class="screen" hidden>
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>

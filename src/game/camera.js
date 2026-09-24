@@ -17,6 +17,7 @@ export class CameraRig {
     this.lift = 1;
     this.yaw = 0; // which way the camera looks; the ball's controls are read relative to it
     this.quick = false; // a turn-around is on: swing round fast
+    this.hold = false; // the stick is back near straight up: catch up behind the ball
     this.pos = new THREE.Vector3(0, 1, 3);
     this.look = new THREE.Vector3();
     this.shakeT = 0;
@@ -66,16 +67,17 @@ export class CameraRig {
     }
     this.zoom += (ZOOMS[this.zoomIdx] - this.zoom) * Math.min(1, dt * 3);
     // swing round behind the way the ball rolls: slowly while steering (the controls are read
-    // relative to the view, so a quick swing would drag the steering round with it), fast for a
-    // turn-around, and not at all while the ball rolls towards the camera or stands still
+    // relative to the view, so a quick swing would drag the steering round with it), briskly once
+    // the stick is back near straight up (the ball keeps its course then), fast for a turn-around,
+    // and not at all while the ball rolls towards the camera or stands still
     let dy = (ball.heading - this.yaw) % (Math.PI * 2);
     if (dy > Math.PI) dy -= Math.PI * 2;
     if (dy < -Math.PI) dy += Math.PI * 2;
     const moving = Math.min(1, ball.speed() / Math.max(1e-4, ball.maxSpeed()) * 1.5);
     if (this.quick) this.yaw += dy * Math.min(1, dt * 5);
     else if (Math.abs(dy) < 2.4) {
-      // at most ~20°/s: holding the stick to the side should mostly go sideways
-      const w = Math.min(0.5 * Math.abs(dy), 0.35) * moving;
+      // steering, at most ~26°/s: holding the stick to the side should mostly go sideways
+      const w = (this.hold ? Math.min(2.5 * Math.abs(dy), 1.2) : Math.min(1.2 * Math.abs(dy), 0.45)) * moving;
       this.yaw += Math.sign(dy) * Math.min(Math.abs(dy), w * dt);
     }
     this.desired(ball, _d, _l, this.yaw);

@@ -323,6 +323,9 @@ async function startGame(mode) {
 
 function beginPlay() {
   G.state = 'play';
+  swipe.shown = 0;
+  swipe.cd = 12;
+  swipe.side = 0;
   if (giant) giant.userData.target = 0;
   rig.override = null;
   rig.zoomIdx = 0;
@@ -587,6 +590,48 @@ function updateGlints(dt) {
   }
 }
 
+// ---- teaching the other thumb to swipe the view round (touch screens) -------------------------
+// Turning with the stick alone is clumsy; the right thumb swiping across the screen turns the view
+// (and the ball with it) while the left keeps rolling. Players who never found that out get shown:
+// when one keeps pushing the stick hard to the side for a while (or ~25 s into a game), a finger
+// slides left and right on the right of the screen, where that thumb goes. The first real swipe
+// puts it away for good.
+const swipe = { learned: null, shown: 0, cd: 12, side: 0, t: 0 };
+function swipeHint(dt, raw) {
+  const el = $('swipe-hint');
+  if (swipe.learned === null) swipe.learned = store.get('swipeLearned', false);
+  if (swipe.learned || !isTouch()) {
+    if (!el.hidden) el.hidden = true;
+    return;
+  }
+  if (input.lookDist > 60) {
+    swipe.learned = true;
+    store.set('swipeLearned', true);
+    if (!el.hidden) {
+      el.hidden = true;
+      hud.toast('就是这样！边滚边滑，镜头跟着转');
+    }
+    return;
+  }
+  const s = raw.stick;
+  if (s && Math.abs(s.a) > 0.8 && Math.abs(s.a) < 2.28) swipe.side += dt;
+  else swipe.side = Math.max(0, swipe.side - dt * 0.5);
+  swipe.cd -= dt;
+  if (!el.hidden) {
+    swipe.t -= dt;
+    if (swipe.t <= 0) el.hidden = true;
+    return;
+  }
+  if (swipe.cd > 0 || swipe.shown >= 3) return;
+  if (swipe.side > 1.2 || (swipe.shown === 0 && G.time > 25)) {
+    swipe.shown++;
+    swipe.side = 0;
+    swipe.t = 5;
+    swipe.cd = 30;
+    el.hidden = false;
+  }
+}
+
 // ---- what the ball is about to run into ------------------------------------------------------
 // Looks about 1.6 s ahead, both where the stick points and where the ball is actually rolling (it
 // curves from one to the other). The first few things in the way that the ball can't take flash
@@ -703,7 +748,7 @@ function updateView(S) {
 
 function step(dt) {
   const raw = input.poll();
-  const inp = G.state === 'play' ? driver.update(raw, rig.yaw) : { dir: null, m: 0, quick: false, turnImpulse: 0, dash: false };
+  const inp = G.state === 'play' ? driver.update(raw, rig.yaw, ball.heading, dt, ball.speed() > ball.maxSpeed() * 0.3) : { dir: null, m: 0, quick: false, hold: false, turnImpulse: 0, dash: false };
   if (G.autopilot && G.state === 'play') Object.assign(inp, autopilot(dt));
   G.events.length = 0;
 
@@ -712,6 +757,8 @@ function step(dt) {
     // mouse drags turn the view (and so where "up" on the stick / W goes)
     rig.yaw += inp.turnImpulse;
     rig.quick = inp.quick;
+    rig.hold = !!inp.hold;
+    swipeHint(dt, raw);
     ball.update(dt, inp, G.t, G.events);
     updateWarning(dt, inp);
     if (G.mode === 'timed') {
@@ -735,6 +782,7 @@ function step(dt) {
   if (G.state !== 'play') {
     edgeWarning(null, 0);
     obstacleTag(null, 0);
+    if (!$('swipe-hint').hidden) $('swipe-hint').hidden = true;
   }
 
   if (G.state !== 'pause') {

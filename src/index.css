@@ -504,6 +504,34 @@ kbd {
   border-radius: 50%;
   background: rgba(246, 239, 224, 0.55);
 }
+/* where the right thumb swipes the view round: a finger sliding left and right (see main.js swipeHint) */
+#swipe-hint {
+  position: fixed; z-index: 4;
+  right: max(18px, env(safe-area-inset-right)); top: 40%;
+  display: grid; justify-items: center; gap: 8px;
+  padding: 12px 16px 10px;
+  border-radius: 18px;
+  background: rgba(31, 27, 36, 0.72);
+  color: var(--paper); font-size: 14px; letter-spacing: 0.5px;
+  pointer-events: none;
+  animation: hint-in 0.3s ease-out;
+}
+#swipe-hint .track { position: relative; width: 112px; height: 34px; }
+#swipe-hint .track::before, #swipe-hint .track::after {
+  content: ''; position: absolute; top: 11px; width: 10px; height: 10px;
+  border: solid rgba(246, 239, 224, 0.7); border-width: 0 0 2.5px 2.5px;
+}
+#swipe-hint .track::before { left: 2px; transform: rotate(45deg); }
+#swipe-hint .track::after { right: 2px; transform: rotate(-135deg); }
+#swipe-hint .dot {
+  position: absolute; left: 22px; top: 4px; width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.22);
+  animation: swipe-dot 1.3s ease-in-out infinite;
+}
+@keyframes swipe-dot { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(42px); } }
+@keyframes hint-in { from { opacity: 0; transform: translateY(8px); } }
+
 #touch-dash {
   position: fixed;
   z-index: 3;
@@ -553,5 +581,5 @@ kbd {
   #hud-keys { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn { animation: none !important; }
+  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #swipe-hint, #swipe-hint .dot { animation: none !important; }
 }
