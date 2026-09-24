@@ -578,6 +578,7 @@ function updateWarning(dt, inp) {
   for (const h of warn.hits2.slice(0, n2)) if (!all.some(a => a.o === h.o)) all.push(h);
   all.sort((a, b) => a.dist - b.dist);
   edgeWarning(all[0], v);
+  obstacleTag(all[0], v);
   warn.list.length = 0;
   let spot = null;
   for (const h of all.slice(0, 3)) {
@@ -613,6 +614,36 @@ function edgeWarning(h, v) {
       y *= k;
       const W = innerWidth, H = innerHeight, m = 34;
       el.style.transform = `translate(${m + ((x + 1) / 2) * (W - 2 * m)}px, ${m + ((1 - y) / 2) * (H - 2 * m)}px)`;
+      show = true;
+    }
+  }
+  if (el.hidden === show) el.hidden = !show;
+}
+
+// ...and on it, when it's about a second away, a tag saying so in words, with the size the ball has to
+// reach: red stripes alone are easy to forget the meaning of
+const _wt = new THREE.Vector3();
+let tagFor = null;
+function obstacleTag(h, v) {
+  const el = $('warn-tag');
+  let show = false;
+  if (h && h.dist < v * 1.3 + ball.r) {
+    const o = h.o, big = Math.max(o.hw, o.hd) * 2 > ball.S * 2.5;
+    // over the thing itself, or over the part the ball would hit if it's a big one
+    const top = Math.min(o.y + o.bob + o.h, h.y + ball.S * 1.3);
+    if (big) _wt.set(h.x, top, h.z);
+    else _wt.set(o.centerX(), top, o.centerZ());
+    _wt.project(engine.camera);
+    if (_wt.z < 1 && Math.abs(_wt.x) < 1 && Math.abs(_wt.y) < 1) {
+      const W = innerWidth, H = innerHeight;
+      // (kept below the gauges along the top of the screen)
+      const x = Math.min(W - 70, Math.max(70, ((_wt.x + 1) / 2) * W));
+      const y = Math.max(W < 640 ? 215 : 130, ((1 - _wt.y) / 2) * H - 10);
+      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      if (tagFor !== o) {
+        tagFor = o;
+        $('warn-need').textContent = `要 ${fmt(o.size / PICK_RATIO)}`;
+      }
       show = true;
     }
   }
@@ -673,7 +704,10 @@ function step(dt) {
   } else if (G.state === 'title' || G.state === 'intro' || G.state === 'results') {
     ball.updateVisual(dt, G.t);
   }
-  if (G.state !== 'play') edgeWarning(null, 0);
+  if (G.state !== 'play') {
+    edgeWarning(null, 0);
+    obstacleTag(null, 0);
+  }
 
   if (G.state !== 'pause') {
     movers.update(dt, G.t, ball, G.events);

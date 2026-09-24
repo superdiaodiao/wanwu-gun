@@ -11,6 +11,7 @@ import * as THREE from 'three';
 const regs = new Map();
 const rects = new Map();
 let texture = null;
+let atlas = null; // the canvas the decals are painted on
 let size = 0;
 
 export const PAD = 6;
@@ -76,7 +77,7 @@ function pack(list, S) {
   return out;
 }
 
-/** Pack and paint every registered decal. Returns the shared CanvasTexture. Idempotent. */
+/** Pack and paint every registered decal. Returns the shared texture. Idempotent. */
 export function buildAtlas() {
   if (texture) return texture;
   const list = [...regs.entries()].sort((a, b) => b[1].h - a[1].h);
@@ -91,8 +92,10 @@ export function buildAtlas() {
   canvas.width = canvas.height = size;
   for (const [key, r] of packed) rects.set(key, r);
   paint(canvas);
+  atlas = canvas;
 
-  texture = new THREE.CanvasTexture(canvas);
+  texture = new THREE.DataTexture(pixels(canvas), size, size);
+  texture.flipY = true;
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
   texture.magFilter = THREE.LinearFilter;
@@ -105,8 +108,26 @@ export function buildAtlas() {
 /** Redraw every decal in place (e.g. once web fonts have arrived). UVs are unchanged. */
 export function repaintAtlas() {
   if (!texture) return;
-  paint(texture.image);
+  paint(atlas);
+  texture.image.data = pixels(atlas);
   texture.needsUpdate = true;
+}
+
+// The atlas goes to the GPU as plain pixels read back from the canvas, not as the canvas itself: on
+// some iPhones (in-app browsers especially) handing WebGL the big canvas gave a black or an empty
+// texture, and since every object samples it, everything came out black or vanished. The white
+// corner that plain faces sample is written in by hand, so whatever happens to the painting, things
+// keep their colours (at worst without their signs and faces).
+function pixels(canvas) {
+  let data;
+  try {
+    data = canvas.getContext('2d').getImageData(0, 0, size, size).data;
+  } catch (e) {
+    console.warn('[atlas] could not read the decals back', e);
+    data = new Uint8ClampedArray(size * size * 4);
+  }
+  for (let y = 0; y < 16; y++) data.fill(255, y * size * 4, (y * size + 16) * 4);
+  return data;
 }
 
 // Each decal is drawn on a small scratch canvas and then copied in, with its edge pixels smeared into
@@ -162,7 +183,7 @@ function paint(canvas) {
 }
 
 export function atlasTexture() { return texture; }
-export function atlasCanvas() { return texture ? texture.image : null; }
+export function atlasCanvas() { return atlas; }
 
 /** UV rectangle [u0, v0, u1, v1] for a registered decal (v0 = bottom). */
 export function getUV(key) {

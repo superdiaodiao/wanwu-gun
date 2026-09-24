@@ -210,6 +210,25 @@ kbd {
 #edge-warn i { font: 900 26px/1 var(--num); font-style: normal; color: var(--paper); }
 @keyframes edge-warn { to { scale: 1.15; } }
 
+/* on the thing about to be run into: that it can't be taken yet, and how big the ball must get */
+#warn-tag {
+  position: absolute; left: 0; top: 0;
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 5px 11px 4px;
+  border-radius: 10px;
+  background: rgba(216, 52, 44, 0.94);
+  color: var(--paper);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(10, 6, 14, 0.45);
+  pointer-events: none;
+}
+#warn-tag b { font: 17px/1.2 var(--display); }
+#warn-tag span { font: 700 13px/1.2 var(--num); color: #ffe0d8; }
+#warn-tag::after {
+  content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px;
+  border: 6px solid transparent; border-bottom: 0; border-top-color: rgba(216, 52, 44, 0.94);
+}
+
 /* minimap: under the last-item card, same size as the size gauge on the other side */
 #minimap-btn {
   position: absolute; pointer-events: auto;

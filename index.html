@@ -219,6 +219,25 @@ kbd {
 #edge-warn i { font: 900 26px/1 var(--num); font-style: normal; color: var(--paper); }
 @keyframes edge-warn { to { scale: 1.15; } }
 
+/* on the thing about to be run into: that it can't be taken yet, and how big the ball must get */
+#warn-tag {
+  position: absolute; left: 0; top: 0;
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 5px 11px 4px;
+  border-radius: 10px;
+  background: rgba(216, 52, 44, 0.94);
+  color: var(--paper);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(10, 6, 14, 0.45);
+  pointer-events: none;
+}
+#warn-tag b { font: 17px/1.2 var(--display); }
+#warn-tag span { font: 700 13px/1.2 var(--num); color: #ffe0d8; }
+#warn-tag::after {
+  content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px;
+  border: 6px solid transparent; border-bottom: 0; border-top-color: rgba(216, 52, 44, 0.94);
+}
+
 /* minimap: under the last-item card, same size as the size gauge on the other side */
 #minimap-btn {
   position: absolute; pointer-events: auto;
@@ -576,6 +595,7 @@ kbd {
   <div id="hud-count">已滚起 <b id="count-num">0</b> 件</div>
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
+  <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
   <div id="hud-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 往哪按往哪滚 · 拖动鼠标转镜头 <kbd>空格</kbd> 冲刺 <kbd>C</kbd> 镜头 <kbd>Esc</kbd> 暂停·地图</div>
   <button id="btn-sound" class="icon-btn" aria-label="声音开关"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9.5h3.2L12 5.2v13.6l-4.8-4.3H4z" fill="currentColor"/><g class="waves" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/></g><path class="slash" d="M15.5 9l6 6m0-6l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
   <button id="btn-pause" class="icon-btn" aria-label="暂停"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="12" y="3" width="4" height="14" rx="1.2" fill="currentColor"/></svg></button>
@@ -671,7 +691,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.b554b8b4.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.12d95006.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {
