@@ -20,6 +20,7 @@ import { Preview } from './game/preview.js';
 import { HUD, fmt } from './game/hud.js';
 import { Maps } from './game/minimap.js';
 import { Dex } from './game/dex.js';
+import { Wishes } from './game/wishes.js';
 import { Dialog } from './game/dialog.js';
 import * as story from './game/story.js';
 import { audio } from './audio/audio.js';
@@ -39,7 +40,7 @@ const G = {
   hinted: new Set(), hintCd: 0, idleT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
   gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0, mapWhole: true, redHinted: false, soundT: 0,
 };
-let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps, dex;
+let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps, dex, wishes;
 let driver = new Driver();
 let giant = null; // 女娲 towering in the sky during the intro and the finale
 let ballCam = null; // results-screen portrait of the finished ball
@@ -100,6 +101,10 @@ async function boot() {
   maps = new Maps(world, layout);
   maps.attach($('minimap'));
   dex = new Dex({ world, renderer: engine.renderer, material, store, pickRatio: PICK_RATIO });
+  wishes = new Wishes(store, id => {
+    const i = dex.byId.get(id);
+    return i === undefined ? null : dex.entries[i].where;
+  });
   // (so nothing found is lost when the page goes away mid-game)
   addEventListener('pagehide', () => dex.save());
   document.addEventListener('visibilitychange', () => { if (document.hidden) dex.save(); });
@@ -287,7 +292,7 @@ function enterTitle() {
   const bl = $('best-line');
   if (best && best.size) {
     bl.hidden = false;
-    bl.textContent = `最佳纪录：${fmt(best.size)} · ${best.rank || ''}`;
+    bl.textContent = `最佳纪录：${fmt(best.size)} · ${best.rank || ''}` + (wishes.stars ? ` · 心愿 ★ ${wishes.stars}` : '');
   } else bl.hidden = true;
   titleShot(0);
   rig.pos.copy(rig.override.pos);
@@ -310,6 +315,8 @@ async function startGame(mode) {
   applyAudioPrefs();
   audio.ui('start');
   resetGame(mode);
+  wishes.start(mode);
+  syncWishHud();
   $('title-screen').hidden = true;
   G.state = 'intro';
   audio.music('title', { fade: 1 });
@@ -332,6 +339,7 @@ function beginPlay() {
   G.state = 'play';
   G.touchScreen = isTouch();
   resetTips();
+  showWishes(6);
   if (giant) giant.userData.target = 0;
   rig.override = null;
   rig.zoomIdx = 0;
@@ -340,6 +348,35 @@ function beginPlay() {
   audio.music('game', { fade: 2 });
   syncSoundButton();
   setTimeout(() => hud.fadeKeys(), 12000);
+}
+
+// ---- 女娲的心愿 (wishes.js): the stars after the count, the card, what happens when one comes true
+function syncWishHud() {
+  $('hud-wish').innerHTML = wishes.list.map(x => (x.done ? '<i class="on">★</i>' : '<i>☆</i>')).join('');
+}
+
+function showWishes(secs) {
+  $('wish-list').innerHTML = wishes.list
+    .map(x => {
+      const hint = wishes.hint(x), p = wishes.progress(x);
+      return `<li class="${x.done ? 'done' : ''}"><i>${x.done ? '★' : '☆'}</i><span>${x.w.text}${hint ? `<small>在${hint}</small>` : ''}</span><b>${p}</b></li>`;
+    })
+    .join('');
+  $('wish-card').hidden = false;
+  G.wishT = secs;
+}
+
+function wishProgress(x) {
+  const n = wishes.need(x.w);
+  if (n <= 5 || x.p % 5 === 0) hud.toast(`心愿：${x.w.text} <em>${x.p}/${n}</em>`);
+}
+
+function wishDone(x) {
+  syncWishHud();
+  hud.toast(`★ 心愿达成：${x.w.text}`, true);
+  audio.comboChime(3);
+  if (x.w.said) dialog.say(x.w.said);
+  showWishes(3.5);
 }
 
 function syncDexButton() {
@@ -363,6 +400,14 @@ function applyAudioPrefs() {
 function setupUI() {
   $('btn-timed').addEventListener('click', () => startGame('timed'));
   $('btn-dex').addEventListener('click', () => dex.open(syncDexButton));
+  $('hud-count').addEventListener('click', () => {
+    if (G.state !== 'play') return;
+    if ($('wish-card').hidden) showWishes(5);
+    else {
+      $('wish-card').hidden = true;
+      G.wishT = 0;
+    }
+  });
   $('res-dex-open').addEventListener('click', () => dex.open());
   $('btn-free').addEventListener('click', () => startGame('free'));
   const q = $('sel-quality');
@@ -842,6 +887,7 @@ function step(dt) {
     obstacleTag(null, 0);
     if (!$('swipe-hint').hidden) $('swipe-hint').hidden = true;
     if (!$('stick-hint').hidden) $('stick-hint').hidden = true;
+    if (!$('wish-card').hidden) $('wish-card').hidden = true;
   }
 
   if (G.state !== 'pause') {
@@ -851,6 +897,8 @@ function step(dt) {
   handleEvents();
   if (G.state === 'play') {
     checkMilestones();
+    for (const x of wishes.check(ball.combo.n, ball.S)) wishDone(x);
+    if (G.wishT > 0 && (G.wishT -= dt) <= 0) $('wish-card').hidden = true;
     // a nudge from 女娲 when nothing has been rolled up for a while
     G.idleT += dt;
     G.nudgeCd -= dt;
@@ -960,6 +1008,10 @@ function handleEvents() {
         fx.pickup(o.centerX(), o.y + o.h * 0.5, o.centerZ(), o.size, ball.S);
         // first time ever for this kind of thing: into the 图鉴, and always shown as 新收集
         const fresh = dex.add(o.spec.id);
+        for (const { x, justDone } of wishes.pickup(o)) {
+          if (justDone) wishDone(x);
+          else wishProgress(x);
+        }
         if (e.rel > 0.04 || !lastPreview.spec || fresh) {
           hud.lastItem(o.spec.name, o.size, fresh);
           lastPreview.show(o.spec, o.tint);
@@ -1163,6 +1215,10 @@ function showResults() {
   const top = Object.entries(st.byType).sort((a, b) => b[1] - a[1]).slice(0, 18);
   $('res-items').innerHTML = top.map(([id, n]) => `<span>${(CATALOG.get(id) || {}).name || id} <b>×${n}</b></span>`).join('');
   $('res-brag').textContent = bragLine(size, rank, st);
+  const got = wishes.finish();
+  $('res-wish').innerHTML =
+    `<div class="rw-head">女娲的心愿 <b>★ ${got}/${wishes.list.length}</b><small>累计 ★ ${wishes.stars}</small></div>` +
+    wishes.list.map(x => `<div class="rw${x.done ? ' ok' : ''}"><i>${x.done ? '★' : '☆'}</i>${x.w.text}${x.done ? '' : `<small>${wishes.progress(x)}</small>`}</div>`).join('');
   dex.save();
   const fresh = [...dex.fresh].map(id => (CATALOG.get(id) || {}).name || id);
   $('res-dex-line').innerHTML = fresh.length
@@ -1337,6 +1393,7 @@ window.__wanwu = {
   get maps() { return maps; },
   get warn() { return warn; },
   get dex() { return dex; },
+  get wishes() { return wishes; },
   get glints() { return glints.list.map(o => [o.spec.id, +o.size.toFixed(3), +Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z).toFixed(2)]); },
   GROW,
   start: mode => startGame(mode || 'timed'),

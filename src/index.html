@@ -28,7 +28,7 @@
       <div id="last-size"></div>
     </div>
   </div>
-  <div id="hud-count">已滚起 <b id="count-num">0</b> 件</div>
+  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span></div>
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
@@ -112,6 +112,7 @@
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
     <div id="res-items" class="res-items"></div>
+    <div id="res-wish" class="res-wish"></div>
     <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
     <div id="res-dex-new" class="res-dex-new"></div>
     <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
@@ -123,6 +124,8 @@
   </div>
   </div>
 </div>
+
+<div id="wish-card" hidden><div class="wc-head">女娲的心愿</div><ol id="wish-list"></ol><div class="wc-foot">点左上角的「心愿」随时看</div></div>
 
 <div id="dex" class="screen" hidden>
   <div class="panel dex-panel">

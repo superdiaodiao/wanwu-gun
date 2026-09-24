@@ -182,6 +182,35 @@ kbd {
   font-size: 13px; color: var(--paper-dim);
 }
 #hud-count b { font: 800 16px/1 var(--num); color: var(--paper); font-variant-numeric: tabular-nums; }
+/* the count pill also carries 女娲's wishes as stars; tap it for the list */
+#hud-count { pointer-events: auto; cursor: pointer; }
+#hud-count .wish-lbl { margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(246, 239, 224, 0.25); }
+#hud-wish { margin-left: 3px; letter-spacing: 1px; color: rgba(246, 239, 224, 0.55); }
+#hud-wish .on { color: var(--gold); }
+#hud-wish i { font-style: normal; }
+#wish-card {
+  position: fixed; left: 0; right: 0; top: 21%; z-index: 5;
+  margin: 0 auto;
+  width: min(88vw, 380px);
+  padding: 12px 16px 10px;
+  border-radius: 16px;
+  border: 2px solid rgba(242, 193, 78, 0.65);
+  background: rgba(31, 27, 36, 0.9);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: hint-in 0.3s ease-out;
+}
+.wc-head { font: 18px var(--display); color: var(--gold); margin-bottom: 6px; }
+#wish-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+#wish-list li { display: flex; align-items: baseline; gap: 8px; font-size: 15px; color: var(--paper); }
+#wish-list li i { font-style: normal; color: rgba(246, 239, 224, 0.5); }
+#wish-list li span { flex: 1; }
+#wish-list li small { display: block; font-size: 12px; color: var(--paper-dim); }
+.wc-foot { margin-top: 6px; font-size: 11px; color: rgba(246, 239, 224, 0.45); }
+#wish-list li b { font: 700 13px var(--num); color: var(--gold); white-space: nowrap; }
+#wish-list li.done { color: var(--paper-dim); }
+#wish-list li.done i { color: var(--gold); }
+#wish-list li.done span { text-decoration: line-through; text-decoration-color: rgba(242, 193, 78, 0.7); }
 #hud-keys {
   position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
@@ -491,6 +520,16 @@ kbd {
 .res-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-height: 30vh; overflow-y: auto; font-size: 13px; color: var(--paper-dim); }
 .res-items span { padding: 3px 9px; border-radius: 8px; background: rgba(246, 239, 224, 0.07); }
 .res-items b { color: var(--paper); font-weight: 700; }
+.res-wish { display: grid; gap: 4px; justify-items: center; font-size: 14px; }
+.res-wish:empty { display: none; }
+.rw-head { font: 18px var(--display); color: var(--paper); }
+.rw-head b { margin-left: 6px; color: var(--gold); font: 800 17px var(--num); }
+.rw-head small { margin-left: 8px; color: var(--paper-dim); font: 700 13px var(--num); }
+.rw { color: var(--paper-dim); }
+.rw i { font-style: normal; margin-right: 6px; color: rgba(246, 239, 224, 0.45); }
+.rw.ok { color: var(--paper); }
+.rw.ok i { color: var(--gold); }
+.rw small { margin-left: 8px; color: var(--paper-dim); font: 700 12px var(--num); }
 .res-dex { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14px; }
 .res-dex b { font: 800 16px var(--num); color: var(--gold); }
 .res-dex-new { font-size: 13px; color: var(--paper-dim); text-align: center; }
@@ -652,6 +691,9 @@ kbd {
   #hud-combo b { font-size: 36px; }
   #hud-combo .lbl { font-size: 20px; }
   #stamp .sub { font-size: 18px; max-width: 86vw; }
+  /* under the count, clear of the minimap on the right */
+  #wish-card { right: auto; left: max(16px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 148px); width: calc(100vw - 150px); padding: 10px 12px 8px; }
+  #wish-list li { font-size: 14px; }
   .gain { font-size: 16px; }
   .gain.big { font-size: 21px; }
   .btn { min-width: 140px; }
@@ -702,7 +744,7 @@ kbd {
       <div id="last-size"></div>
     </div>
   </div>
-  <div id="hud-count">已滚起 <b id="count-num">0</b> 件</div>
+  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span></div>
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
@@ -786,6 +828,7 @@ kbd {
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
     <div id="res-items" class="res-items"></div>
+    <div id="res-wish" class="res-wish"></div>
     <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
     <div id="res-dex-new" class="res-dex-new"></div>
     <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
@@ -797,6 +840,8 @@ kbd {
   </div>
   </div>
 </div>
+
+<div id="wish-card" hidden><div class="wc-head">女娲的心愿</div><ol id="wish-list"></ol><div class="wc-foot">点左上角的「心愿」随时看</div></div>
 
 <div id="dex" class="screen" hidden>
   <div class="panel dex-panel">
@@ -823,7 +868,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.4e57c590.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.382df4e5.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {
