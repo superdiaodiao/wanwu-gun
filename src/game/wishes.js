@@ -8,32 +8,33 @@ import { fmt } from './hud.js';
 const CATS = ['cat_orange', 'cat_tabby', 'cat_cow', 'cat_white', 'cat_black', 'cat_sleeping'];
 
 // ids: any of these counts (n of them); set: one of each; tag: that one thing; combo: a streak this
-// long; size: the ball this big (timed: within the 6 minutes). said: what 女娲 says when it comes true
+// long; size: the ball this big (timed: within the 6 minutes). short: for the progress note on the
+// HUD. said: what 女娲 says when it comes true
 export const WISHES = [
-  { id: 'coins', tier: 0, text: '滚起 20 枚硬币', ids: ['coin_1yuan', 'coin_5jiao'], n: 20, said: '叮叮当当，本宫收下了。' },
-  { id: 'baozi', tier: 0, text: '滚起 5 个包子', ids: ['baozi'], n: 5, said: '包子管饱，补天才有力气。' },
-  { id: 'ducks', tier: 0, text: '滚起 3 只小黄鸭', ids: ['rubber_duck'], n: 3, said: '小黄鸭……本宫也想要一只。' },
-  { id: 'fruit', tier: 0, text: '滚起 6 个水果', ids: ['orange', 'apple', 'banana', 'tomato', 'watermelon', 'watermelon_half'], n: 6, said: '水果也要吃，补天讲究营养均衡。' },
-  { id: 'mahjong', tier: 0, text: '凑齐一万、八筒、红中、发财', set: ['mahjong_wan', 'mahjong_tong', 'mahjong_zhong', 'mahjong_fa'], said: '胡了！本宫手气不错。' },
-  { id: 'marbles', tier: 0, text: '滚起 10 颗玻璃弹珠', ids: ['marble'], n: 10, said: '弹珠滚进石头里，有意思。' },
-  { id: 'envelopes', tier: 0, text: '滚起 3 个红包', ids: ['red_envelope'], n: 3, said: '红包都给本宫？懂事。' },
-  { id: 'cats', tier: 1, text: '滚起 3 只猫', ids: CATS, n: 3, said: '猫主子们也来补天了，本宫甚是欣慰。' },
-  { id: 'aunties', tier: 1, text: '滚起 5 位大妈', ids: ['auntie', 'auntie_dance', 'auntie_veg'], n: 5, said: '大妈们一上，天塌不了。' },
-  { id: 'uncles', tier: 1, text: '滚起 3 位大爷', ids: ['uncle', 'uncle_chess', 'uncle_birdcage', 'uncle_taichi', 'fisherman'], n: 3, said: '大爷们的棋，下到天上去吧。' },
-  { id: 'speaker', tier: 1, text: '把广场舞音箱滚走', tag: 'dance_speaker', said: null },
-  { id: 'bikes', tier: 1, text: '滚起 5 辆共享单车', ids: ['shared_bike'], n: 5, said: '扫码都不用，直接滚走。' },
-  { id: 'lions', tier: 1, text: '滚起 2 只石狮子', ids: ['stone_lion'], n: 2, said: '石狮子镇天门，好。' },
-  { id: 'bus', tier: 1, text: '把公交车滚上来', ids: ['bus'], n: 1, said: '一整车人，一起补天。' },
-  { id: 'goose', tier: 1, text: '滚起一只大鹅', ids: ['goose'], n: 1, said: '大鹅都敢滚，你比本宫还勇。' },
-  { id: 'combo', tier: 1, text: '一口气连滚 ×30', combo: 30, said: '一口气滚这么多，手真稳。' },
-  { id: 'pagoda', tier: 2, text: '把宝塔滚上来', ids: ['pagoda'], n: 1, said: '宝塔都来了，这天稳了。' },
-  { id: 'ferris', tier: 2, text: '把摩天轮滚上来', ids: ['ferris_ring'], n: 1, said: '摩天轮！本宫还没坐过呢。' },
-  { id: 'train', tier: 2, text: '把高铁滚上来', ids: ['bullet_train'], n: 1, said: '高铁都追上了，你比它还快。' },
-  { id: 'tvtower', tier: 2, text: '把明珠塔滚上来', ids: ['tv_tower'], n: 1, said: '……这也行？本宫服了。' },
-  { id: 'mountain', tier: 2, text: '滚起一座山', ids: ['mountain_green', 'mountain_rocky', 'mountain_karst'], n: 1, said: '山都滚得动，快去补天！' },
-  { id: 'clouds', tier: 2, text: '把 3 朵云滚下来', ids: ['cloud'], n: 3, said: '连云都滚下来了，天上干干净净。' },
-  { id: 'size500', tier: 2, text: '6 分钟内长到 500 米', size: 500, only: 'timed', said: '这么大一块，窟窿够补了。' },
-  { id: 'size1k', tier: 2, text: '长到 1 公里', size: 1000, only: 'free', said: '一公里！天上都装不下你了。' },
+  { id: 'coins', short: '硬币', tier: 0, text: '滚起 20 枚硬币', ids: ['coin_1yuan', 'coin_5jiao'], n: 20, said: '叮叮当当，本宫收下了。' },
+  { id: 'baozi', short: '包子', tier: 0, text: '滚起 5 个包子', ids: ['baozi'], n: 5, said: '包子管饱，补天才有力气。' },
+  { id: 'ducks', short: '小黄鸭', tier: 0, text: '滚起 3 只小黄鸭', ids: ['rubber_duck'], n: 3, said: '小黄鸭……本宫也想要一只。' },
+  { id: 'fruit', short: '水果', tier: 0, text: '滚起 6 个水果', ids: ['orange', 'apple', 'banana', 'tomato', 'watermelon', 'watermelon_half'], n: 6, said: '水果也要吃，补天讲究营养均衡。' },
+  { id: 'mahjong', short: '麻将', tier: 0, text: '凑齐一万、八筒、红中、发财', set: ['mahjong_wan', 'mahjong_tong', 'mahjong_zhong', 'mahjong_fa'], said: '胡了！本宫手气不错。' },
+  { id: 'marbles', short: '弹珠', tier: 0, text: '滚起 10 颗玻璃弹珠', ids: ['marble'], n: 10, said: '弹珠滚进石头里，有意思。' },
+  { id: 'envelopes', short: '红包', tier: 0, text: '滚起 3 个红包', ids: ['red_envelope'], n: 3, said: '红包都给本宫？懂事。' },
+  { id: 'cats', short: '猫', tier: 1, text: '滚起 3 只猫', ids: CATS, n: 3, said: '猫主子们也来补天了，本宫甚是欣慰。' },
+  { id: 'aunties', short: '大妈', tier: 1, text: '滚起 5 位大妈', ids: ['auntie', 'auntie_dance', 'auntie_veg'], n: 5, said: '大妈们一上，天塌不了。' },
+  { id: 'uncles', short: '大爷', tier: 1, text: '滚起 3 位大爷', ids: ['uncle', 'uncle_chess', 'uncle_birdcage', 'uncle_taichi', 'fisherman'], n: 3, said: '大爷们的棋，下到天上去吧。' },
+  { id: 'speaker', short: '音箱', tier: 1, text: '把广场舞音箱滚走', tag: 'dance_speaker', said: null },
+  { id: 'bikes', short: '单车', tier: 1, text: '滚起 5 辆共享单车', ids: ['shared_bike'], n: 5, said: '扫码都不用，直接滚走。' },
+  { id: 'lions', short: '石狮子', tier: 1, text: '滚起 2 只石狮子', ids: ['stone_lion'], n: 2, said: '石狮子镇天门，好。' },
+  { id: 'bus', short: '公交车', tier: 1, text: '把公交车滚上来', ids: ['bus'], n: 1, said: '一整车人，一起补天。' },
+  { id: 'goose', short: '大鹅', tier: 1, text: '滚起一只大鹅', ids: ['goose'], n: 1, said: '大鹅都敢滚，你比本宫还勇。' },
+  { id: 'combo', short: '连滚', tier: 1, text: '一口气连滚 ×30', combo: 30, said: '一口气滚这么多，手真稳。' },
+  { id: 'pagoda', short: '宝塔', tier: 2, text: '把宝塔滚上来', ids: ['pagoda'], n: 1, said: '宝塔都来了，这天稳了。' },
+  { id: 'ferris', short: '摩天轮', tier: 2, text: '把摩天轮滚上来', ids: ['ferris_ring'], n: 1, said: '摩天轮！本宫还没坐过呢。' },
+  { id: 'train', short: '高铁', tier: 2, text: '把高铁滚上来', ids: ['bullet_train'], n: 1, said: '高铁都追上了，你比它还快。' },
+  { id: 'tvtower', short: '明珠塔', tier: 2, text: '把明珠塔滚上来', ids: ['tv_tower'], n: 1, said: '……这也行？本宫服了。' },
+  { id: 'mountain', short: '山', tier: 2, text: '滚起一座山', ids: ['mountain_green', 'mountain_rocky', 'mountain_karst'], n: 1, said: '山都滚得动，快去补天！' },
+  { id: 'clouds', short: '云', tier: 2, text: '把 3 朵云滚下来', ids: ['cloud'], n: 3, said: '连云都滚下来了，天上干干净净。' },
+  { id: 'size500', short: '长大', tier: 2, text: '6 分钟内长到 500 米', size: 500, only: 'timed', said: '这么大一块，窟窿够补了。' },
+  { id: 'size1k', short: '长大', tier: 2, text: '长到 1 公里', size: 1000, only: 'free', said: '一公里！天上都装不下你了。' },
 ];
 
 export class Wishes {

@@ -7,7 +7,7 @@ import * as S from './sfx.js';
 import * as I from './instruments.js';
 import { babble, BABBLE_VOICES, choir } from './voices.js';
 import { getSong, strum } from './songs.js';
-import { Track, Roller } from './sequencer.js';
+import { Track } from './sequencer.js';
 import { createMixer, createSpeaker } from './audio.js';
 
 const SR = 44100, T0 = 0.05;
@@ -77,9 +77,6 @@ export function checkList() {
   add('inst:pad 4 notes', 3, (c, b) => I.pad(c, b.music, T0, { midis: [55, 59, 62, 69], dur: 2, vel: 0.55 }), 'inst');
   add('inst:choir 4 notes', 3, (c, b) => choir(c, b.music, T0, { midis: [62, 66, 69, 74], dur: 2, vel: 0.4 }), 'inst');
   add('inst:bell E6', 2, (c, b) => I.bell(c, b.music, T0, { midi: 88, vel: 0.2, dur: 2 }), 'inst');
-  add('roll small fast', 2, (c, b) => { const r = new Roller(c, b.sfx); r.update(0.9, 0.3); r.tick(0, 2); }, 'loop');
-  add('roll big fast', 2, (c, b) => { const r = new Roller(c, b.sfx); r.update(0.9, 80); r.tick(0, 2); }, 'loop');
-  add('roll slow mid', 2, (c, b) => { const r = new Roller(c, b.sfx); r.update(0.15, 3); r.tick(0, 2); }, 'loop');
   add('music:title', 6, (c, b) => playTrack(c, b.music, 'title'), 'music');
   add('music:game intro i=0', 6, (c, b) => playTrack(c, b.music, 'game', { intensity: 0 }), 'music');
   add("music:game A' i=1", 6, (c, b) => playTrack(c, b.music, 'game', { startBar: 12, intensity: 1 }), 'music');
@@ -94,7 +91,6 @@ export function checkList() {
     playTrack(c, m.music, 'game', { startBar: 12, intensity: 1 });
     m.dance.out.gain.value = 0.45; m.duck.gain.value = 0.7;
     playTrack(c, m.dance.in, 'dance');
-    const r = new Roller(c, m.sfx); r.update(0.8, 2); r.tick(0, 6);
     for (let i = 0; i < 40; i++) S.pickupSound(c, m.sfx, 0.2 + i * 0.13, { key: pick(S.PICKUP_KEYS.filter(k => k !== 'gong')), rel: 0.05 + Math.random() * 0.6, size: 1, combo: i % 5 });
     S.milestone(c, m.sfx, 3, { level: 8 });
     S.bump(c, m.sfx, 4.5, { strength: 1 });

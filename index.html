@@ -156,6 +156,7 @@ kbd {
   pointer-events: auto; cursor: pointer;
 }
 #btn-patch b { margin-left: 2px; }
+#btn-patch.timed { top: calc(max(16px, env(safe-area-inset-top)) + 50px); font-size: 17px; padding: 6px 14px 5px; }
 #btn-patch.urge { animation: pulse 1s infinite; }
 #time-text { font: 800 26px/1 var(--num); font-variant-numeric: tabular-nums; }
 #hud-time.hurry #time-text { color: var(--red); animation: pulse 1s infinite; }
@@ -202,6 +203,8 @@ kbd {
 #hud-count .wish-lbl { margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(246, 239, 224, 0.25); }
 #hud-wish { margin-left: 3px; letter-spacing: 1px; color: rgba(246, 239, 224, 0.55); }
 #hud-wish .on { color: var(--gold); }
+#hud-wish-note { margin-left: 6px; font-weight: 700; color: var(--gold); }
+#hud-wish-note:empty { display: none; }
 #hud-wish i { font-style: normal; }
 #wish-card {
   position: fixed; left: 0; right: 0; top: 21%; z-index: 5;
@@ -262,6 +265,17 @@ kbd {
 }
 #edge-warn i { font: 900 26px/1 var(--num); font-style: normal; color: var(--paper); }
 @keyframes edge-warn { to { scale: 1.15; } }
+/* the way to something that can still be rolled up (see main.js foodPointer) */
+#food-arrow {
+  position: absolute; left: 0; top: 0; width: 38px; height: 38px; margin: -19px 0 0 -19px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--gold); border: 3px solid var(--paper);
+  box-shadow: 0 4px 14px rgba(10, 6, 14, 0.45);
+  pointer-events: none;
+  animation: edge-warn 0.6s ease-in-out infinite alternate;
+}
+#food-arrow i { width: 0; height: 0; margin-left: 4px; border-left: 13px solid var(--ink); border-top: 8px solid transparent; border-bottom: 8px solid transparent; }
 
 /* on the thing about to be run into: that it can't be taken yet, and how big the ball must get */
 #warn-tag {
@@ -548,6 +562,7 @@ kbd {
 .res-goal { font-size: 15px; color: var(--paper); }
 .res-goal b { color: var(--gold); }
 .res-goal.short { color: var(--paper-dim); }
+.res-tip { margin: 0; font-size: 13px; color: var(--gold); text-align: center; }
 .res-goal small { display: block; margin-top: 2px; font-size: 13px; color: var(--paper-dim); }
 .res-dex { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14px; }
 .res-dex b { font: 800 16px var(--num); color: var(--gold); }
@@ -700,7 +715,8 @@ kbd {
   #last-name { font-size: 18px; }
   #hud-keys { display: none; }
   #hud-time { top: calc(max(14px, env(safe-area-inset-top)) + 118px); left: auto; right: 16px; transform: none; }
-  #btn-patch { top: calc(max(14px, env(safe-area-inset-top)) + 118px); left: auto; right: 16px; transform: none; font-size: 18px; }
+  /* under the minimap (the clock has the spot above it in a timed game) */
+  #btn-patch, #btn-patch.timed { top: calc(max(14px, env(safe-area-inset-top)) + 280px); left: auto; right: 16px; transform: none; font-size: 17px; padding: 6px 14px 5px; }
   #minimap-btn { width: 104px; height: 104px; top: calc(max(14px, env(safe-area-inset-top)) + 168px); }
   #toast-stack { top: calc(max(14px, env(safe-area-inset-top)) + 290px); } /* below the minimap */
   #dialog-portrait { width: 84px; height: 84px; }
@@ -734,7 +750,7 @@ kbd {
   #hud-keys { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
+  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #food-arrow, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
 }
 
 </style>
@@ -757,6 +773,7 @@ kbd {
   <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
   <button id="btn-patch" hidden>去补天 <b>›</b></button>
+  <div id="food-arrow" hidden aria-hidden="true"><i></i></div>
   <div id="hud-last" hidden>
     <div id="last-view"></div>
     <div class="info">
@@ -765,7 +782,7 @@ kbd {
       <div id="last-size"></div>
     </div>
   </div>
-  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span></div>
+  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span><span id="hud-wish-note"></span></div>
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
@@ -853,6 +870,7 @@ kbd {
     <div id="res-wish" class="res-wish"></div>
     <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
     <div id="res-dex-new" class="res-dex-new"></div>
+    <p id="res-tip" class="res-tip" hidden>手机发烫的话，回开始页勾上「省电」，会凉快很多。</p>
     <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
     <div class="actions">
       <button id="btn-again" class="btn primary"><b>再滚一次</b></button>
@@ -890,7 +908,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.5d3ae9de.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.205d1e42.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {

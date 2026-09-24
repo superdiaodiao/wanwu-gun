@@ -11,8 +11,8 @@ export const INTRO = [
 export const SKY_GOAL = 50;
 export const INTRO_TIMED = '天上的窟窿，得一块五十米的补天石才补得上。天黑之前——六分钟——滚到五十米，越大越好。去吧！';
 export const INTRO_FREE = '不着急，慢慢滚。滚到五十米就够补天了，到时候本宫叫你。';
-export const GOAL_FREE = '五十米！够补天了——想补天就点上面的「去补天」。接着滚到两百米，本宫封你「五色神石」！';
-export const ALL_ROLLED = '城里都被你滚空了……该去补天了！点上面的「去补天」。';
+export const GOAL_FREE = '五十米！够补天了——想补天就点「去补天」。接着滚到两百米，本宫封你「五色神石」！';
+export const ALL_ROLLED = '城里都被你滚空了……该去补天了！点「去补天」就行。';
 
 // size (m) → 女娲's comment. The HUD goal is always the next entry.
 export const MILESTONES = [

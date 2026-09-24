@@ -3,7 +3,7 @@
 //   import { audio } from './audio/audio.js';
 //   button.onclick = () => audio.init();           // from a user gesture (autoplay policy)
 //   audio.music('game'); audio.setIntensity(0.4);   // looping music with intensity layers
-//   every frame: audio.roll(speed01, ballDiameterMeters); audio.squareDance(proximity01);
+//   every frame: audio.squareDance(proximity01);
 //   events: audio.pickup('meow', rel, objectSizeMeters), audio.bump(0.7), audio.milestone(3) ...
 //
 // Every method is a safe no-op before init() and never throws.
@@ -14,7 +14,7 @@ import { ksBuffer } from './instruments.js';
 import * as S from './sfx.js';
 import { VOICES, babble as babbleSyllable } from './voices.js';
 import { getSong } from './songs.js';
-import { Track, Roller } from './sequencer.js';
+import { Track } from './sequencer.js';
 
 export const DEFAULT_VOLUME = { master: 0.85, music: 0.6, sfx: 0.9 };
 const LOOKAHEAD = 0.15, TIMER_MS = 25, HURRY_TEMPO = 1.07, DANCE_LEVEL = 0.9;
@@ -90,7 +90,6 @@ class AudioEngine {
     this._vol = { ...DEFAULT_VOLUME }; this._musicOn = true; this._muted = false;
     this._want = null; this._trackName = null; this._track = null; this._old = [];
     this._intensity = 0; this._hurry = false;
-    this._roller = null;
     this._dance = null; this._danceDead = false; this._danceG = 0; this._danceLoudAt = 0; this._danceSet = -1;
     this._fanfareDuck = 1; this._duckSet = -1; this._duckTimer = null;
     this._pickWin = []; this._combo = 0; this._lastPick = -9; this._nextPickT = 0;
@@ -208,17 +207,6 @@ class AudioEngine {
   }
 
   // ---------------------------------------------------------------- continuous
-  roll(speed01, sizeMeters) {
-    if (!this.ready) return;
-    try {
-      const s = clamp(+speed01 || 0);
-      if (!this._roller) {
-        if (s < 0.02) return;
-        this._roller = new Roller(this.ctx, this.m.sfx);
-      }
-      this._roller.update(s, +sizeMeters || 0.3);
-    } catch (e) { this._err(e); }
-  }
   squareDance(gain01) {
     if (!this.ready || this._danceDead) return;
     try {
@@ -426,7 +414,6 @@ class AudioEngine {
         tr.schedule(ahead);
       }
       if (this._old.length) this._old = this._old.filter(tr => { if (!tr.done) return true; setTimeout(() => tr.dispose(), 4000); return false; });
-      if (this._roller) this._roller.tick(now, ahead);
       if (this._dance) {
         if (this._danceG > 0.002) this._danceLoudAt = now;
         this._dance.silent = now - this._danceLoudAt > 2; // far away: keep time, skip notes

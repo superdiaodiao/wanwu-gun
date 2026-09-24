@@ -21,6 +21,7 @@
   <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
   <button id="btn-patch" hidden>去补天 <b>›</b></button>
+  <div id="food-arrow" hidden aria-hidden="true"><i></i></div>
   <div id="hud-last" hidden>
     <div id="last-view"></div>
     <div class="info">
@@ -29,7 +30,7 @@
       <div id="last-size"></div>
     </div>
   </div>
-  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span></div>
+  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span><span id="hud-wish-note"></span></div>
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
@@ -117,6 +118,7 @@
     <div id="res-wish" class="res-wish"></div>
     <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
     <div id="res-dex-new" class="res-dex-new"></div>
+    <p id="res-tip" class="res-tip" hidden>手机发烫的话，回开始页勾上「省电」，会凉快很多。</p>
     <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
     <div class="actions">
       <button id="btn-again" class="btn primary"><b>再滚一次</b></button>

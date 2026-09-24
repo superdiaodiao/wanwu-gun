@@ -276,6 +276,8 @@ function resetGame(mode) {
   $('btn-patch').classList.remove('urge');
   G.rolledOut = false;
   G.rolledT = 3;
+  food.said = false;
+  food.target = null;
   dex.newGame();
   maps.reset();
   hud.update(ball.S, 0, mode === 'timed' ? GAME_SECONDS : null, 0);
@@ -370,17 +372,18 @@ function showWishes(secs) {
   G.wishT = secs;
 }
 
+// (quietly: progress is a note after the stars for a moment; a wish come true is one toast and a
+// lit star, nothing more covering the view)
 function wishProgress(x) {
-  const n = wishes.need(x.w);
-  if (n <= 5 || x.p % 5 === 0) hud.toast(`心愿：${x.w.text} <em>${x.p}/${n}</em>`);
+  $('hud-wish-note').textContent = `${x.w.short} ${x.p}/${wishes.need(x.w)}`;
+  G.wishNoteT = 2.5;
 }
 
 function wishDone(x) {
   syncWishHud();
-  hud.toast(`★ 心愿达成：${x.w.text}`, true);
+  $('hud-wish-note').textContent = '';
+  hud.toast(`★ 心愿达成：${x.w.text}`);
   audio.comboChime(3);
-  if (x.w.said) dialog.say(x.w.said);
-  showWishes(3.5);
 }
 
 function syncDexButton() {
@@ -544,7 +547,7 @@ function togglePause(force) {
     G.redraw = true;
     $('pause').hidden = false;
     drawPauseMap();
-    $('btn-finish').hidden = G.mode !== 'free';
+    $('btn-finish').hidden = G.mode !== 'free' && ball.S < story.SKY_GOAL;
     audio.ui('pause');
     audio.suspend();
   } else if (!on && G.state === 'pause') {
@@ -740,6 +743,56 @@ function touchHints(dt, raw) {
   }
 }
 
+// ---- where there's still something to roll up ------------------------------------------------
+// Late in a game everything near the ball can be too big to take. After a few seconds without a
+// pickup, with nothing worth taking right by the ball, a gold arrow next to it points the way to the
+// nearest thing that is (the first time, 女娲 says what it means).
+const food = { t: 0, target: null, cands: [], said: false };
+const _fa = new THREE.Vector3();
+function foodPointer(dt) {
+  const el = $('food-arrow');
+  food.t -= dt;
+  if (food.t <= 0) {
+    food.t = 0.5;
+    food.target = null;
+    const S = ball.S, limit = ball.pickLimit();
+    if (G.idleT > 4) {
+      let best = null, bd = Infinity;
+      for (const R of [S * 8, S * 25, S * 80, 6000]) {
+        for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, food.cands, limit * 0.1)) {
+          if (o.state !== 0 || o.size > limit || o.size < limit * 0.12 || G.t < o.noPickUntil) continue;
+          const d = Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z);
+          if (d < bd) {
+            bd = d;
+            best = o;
+          }
+        }
+        if (best) break;
+      }
+      if (best && bd > S * 2.5 + ball.r) food.target = best;
+    }
+  }
+  const o = food.target;
+  let show = false;
+  if (o && o.state === 0) {
+    // round the ball on screen, towards it (up is ahead, as on the stick)
+    const cam = engine.camera;
+    _fa.copy(ball.group.position).project(cam);
+    const bx = ((_fa.x + 1) / 2) * innerWidth, by = ((1 - _fa.y) / 2) * innerHeight;
+    _fa.set(ball.pos.x, ball.group.position.y + ball.displayS / 2, ball.pos.z).project(cam);
+    const rr = Math.abs(by - ((1 - _fa.y) / 2) * innerHeight);
+    const rel = Math.atan2(o.centerX() - ball.pos.x, -(o.centerZ() - ball.pos.z)) - rig.yaw;
+    const ux = Math.sin(rel), uy = -Math.cos(rel), r = Math.min(rr + 34, innerHeight * 0.3);
+    el.style.transform = `translate(${bx + ux * r}px, ${by + uy * r}px) rotate(${Math.atan2(uy, ux)}rad)`;
+    show = true;
+    if (!food.said && !dialog.active) {
+      food.said = true;
+      dialog.say('附近都滚不动了？跟着金色箭头走，那边还有能滚的！');
+    }
+  }
+  if (el.hidden === show) el.hidden = !show;
+}
+
 // ---- what the ball is about to run into ------------------------------------------------------
 // Looks about 1.6 s ahead, both where the stick points and where the ball is actually rolling (it
 // curves from one to the other). The first few things in the way that the ball can't take flash
@@ -867,6 +920,7 @@ function step(dt) {
     rig.quick = inp.quick;
     rig.hold = !!inp.hold;
     touchHints(dt, raw);
+    foodPointer(dt);
     ball.update(dt, inp, G.t, G.events);
     updateWarning(dt, inp);
     if (G.mode === 'timed') {
@@ -893,6 +947,7 @@ function step(dt) {
     if (!$('swipe-hint').hidden) $('swipe-hint').hidden = true;
     if (!$('stick-hint').hidden) $('stick-hint').hidden = true;
     if (!$('wish-card').hidden) $('wish-card').hidden = true;
+    if (!$('food-arrow').hidden) $('food-arrow').hidden = true;
   }
 
   if (G.state !== 'pause') {
@@ -902,8 +957,13 @@ function step(dt) {
   handleEvents();
   if (G.state === 'play') {
     checkMilestones();
+    if (ball.S >= story.SKY_GOAL && $('btn-patch').hidden) {
+      // (timed: finishing before the clock runs out is the player's call)
+      $('btn-patch').firstChild.textContent = G.mode === 'free' ? '去补天 ' : '提前补天 ';
+      $('btn-patch').classList.toggle('timed', G.mode !== 'free');
+      $('btn-patch').hidden = false;
+    }
     if (G.mode === 'free' && ball.S >= story.SKY_GOAL) {
-      if ($('btn-patch').hidden) $('btn-patch').hidden = false;
       // nearly nothing left out there: say so, once
       if (!G.rolledOut && (G.rolledT -= dt) <= 0) {
         G.rolledT = 3;
@@ -918,6 +978,7 @@ function step(dt) {
     }
     for (const x of wishes.check(ball.combo.n, ball.S)) wishDone(x);
     if (G.wishT > 0 && (G.wishT -= dt) <= 0) $('wish-card').hidden = true;
+    if (G.wishNoteT > 0 && (G.wishNoteT -= dt) <= 0) $('hud-wish-note').textContent = '';
     // a nudge from 女娲 when nothing has been rolled up for a while
     G.idleT += dt;
     G.nudgeCd -= dt;
@@ -937,11 +998,11 @@ function step(dt) {
     world.cullTiny(ball.S);
   }
   const S = ball.displayS;
+  // (the rolling itself makes no sound: the music and the pops of things rolled up carry it)
   if (G.state === 'play') {
     const sp = ball.speed() / ball.maxSpeed();
     if (sp > 0.25) fx.dust(ball.pos.x, ball.pos.z, S, sp * dt * 6, ball.heading);
-    audio.roll(Math.min(1, sp), S);
-  } else audio.roll(0, S);
+  }
   const g = layout.groups.dance;
   if (g && !movers.danceStopped && G.state !== 'title') {
     const dd = Math.hypot(ball.pos.x - g.x, ball.pos.z - g.z);
@@ -1249,6 +1310,7 @@ function showResults() {
   const top = Object.entries(st.byType).sort((a, b) => b[1] - a[1]).slice(0, 18);
   $('res-items').innerHTML = top.map(([id, n]) => `<span>${(CATALOG.get(id) || {}).name || id} <b>×${n}</b></span>`).join('');
   $('res-brag').textContent = bragLine(size, rank, st);
+  $('res-tip').hidden = !(G.touchScreen && G.fpsCap !== 30);
   const got = wishes.finish();
   $('res-wish').innerHTML =
     `<div class="rw-head">女娲的心愿 <b>★ ${got}/${wishes.list.length}</b><small>累计 ★ ${wishes.stars}</small></div>` +

@@ -33,7 +33,7 @@ function check(label, onchange) {
 }
 
 // ------------------------------------------------------------------ controls
-const ui = { rel: 0.15, size: 0.5, speed: 0.6, ballSize: 1, rolling: false, dance: 0, strength: 0.6, voiceGain: 1, fade: 1.5, babbleVoice: 'nuwa' };
+const ui = { rel: 0.15, size: 0.5, dance: 0, strength: 0.6, voiceGain: 1, fade: 1.5, babbleVoice: 'nuwa' };
 const muteBtn = btn('静音 mute: off', () => { muteBtn.textContent = '静音 mute: ' + (audio.toggleMute() ? 'ON' : 'off'); });
 const musicBtn = btn('音乐 music: on', () => { musicBtn.textContent = '音乐 music: ' + (audio.toggleMusic() ? 'on' : 'OFF'); });
 section('引擎 Engine',
@@ -47,11 +47,6 @@ section('音乐 Music',
   slider('fade s', 0, 4, 0.1, 1.5, v => { ui.fade = v; }),
   slider('intensity', 0, 1, 0.01, 0, v => audio.setIntensity(v)),
   row(check('hurry (last 60 s)', on => audio.setHurry(on))));
-
-section('滚动 Roll (every frame)',
-  row(check('rolling', on => { ui.rolling = on; })),
-  slider('speed01', 0, 1, 0.01, 0.6, v => { ui.speed = v; }),
-  slider('ball size', 0, 1, 0.001, 0.314, v => { ui.ballSize = 0.1 * Math.pow(3000, v); }, v => (0.1 * Math.pow(3000, v)).toFixed(v < 0.3 ? 2 : 0) + 'm'));
 
 section('广场舞 Square dance',
   slider('gain01', 0, 1, 0.01, 0, v => { ui.dance = v; }),
@@ -110,7 +105,6 @@ section('对话 babble(voice)',
 const stateEl = document.getElementById('state');
 function frame() {
   if (audio.ready) {
-    audio.roll(ui.rolling ? ui.speed : 0, ui.ballSize);
     audio.squareDance(ui.dance);
     stateEl.textContent = `ctx ${audio.ctx.state} · t=${audio.ctx.currentTime.toFixed(1)}s · track ${audio.track || '-'} · music ${audio.musicOn ? 'on' : 'off'} · ${audio.muted ? 'MUTED' : 'unmuted'}`;
   }
@@ -127,7 +121,7 @@ function preInitCheck() {
     () => audio.toggleMusic(), () => audio.toggleMusic(), () => audio.toggleMute(), () => audio.toggleMute(),
     () => audio.suspend(), () => audio.resume(), () => audio.music('game'), () => audio.music('nope'), () => audio.music(null),
     () => audio.setIntensity(0.5), () => audio.setIntensity('x'), () => audio.setIntensity(0), () => audio.setHurry(true), () => audio.setHurry(false),
-    () => audio.roll(0.5, 1), () => audio.roll(), () => audio.squareDance(0.5), () => audio.squareDance(0), () => audio.squareDanceStop(),
+    () => audio.squareDance(0.5), () => audio.squareDance(0), () => audio.squareDanceStop(),
     () => audio.pickup('meow', 0.1, 0.4), () => audio.pickup('???', NaN), () => audio.pickup(), () => audio.voice('scream_f'), () => audio.voice('nope', 2),
     () => audio.bump(1), () => audio.knock(3), () => audio.dash(), () => audio.milestone(3), () => audio.milestone(99), () => audio.tick(5), () => audio.timeUp(),
     () => audio.ui('click'), () => audio.ui('weird'), () => audio.babble(), () => audio.babble('martian'), () => audio.launch(), () => audio.patch(), () => audio.fireworks(),
@@ -154,10 +148,10 @@ async function liveCheck() {
     const acts = [() => audio.pickup('meow', 0.2, 0.4), () => audio.pickup('tiny', 0.03, 0.02), () => audio.voice('honk'), () => audio.bump(0.8),
       () => audio.knock(3), () => audio.dash(), () => audio.milestone(2), () => audio.tick(3), () => audio.ui('click'), () => audio.babble('nuwa'),
       () => audio.setHurry(true), () => audio.setHurry(false), () => audio.music('title'), () => audio.music('game')];
-    for (const a of acts) { a(); audio.roll(0.7, 1.5); audio.squareDance(0.6); await sleep(70); sample(); }
-    for (let i = 0; i < 12; i++) { audio.roll(0.7, 1.5); audio.squareDance(0.6); await sleep(50); sample(); }
+    for (const a of acts) { a(); audio.squareDance(0.6); await sleep(70); sample(); }
+    for (let i = 0; i < 12; i++) { audio.squareDance(0.6); await sleep(50); sample(); }
     const t = ctx.currentTime;
-    audio.roll(0, 1.5); audio.squareDance(0); audio.setIntensity(0); audio.music(null, { fade: 0.3 });
+    audio.squareDance(0); audio.setIntensity(0); audio.music(null, { fade: 0.3 });
     await sleep(300);
     an.disconnect();
     return `live check: ctx running, t=${t.toFixed(2)} s, master-out peak ${(20 * Math.log10(peak || 1e-9)).toFixed(1)} dBFS (${peak > 0.001 ? 'sound OK' : 'SILENT?'})`;

@@ -437,13 +437,3 @@ export function scratch(ctx, dest, t) {
   v.conn(n, nb, ng, g);
   return v.done();
 }
-// Soft thump used by the rolling-ball engine.
-export function thump(ctx, dest, t, { f = 90, vel = 0.3 } = {}) {
-  const v = new Voice(ctx, dest, t);
-  const o = v.osc('sine', f * 1.5, t, t + 0.2), g = v.gain(0);
-  o.frequency.setValueAtTime(f * 1.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.04);
-  perc(g.gain, t, vel, 0.004, 0.16);
-  v.conn(o, g, v.out);
-  noiseHit(v, t, 'lowpass', f * 6, 0.7, vel * 0.6, 0.002, 0.04, 'pink');
-  return v.done();
-}
