@@ -20,6 +20,8 @@ set('wall_slogan', { pickScale: 0.6 });
 // low, wide things look smaller than their outline says (a hill is a hump in the ground, a flower bed
 // a low ring): count them smaller, so they roll up about when they start to look as if they would
 set('hill_small', { pickScale: 0.72 }); // 85 m across but 18 m high: from a ~75 m ball, not ~104 m
+// hills and mountains collide along their slopes, not as a cylinder round the whole foot
+for (const id of ['hill_small', 'mountain_green', 'mountain_rocky', 'mountain_karst']) set(id, { terrain: true });
 set('flower_bed', { pickScale: 0.82 });
 set('lotus', { pickScale: 0.76 });
 set('washbasin', { pickScale: 0.7 });

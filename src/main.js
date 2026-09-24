@@ -324,9 +324,7 @@ async function startGame(mode) {
 function beginPlay() {
   G.state = 'play';
   G.touchScreen = isTouch();
-  swipe.shown = 0;
-  swipe.cd = 12;
-  swipe.side = 0;
+  resetTips();
   if (giant) giant.userData.target = 0;
   rig.override = null;
   rig.zoomIdx = 0;
@@ -404,6 +402,12 @@ function setupUI() {
     drawPauseMap();
   });
   $('btn-resume').addEventListener('click', () => togglePause(false));
+  // show the controls again: the thumb hints on a touch screen, the keys line otherwise
+  $('btn-help').addEventListener('click', () => {
+    resetTips(true);
+    if (!G.touchScreen) hud.showKeys();
+    togglePause(false);
+  });
   $('btn-restart').addEventListener('click', () => { $('pause').hidden = true; startGame(G.mode); });
   $('btn-home').addEventListener('click', () => { $('pause').hidden = true; audio.music(null); resetGame('timed'); enterTitle(); });
   $('btn-finish').addEventListener('click', () => { togglePause(false); startFinale(); });
@@ -594,45 +598,75 @@ function updateGlints(dt) {
   }
 }
 
-// ---- teaching the other thumb to swipe the view round (touch screens) -------------------------
-// Turning with the stick alone is clumsy; the right thumb swiping across the screen turns the view
-// (and the ball with it) while the left keeps rolling. Players who never found that out get shown:
-// when one keeps pushing the stick hard to the side for a while (or ~25 s into a game), a finger
-// slides left and right on the right of the screen, where that thumb goes. The first real swipe
-// puts it away for good.
-const swipe = { learned: null, shown: 0, cd: 12, side: 0, t: 0 };
-function swipeHint(dt, raw) {
-  const el = $('swipe-hint');
-  if (swipe.learned === null) swipe.learned = store.get('swipeLearned', false);
-  if (swipe.learned || !isTouch()) {
-    if (!el.hidden) el.hidden = true;
+// ---- where the thumbs go (touch screens) -------------------------------------------------------
+// New players get shown, once: the left thumb (press and drag: a stick appears under it) right at
+// the start, then the right one swiping across the screen, which turns the view (and the ball with
+// it) while the left keeps rolling. That second one comes back when a player who never swiped keeps
+// steering hard to the side (turning with the stick alone is clumsy). Using each control once
+// puts its hint away for good; 操作说明 in the pause menu shows them again.
+const tips = { stick: null, swipe: null, stickT: 0, held: 0, shown: 0, cd: 7, side: 0, t: 0 };
+function resetTips(forget = false) {
+  if (forget) {
+    tips.stick = tips.swipe = false;
+    store.set('stickLearned', false);
+    store.set('swipeLearned', false);
+    input.lookDist = 0;
+  }
+  Object.assign(tips, { stickT: 0, held: 0, shown: 0, cd: forget ? 3.5 : 7, side: 0, t: 0 });
+}
+function touchHints(dt, raw) {
+  const sh = $('stick-hint'), sw = $('swipe-hint');
+  if (tips.stick === null) {
+    tips.stick = store.get('stickLearned', false);
+    tips.swipe = store.get('swipeLearned', false);
+  }
+  if (!G.touchScreen) {
+    if (!sh.hidden) sh.hidden = true;
+    if (!sw.hidden) sw.hidden = true;
+    return;
+  }
+  // left thumb: until the stick has been pushed for a moment
+  if (!tips.stick) {
+    if (raw.stick && raw.stick.m > 0.3) tips.held += dt;
+    if (tips.held > 0.6) {
+      tips.stick = true;
+      store.set('stickLearned', true);
+    }
+    tips.stickT += dt;
+  }
+  const stickOn = !tips.stick && tips.stickT > 1;
+  if (sh.hidden === stickOn) sh.hidden = !stickOn;
+  // right thumb
+  if (tips.swipe) {
+    if (!sw.hidden) sw.hidden = true;
     return;
   }
   if (input.lookDist > 60) {
-    swipe.learned = true;
+    tips.swipe = true;
     store.set('swipeLearned', true);
-    if (!el.hidden) {
-      el.hidden = true;
+    if (!sw.hidden) {
+      sw.hidden = true;
       hud.toast('就是这样！边滚边滑，镜头跟着转');
     }
     return;
   }
   const s = raw.stick;
-  if (s && Math.abs(s.a) > 0.8 && Math.abs(s.a) < 2.28) swipe.side += dt;
-  else swipe.side = Math.max(0, swipe.side - dt * 0.5);
-  swipe.cd -= dt;
-  if (!el.hidden) {
-    swipe.t -= dt;
-    if (swipe.t <= 0) el.hidden = true;
+  if (s && Math.abs(s.a) > 0.8 && Math.abs(s.a) < 2.28) tips.side += dt;
+  else tips.side = Math.max(0, tips.side - dt * 0.5);
+  if (!sw.hidden) {
+    tips.t -= dt;
+    if (tips.t <= 0) sw.hidden = true;
     return;
   }
-  if (swipe.cd > 0 || swipe.shown >= 3) return;
-  if (swipe.side > 1.2 || (swipe.shown === 0 && G.time > 25)) {
-    swipe.shown++;
-    swipe.side = 0;
-    swipe.t = 5;
-    swipe.cd = 30;
-    el.hidden = false;
+  tips.cd -= dt;
+  if (stickOn || tips.cd > 0 || tips.shown >= 3) return;
+  // first time a few seconds in (once the stick is going), later when steering hard to the side
+  if (tips.shown === 0 || tips.side > 1.2) {
+    tips.shown++;
+    tips.side = 0;
+    tips.t = 6;
+    tips.cd = 30;
+    sw.hidden = false;
   }
 }
 
@@ -762,7 +796,7 @@ function step(dt) {
     rig.yaw += inp.turnImpulse;
     rig.quick = inp.quick;
     rig.hold = !!inp.hold;
-    swipeHint(dt, raw);
+    touchHints(dt, raw);
     ball.update(dt, inp, G.t, G.events);
     updateWarning(dt, inp);
     if (G.mode === 'timed') {
@@ -787,6 +821,7 @@ function step(dt) {
     edgeWarning(null, 0);
     obstacleTag(null, 0);
     if (!$('swipe-hint').hidden) $('swipe-hint').hidden = true;
+    if (!$('stick-hint').hidden) $('stick-hint').hidden = true;
   }
 
   if (G.state !== 'pause') {

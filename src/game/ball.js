@@ -181,7 +181,7 @@ export class Ball {
       const o = cands[i];
       if (o.state !== 0) continue;
       const pickable = o.size <= limit && now >= o.noPickUntil;
-      const ct = this.world.contact(o, this.pos, pickable ? this.r * MAGNET : this.r, _ct);
+      const ct = this.world.contact(o, this.pos, pickable ? this.r * MAGNET : this.r, _ct, !pickable);
       if (!ct) continue;
       if (pickable) this.pick(o, now, events);
       else this.collide(o, ct, now, events);

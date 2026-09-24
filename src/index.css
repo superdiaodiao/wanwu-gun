@@ -533,6 +533,29 @@ kbd {
   animation: swipe-dot 1.3s ease-in-out infinite;
 }
 @keyframes swipe-dot { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(42px); } }
+/* where the left thumb goes: a stick being pushed (see main.js touchHints) */
+#stick-hint {
+  position: fixed; z-index: 4;
+  left: max(20px, env(safe-area-inset-left)); bottom: calc(max(22px, env(safe-area-inset-bottom)) + 96px);
+  display: grid; justify-items: center; gap: 8px;
+  padding: 12px 16px 10px;
+  border-radius: 18px;
+  background: rgba(31, 27, 36, 0.72);
+  color: var(--paper); font-size: 14px; letter-spacing: 0.5px;
+  pointer-events: none;
+  animation: hint-in 0.3s ease-out;
+}
+#stick-hint .pad {
+  position: relative; width: 64px; height: 64px; border-radius: 50%;
+  border: 2px solid rgba(246, 239, 224, 0.45); background: rgba(246, 239, 224, 0.1);
+}
+#stick-hint .dot {
+  position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.22);
+  animation: stick-dot 1.8s ease-in-out infinite;
+}
+@keyframes stick-dot { 0%, 100% { transform: translate(0, 0); } 30% { transform: translate(0, -18px); } 60% { transform: translate(15px, -11px); } }
 @keyframes hint-in { from { opacity: 0; transform: translateY(8px); } }
 
 #touch-dash {
@@ -589,5 +612,5 @@ kbd {
   #hud-keys { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #swipe-hint, #swipe-hint .dot { animation: none !important; }
+  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
 }

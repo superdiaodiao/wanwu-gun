@@ -208,12 +208,12 @@ const angDiff = (from, to) => {
  * in the world while it stays back there (the view swinging round would otherwise drag the
  * direction with it), and `quick` tells the camera to swing round fast.
  */
-const HOLD = 14 * (Math.PI / 180); // stick within this of straight up: keep the course
+const HOLD = 10 * (Math.PI / 180); // stick within this of straight up: keep the course
 const KEY_TURN = [1.2, 2.2]; // rad/s: a tap, held (after ~0.35 s)
 /** stick angle → heading offset: a fraction of it near straight up, all of it at 90° and beyond */
 function ease(a) {
   const q = Math.PI / 2, x = Math.abs(a);
-  return x >= q ? a : Math.sign(a) * q * Math.pow(x / q, 1.7);
+  return x >= q ? a : Math.sign(a) * q * Math.pow(x / q, 1.35);
 }
 
 export class Driver {

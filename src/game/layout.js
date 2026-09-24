@@ -734,7 +734,8 @@ export function buildLayout(world, seed = 20260923) {
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * PI * 2 + 0.2;
     const r = 1850;
-    solid(rng.chance(0.5) ? 'mountain_rocky' : 'mountain_green', Math.cos(a) * r, Math.sin(a) * r, { yaw: rng.angle(), scale: rng.range(1.2, 1.7) }, 10);
+    // (sized so a ball that has come this far can start on them before long, not a wall to bump along)
+    solid(rng.chance(0.5) ? 'mountain_rocky' : 'mountain_green', Math.cos(a) * r, Math.sin(a) * r, { yaw: rng.angle(), scale: rng.range(0.95, 1.35) }, 10);
   }
   // a far range that frames the world (only a truly enormous ball ever reaches it)
   for (let i = 0; i < 26; i++) {

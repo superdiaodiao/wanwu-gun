@@ -27,10 +27,46 @@ export function buildSpec(spec) {
   // and shops are always boxes (as cylinders the ball would sink into their corners)
   spec.shape = spec.shape || (spec.cat !== 'building' && footprintAspect < 1.5 && cornerShare(g, bb) < 0.15 ? 'cyl' : 'box');
   spec.tris = m.tris;
-  if (!spec.hits && !spec.hit) spec.autoHits = sliceHits(spec, g);
+  if (spec.terrain) spec.terrainProfile = terrainProfile(spec, g);
+  else if (!spec.hits && !spec.hit) spec.autoHits = sliceHits(spec, g);
   spec.draws = m.draws; // kept for the coarse stand-in, built later (see wantCoarse)
   buildLod(spec, g, m.draws);
   return spec;
+}
+
+/**
+ * Hills and mountains: how far out from the middle the ground they're made of reaches, in 24
+ * directions at 16 heights (see world.js terrainContact). The ball then stops against the slope it
+ * can see instead of an upright cylinder round the whole foot, and a big one rolls on over the low
+ * foothills. rho[level * S + sector] is the outermost point at or above that level's height.
+ */
+function terrainProfile(spec, g) {
+  const S = 24, L = 16, p = g.attributes.position.array;
+  const cx = spec.center.x, cz = spec.center.z, y0 = spec.bbox.min.y, H = spec.dims.h;
+  const rho = new Float32Array(S * L);
+  for (let i = 0; i < p.length; i += 3) {
+    const dx = p[i] - cx, dz = p[i + 2] - cz;
+    const top = Math.floor(((p[i + 1] - y0) / H) * L - 0.5); // highest level this point is at or above
+    if (top < 0) continue;
+    let a = (Math.atan2(dz, dx) / (Math.PI * 2)) * S;
+    if (a < 0) a += S;
+    const k = Math.min(L - 1, top) * S + (Math.floor(a) % S);
+    rho[k] = Math.max(rho[k], Math.hypot(dx, dz));
+  }
+  // what reaches a level reaches every level below it; a direction with no point of its own at
+  // some height takes the smaller of its neighbours (no holes to roll into)
+  for (let l = L - 2; l >= 0; l--) for (let s = 0; s < S; s++) rho[l * S + s] = Math.max(rho[l * S + s], rho[(l + 1) * S + s]);
+  for (let l = 0; l < L; l++) {
+    for (let s = 0; s < S; s++) {
+      const i = l * S + s;
+      if (rho[i] > 0) continue;
+      const a = rho[l * S + ((s + S - 1) % S)], b = rho[l * S + ((s + 1) % S)];
+      if (a > 0 && b > 0) rho[i] = Math.min(a, b);
+    }
+  }
+  let rmax = 0;
+  for (let i = 0; i < S; i++) rmax = Math.max(rmax, rho[i]);
+  return { S, L, H, cx, cz, rho, rmax };
 }
 
 /** share of the lower third's vertices out in the corners, beyond the ellipse inscribed in their outline */

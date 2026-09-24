@@ -82,8 +82,8 @@ export class CameraRig {
     const moving = Math.min(1, ball.speed() / Math.max(1e-4, ball.maxSpeed()) * 1.5);
     if (this.quick) this.yaw += dy * Math.min(1, dt * 5);
     else if (Math.abs(dy) < 2.4) {
-      // steering, at most ~26°/s: holding the stick to the side should mostly go sideways
-      const w = (this.hold ? Math.min(2.5 * Math.abs(dy), 1.2) : Math.min(1.2 * Math.abs(dy), 0.45)) * moving;
+      // steering, at most ~34°/s: holding the stick to the side should mostly go sideways
+      const w = (this.hold ? Math.min(2.5 * Math.abs(dy), 1.2) : Math.min(1.5 * Math.abs(dy), 0.6)) * moving;
       this.yaw += Math.sign(dy) * Math.min(Math.abs(dy), w * dt);
     }
     this.desired(ball, _d, _l, this.yaw);

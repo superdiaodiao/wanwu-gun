@@ -154,4 +154,10 @@ export class HUD {
   fadeKeys() {
     this.keys.classList.add('fade');
   }
+
+  showKeys(secs = 10) {
+    this.keys.classList.remove('fade');
+    clearTimeout(this.keysT);
+    this.keysT = setTimeout(() => this.fadeKeys(), secs * 1000);
+  }
 }

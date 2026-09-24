@@ -87,6 +87,7 @@ export class WorldObject {
     }
     this.cyl = sp.shape === 'cyl';
     this.cr = Math.max(this.hw, this.hd) * 0.92; // cylinder radius
+    this.terrain = sp.terrainProfile || null; // hills and mountains: their slopes (terrainContact)
     this.gridR = Math.hypot(this.hw + Math.abs(this.ox), this.hd + Math.abs(this.oz));
     this.radius = Math.hypot(this.gridR, this.h * 0.5);
     this.mover = null;
@@ -592,9 +593,11 @@ export class World {
 
   /**
    * Contact between a sphere (c, r) and object o. Returns null or
-   * { nx, nz, depth, low } with the horizontal push-out normal (object → ball).
+   * { nx, nz, depth, low } with the horizontal push-out normal (object → ball). solid = false: any
+   * touch counts (taking it), not just what would stop the ball.
    */
-  contact(o, c, r, out) {
+  contact(o, c, r, out, solid = true) {
+    if (o.terrain) return this.terrainContact(o, c, r, out, solid);
     if (o.parts) {
       // deepest contact over the parts
       let best = null, depth = -1;
@@ -612,6 +615,53 @@ export class World {
     }
     if (!o.cyl) return this.boxContact(o.centerX(), o.centerZ(), o.yaw, o.hw, o.hd, o.y + o.bob, o.y + o.bob + o.h, c, r, out);
     return this.cylContact(o.centerX(), o.centerZ(), o.cr, o.y + o.bob, o.y + o.bob + o.h, c, r, out);
+  }
+
+  /**
+   * sphere (c, r) against a hill or mountain: at each height of its profile (assets.js
+   * terrainProfile), the ground reaches out so far in the ball's direction, the ball so far at that
+   * height; the deepest overlap pushes it out. Slopes lower than 0.4 of the ball's radius don't stop
+   * it (it rolls over the foothills), unless it's being taken (solid = false).
+   */
+  terrainContact(o, c, r, out, solid) {
+    const T = o.terrain, k = o.scale;
+    const cs = Math.cos(o.yaw), sn = Math.sin(o.yaw);
+    const mx = o.x + (T.cx * cs + T.cz * sn) * k, mz = o.z + (-T.cx * sn + T.cz * cs) * k;
+    const dx = c.x - mx, dz = c.z - mz;
+    const d = Math.hypot(dx, dz);
+    if (d > T.rmax * k + r) return null;
+    // the ball's direction in model space → between which two of the profile's directions
+    const lx = dx * cs - dz * sn, lz = dx * sn + dz * cs;
+    let a = (Math.atan2(lz, lx) / (Math.PI * 2)) * T.S;
+    if (a < 0) a += T.S;
+    const s0 = Math.floor(a) % T.S, s1 = (s0 + 1) % T.S, f = a - Math.floor(a);
+    const base = o.y + o.bob, over = solid ? r * 0.4 : -1;
+    let best = 0, by = 0, br = 0;
+    for (let l = 0; l < T.L; l++) {
+      const h = ((l + 0.5) / T.L) * T.H * k;
+      if (h < over) continue;
+      const dy = base + h - c.y;
+      if (dy >= r) break;
+      if (dy <= -r) continue;
+      const rho = (T.rho[l * T.S + s0] * (1 - f) + T.rho[l * T.S + s1] * f) * k;
+      if (rho <= 0) continue;
+      const depth = rho + Math.sqrt(r * r - dy * dy) - d;
+      if (depth > best) {
+        best = depth;
+        by = base + h;
+        br = rho;
+      }
+    }
+    if (best <= 0) return null;
+    const nx = d > 1e-6 ? dx / d : 1, nz = d > 1e-6 ? dz / d : 0;
+    out.nx = nx;
+    out.nz = nz;
+    out.depth = best;
+    out.low = by < c.y - r * 0.55;
+    out.px = mx + nx * br;
+    out.py = by;
+    out.pz = mz + nz * br;
+    return out;
   }
 
   /** sphere (c, r) against an upright cylinder of radius cr at (cx, cz), spanning y0..y1 */
