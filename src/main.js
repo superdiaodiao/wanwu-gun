@@ -323,6 +323,7 @@ async function startGame(mode) {
 
 function beginPlay() {
   G.state = 'play';
+  G.touchScreen = isTouch();
   swipe.shown = 0;
   swipe.cd = 12;
   swipe.side = 0;
@@ -374,7 +375,10 @@ function setupUI() {
   cs.addEventListener('change', () => { store.set('sfx', cs.checked); applyAudioPrefs(); });
   $('btn-pause').addEventListener('click', () => togglePause());
   // a finger on the screen means a touch screen, whatever the browser said: joystick and dash button now
-  addEventListener('touchstart', () => { if (G.state === 'play' && $('touch-dash').hidden) showTouch(true); }, { passive: true });
+  addEventListener('touchstart', () => {
+    G.touchScreen = true;
+    if (G.state === 'play' && $('touch-dash').hidden) showTouch(true);
+  }, { passive: true });
   $('btn-sound').addEventListener('click', async () => {
     // silent because it never got going (or was muted): switch it on; otherwise mute
     if (!audio.running || audio.muted) {
@@ -825,6 +829,12 @@ function step(dt) {
   if (G.state === 'play') audio.setIntensity(Math.min(1, Math.log10(Math.max(1, S / START_SIZE)) / 3.5));
 
   player.update(dt, ball, G.t, false);
+  // a phone held upright: thumbs cover the bottom of the screen, so while playing the picture sits
+  // higher (the ball about half way down instead of 60 %, just below where toasts come up) and a
+  // small ball is seen from a little closer
+  const upright = G.touchScreen && engine.width < engine.height * 0.9;
+  rig.shiftTarget = upright && (G.state === 'play' || G.state === 'pause') ? 0.11 : 0;
+  rig.near = upright ? 0.7 : 1;
   rig.update(dt, ball, G.t);
   updateGiant(dt, G.t);
   updateGlints(dt);

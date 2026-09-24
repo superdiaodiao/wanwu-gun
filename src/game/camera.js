@@ -18,6 +18,12 @@ export class CameraRig {
     this.yaw = 0; // which way the camera looks; the ball's controls are read relative to it
     this.quick = false; // a turn-around is on: swing round fast
     this.hold = false; // the stick is back near straight up: catch up behind the ball
+    // phones held upright (main.js): the picture moves up by this share of the screen's height, so
+    // the ball and its pusher sit above the thumbs; and the camera comes closer to a small ball
+    this.shiftTarget = 0;
+    this.shift = 0;
+    this.shiftShown = 0;
+    this.near = 1;
     this.pos = new THREE.Vector3(0, 1, 3);
     this.look = new THREE.Vector3();
     this.shakeT = 0;
@@ -42,8 +48,8 @@ export class CameraRig {
     const S = ball.displayS;
     const z = this.zoom;
     const fx = Math.sin(yaw), fz = -Math.cos(yaw);
-    const dist = (S * 2.15 + 0.2) * z;
-    const height = (S * 1.65 + 0.13) * z; // looking down ~27°: the ground around the ball reads
+    const dist = (S * 2.15 + 0.2 * this.near) * z;
+    const height = (S * 1.65 + 0.13 * this.near) * z; // looking down ~27°: the ground around the ball reads
     const cy = ball.centerY;
     outPos.set(ball.pos.x - fx * dist, cy + height, ball.pos.z - fz * dist);
     outLook.set(ball.pos.x + fx * S * 0.9, cy + S * 0.05, ball.pos.z + fz * S * 0.9);
@@ -134,6 +140,15 @@ export class CameraRig {
     if (Math.abs(c.fov - fov) > 0.01) {
       c.fov = fov;
       c.updateProjectionMatrix();
+    }
+    // lens shift (an off-centre view: same direction, the picture slid up), eased in and out
+    this.shift += (this.shiftTarget - this.shift) * Math.min(1, dt * 3);
+    if (Math.abs(this.shift - this.shiftTarget) < 1e-4) this.shift = this.shiftTarget;
+    if (this.shift !== this.shiftShown) {
+      this.shiftShown = this.shift;
+      // (setViewOffset also sets the aspect from its first two numbers: keep it)
+      if (this.shift > 0) c.setViewOffset(c.aspect, 1, 0, this.shift, c.aspect, 1);
+      else c.clearViewOffset();
     }
   }
 }

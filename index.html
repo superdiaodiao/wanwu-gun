@@ -499,6 +499,8 @@ kbd {
 
 /* ---------- touch ---------- */
 #touch-zone { position: fixed; left: 0; bottom: 0; width: 62%; height: 60%; pointer-events: auto; touch-action: none; z-index: 3; }
+/* upright phone: the stick starts in the lower half only, below the ball */
+@media (orientation: portrait) { #touch-zone { height: 50%; } }
 #touch-stick {
   position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px;
   z-index: 3;
@@ -516,7 +518,8 @@ kbd {
 /* where the right thumb swipes the view round: a finger sliding left and right (see main.js swipeHint) */
 #swipe-hint {
   position: fixed; z-index: 4;
-  right: max(18px, env(safe-area-inset-right)); top: 40%;
+  /* just above 冲, where the right thumb rests: swiping there doesn't cover the ball */
+  right: max(18px, env(safe-area-inset-right)); bottom: calc(max(22px, env(safe-area-inset-bottom)) + 150px);
   display: grid; justify-items: center; gap: 8px;
   padding: 12px 16px 10px;
   border-radius: 18px;
@@ -578,6 +581,11 @@ kbd {
   .gain { font-size: 16px; }
   .gain.big { font-size: 21px; }
   .btn { min-width: 140px; }
+}
+/* upright phone: the ball sits half way down (see main.js), so the milestone stamp goes above it */
+@media (max-width: 640px) and (orientation: portrait) {
+  #stamp { top: 29%; }
+  #stamp .big { font-size: clamp(50px, 14vw, 116px); }
 }
 @media (max-height: 500px) {
   #minimap-btn { width: 96px; height: 96px; top: calc(max(10px, env(safe-area-inset-top)) + 108px); }
@@ -721,7 +729,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.76c7c92f.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.e0f4992e.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {
