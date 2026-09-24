@@ -197,7 +197,8 @@ export class Maps {
     c.fill();
     // the ball, and which way it rolls
     const u = px / 110;
-    const br = Math.max(4 * u, (S / 2) * k);
+    // (a ball bigger than the map shows would cover it all: past a third of it, just a big dot)
+    const br = Math.min(h * 0.3, Math.max(4 * u, (S / 2) * k));
     const a = ball.heading - yaw;
     c.save();
     c.translate(h, h);

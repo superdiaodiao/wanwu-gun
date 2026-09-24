@@ -142,6 +142,21 @@ kbd {
   box-shadow: var(--shadow);
 }
 #hud-time .label { font-size: 12px; color: var(--paper-dim); letter-spacing: 1px; }
+/* free mode, once the ball is big enough to patch the sky: where the clock would be */
+#btn-patch {
+  position: absolute; left: 50%; top: max(16px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  padding: 8px 18px 7px;
+  border-radius: 999px;
+  border: 2px solid var(--gold);
+  background: var(--red);
+  color: var(--paper);
+  font: 20px/1 var(--display);
+  box-shadow: var(--shadow);
+  pointer-events: auto; cursor: pointer;
+}
+#btn-patch b { margin-left: 2px; }
+#btn-patch.urge { animation: pulse 1s infinite; }
 #time-text { font: 800 26px/1 var(--num); font-variant-numeric: tabular-nums; }
 #hud-time.hurry #time-text { color: var(--red); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: 0.55; } }
@@ -530,6 +545,10 @@ kbd {
 .rw.ok { color: var(--paper); }
 .rw.ok i { color: var(--gold); }
 .rw small { margin-left: 8px; color: var(--paper-dim); font: 700 12px var(--num); }
+.res-goal { font-size: 15px; color: var(--paper); }
+.res-goal b { color: var(--gold); }
+.res-goal.short { color: var(--paper-dim); }
+.res-goal small { display: block; margin-top: 2px; font-size: 13px; color: var(--paper-dim); }
 .res-dex { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14px; }
 .res-dex b { font: 800 16px var(--num); color: var(--gold); }
 .res-dex-new { font-size: 13px; color: var(--paper-dim); text-align: center; }
@@ -681,6 +700,7 @@ kbd {
   #last-name { font-size: 18px; }
   #hud-keys { display: none; }
   #hud-time { top: calc(max(14px, env(safe-area-inset-top)) + 118px); left: auto; right: 16px; transform: none; }
+  #btn-patch { top: calc(max(14px, env(safe-area-inset-top)) + 118px); left: auto; right: 16px; transform: none; font-size: 18px; }
   #minimap-btn { width: 104px; height: 104px; top: calc(max(14px, env(safe-area-inset-top)) + 168px); }
   #toast-stack { top: calc(max(14px, env(safe-area-inset-top)) + 290px); } /* below the minimap */
   #dialog-portrait { width: 84px; height: 84px; }
@@ -731,11 +751,12 @@ kbd {
       <circle id="size-ring" class="bar" cx="60" cy="60" r="52"></circle>
     </svg>
     <div class="num"><span id="size-num">12</span><span id="size-unit">cm</span></div>
-    <div class="goal">目标 <b id="goal-text">30 cm</b></div>
+    <div class="goal"><span id="goal-lbl">目标</span> <b id="goal-text">30 cm</b></div>
     <div id="hud-gains" aria-hidden="true"></div>
   </div>
   <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
+  <button id="btn-patch" hidden>去补天 <b>›</b></button>
   <div id="hud-last" hidden>
     <div id="last-view"></div>
     <div class="info">
@@ -825,6 +846,7 @@ kbd {
     <div class="eyebrow">补天石 · 最终尺寸</div>
     <div id="res-size" class="res-size">0 m</div>
     <div id="res-rank" class="res-rank"></div>
+    <div id="res-goal" class="res-goal"></div>
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
     <div id="res-items" class="res-items"></div>
@@ -868,7 +890,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.382df4e5.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.5d3ae9de.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {

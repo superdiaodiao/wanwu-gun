@@ -178,12 +178,15 @@ class Packed {
   }
 
   shadowMesh() {
+    // the lightest stand-in there is: what it leaves out (windows, balconies, twigs, a finer sphere)
+    // makes no difference to a shadow at the shadow map's resolution (world.fullShadows: for tests)
+    const t = this.type, sp = t.spec;
+    const g = this.world.fullShadows ? sp.geometry : sp.coarse || sp.lod || sp.geometry;
     if (!this.shadow) {
-      const t = this.type;
-      const m = (this.shadow = instMesh(this.world, t, t.spec.geometry, this.cap, t.spec.id + ':shadow', false));
+      const m = (this.shadow = instMesh(this.world, t, g, this.cap, sp.id + ':shadow', false));
       m.castShadow = true;
       m.layers.set(SHADOW_LAYER);
-    }
+    } else if (this.shadow.geometry !== g) this.shadow.geometry = g;
     return this.shadow;
   }
 

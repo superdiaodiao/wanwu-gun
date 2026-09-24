@@ -15,11 +15,12 @@
       <circle id="size-ring" class="bar" cx="60" cy="60" r="52"></circle>
     </svg>
     <div class="num"><span id="size-num">12</span><span id="size-unit">cm</span></div>
-    <div class="goal">目标 <b id="goal-text">30 cm</b></div>
+    <div class="goal"><span id="goal-lbl">目标</span> <b id="goal-text">30 cm</b></div>
     <div id="hud-gains" aria-hidden="true"></div>
   </div>
   <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
+  <button id="btn-patch" hidden>去补天 <b>›</b></button>
   <div id="hud-last" hidden>
     <div id="last-view"></div>
     <div class="info">
@@ -109,6 +110,7 @@
     <div class="eyebrow">补天石 · 最终尺寸</div>
     <div id="res-size" class="res-size">0 m</div>
     <div id="res-rank" class="res-rank"></div>
+    <div id="res-goal" class="res-goal"></div>
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
     <div id="res-items" class="res-items"></div>

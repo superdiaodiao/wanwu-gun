@@ -133,6 +133,21 @@ kbd {
   box-shadow: var(--shadow);
 }
 #hud-time .label { font-size: 12px; color: var(--paper-dim); letter-spacing: 1px; }
+/* free mode, once the ball is big enough to patch the sky: where the clock would be */
+#btn-patch {
+  position: absolute; left: 50%; top: max(16px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  padding: 8px 18px 7px;
+  border-radius: 999px;
+  border: 2px solid var(--gold);
+  background: var(--red);
+  color: var(--paper);
+  font: 20px/1 var(--display);
+  box-shadow: var(--shadow);
+  pointer-events: auto; cursor: pointer;
+}
+#btn-patch b { margin-left: 2px; }
+#btn-patch.urge { animation: pulse 1s infinite; }
 #time-text { font: 800 26px/1 var(--num); font-variant-numeric: tabular-nums; }
 #hud-time.hurry #time-text { color: var(--red); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: 0.55; } }
@@ -521,6 +536,10 @@ kbd {
 .rw.ok { color: var(--paper); }
 .rw.ok i { color: var(--gold); }
 .rw small { margin-left: 8px; color: var(--paper-dim); font: 700 12px var(--num); }
+.res-goal { font-size: 15px; color: var(--paper); }
+.res-goal b { color: var(--gold); }
+.res-goal.short { color: var(--paper-dim); }
+.res-goal small { display: block; margin-top: 2px; font-size: 13px; color: var(--paper-dim); }
 .res-dex { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14px; }
 .res-dex b { font: 800 16px var(--num); color: var(--gold); }
 .res-dex-new { font-size: 13px; color: var(--paper-dim); text-align: center; }
@@ -672,6 +691,7 @@ kbd {
   #last-name { font-size: 18px; }
   #hud-keys { display: none; }
   #hud-time { top: calc(max(14px, env(safe-area-inset-top)) + 118px); left: auto; right: 16px; transform: none; }
+  #btn-patch { top: calc(max(14px, env(safe-area-inset-top)) + 118px); left: auto; right: 16px; transform: none; font-size: 18px; }
   #minimap-btn { width: 104px; height: 104px; top: calc(max(14px, env(safe-area-inset-top)) + 168px); }
   #toast-stack { top: calc(max(14px, env(safe-area-inset-top)) + 290px); } /* below the minimap */
   #dialog-portrait { width: 84px; height: 84px; }

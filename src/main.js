@@ -272,6 +272,10 @@ function resetGame(mode) {
   sky.u.uHole.value = 1;
   sky.u.uPatch.value = 0;
   $('hud-last').hidden = true;
+  $('btn-patch').hidden = true;
+  $('btn-patch').classList.remove('urge');
+  G.rolledOut = false;
+  G.rolledT = 3;
   dex.newGame();
   maps.reset();
   hud.update(ball.S, 0, mode === 'timed' ? GAME_SECONDS : null, 0);
@@ -469,6 +473,7 @@ function setupUI() {
   $('btn-restart').addEventListener('click', () => { $('pause').hidden = true; startGame(G.mode); });
   $('btn-home').addEventListener('click', () => { $('pause').hidden = true; audio.music(null); resetGame('timed'); enterTitle(); });
   $('btn-finish').addEventListener('click', () => { togglePause(false); startFinale(); });
+  $('btn-patch').addEventListener('click', () => { if (G.state === 'play') startFinale(); });
   $('btn-again').addEventListener('click', () => { $('results').hidden = true; startGame(G.mode === 'free' ? 'free' : 'timed'); });
   $('btn-keep').addEventListener('click', keepRolling);
   $('btn-copy').addEventListener('click', () => {
@@ -897,6 +902,20 @@ function step(dt) {
   handleEvents();
   if (G.state === 'play') {
     checkMilestones();
+    if (G.mode === 'free' && ball.S >= story.SKY_GOAL) {
+      if ($('btn-patch').hidden) $('btn-patch').hidden = false;
+      // nearly nothing left out there: say so, once
+      if (!G.rolledOut && (G.rolledT -= dt) <= 0) {
+        G.rolledT = 3;
+        let left = 0;
+        for (const o of world.objects) if (o.state === 0) left++;
+        if (left < world.objects.length * 0.03) {
+          G.rolledOut = true;
+          dialog.interrupt(story.ALL_ROLLED);
+          $('btn-patch').classList.add('urge');
+        }
+      }
+    }
     for (const x of wishes.check(ball.combo.n, ball.S)) wishDone(x);
     if (G.wishT > 0 && (G.wishT -= dt) <= 0) $('wish-card').hidden = true;
     // a nudge from 女娲 when nothing has been rolled up for a while
@@ -956,7 +975,10 @@ function step(dt) {
   MU.glow.value = sky.glow;
   engine.scene.fog.color.copy(sky.fogColor);
   // thin haze that follows the ball's scale, capped so the edge of the world always melts into the sky
-  engine.scene.fog.density = 1 / Math.min(S * 320 + 1100, 6000);
+  // (while playing, never so thick that a huge ball, seen from far above, disappears into it)
+  let fogLen = Math.min(S * 320 + 1100, 6000);
+  if (G.state === 'play' || G.state === 'pause') fogLen = Math.max(fogLen, engine.camera.position.distanceTo(ball.group.position) * 2.5);
+  engine.scene.fog.density = 1 / fogLen;
   updateView(S);
 
   if (G.state === 'play') {
@@ -1061,7 +1083,8 @@ function checkMilestones() {
     G.milestone++;
   }
   if (reached >= 0) {
-    const [size, line] = story.MILESTONES[reached];
+    const [size, goalLine] = story.MILESTONES[reached];
+    const line = size === story.SKY_GOAL && G.mode === 'free' ? story.GOAL_FREE : goalLine;
     const names = newlyEdible();
     hud.stamp(fmt(size), names.length ? `现在能滚起：${names.join('、')}` : '');
     audio.milestone(Math.min(8, reached + 1));
@@ -1118,6 +1141,8 @@ function startFinale() {
     dest: ball.group.position.clone().addScaledVector(H, Math.max(2600, ball.S * 40)),
     launched: false,
     patched: false,
+    // how much of the hole it fills: all of it from SKY_GOAL up
+    fill: Math.min(1, Math.sqrt(ball.displayS / story.SKY_GOAL)),
     fw: 0,
     hour0: sky.hour,
   };
@@ -1170,11 +1195,11 @@ function updateFinale(dt) {
     G.patched = true;
     audio.patch();
     flash();
-    dialog.say(story.PATCHED, { hold: 2 });
+    dialog.say(f.fill >= 1 ? story.PATCHED : story.PATCHED_PART, { hold: 2 });
   }
   if (f.patched) {
     const k = Math.min(1, (f.t - 6) / 4);
-    sky.u.uPatch.value = k;
+    sky.u.uPatch.value = k * f.fill;
     sky.hour = f.hour0 + (19.6 - f.hour0) * Math.min(1, (f.t - 6) / 5);
     f.fw -= dt;
     if (f.fw <= 0 && f.t < 16) {
@@ -1206,6 +1231,15 @@ function showResults() {
   $('res-size').textContent = fmt(size);
   $('res-rank').textContent = `称号：${rank}`;
   $('res-quote').textContent = `女娲：${quote}`;
+  const short = story.SKY_GOAL - size;
+  $('res-goal').className = 'res-goal' + (short > 0 ? ' short' : '');
+  $('res-goal').innerHTML = short > 0
+    ? `补天要 <b>${story.SKY_GOAL} m</b>，还差 <b>${fmt(short)}</b>——窟窿还剩一块`
+    : `<b>补天成功！</b>窟窿补上了`;
+  // what the next title would have taken: something to beat next time
+  const nextRank = story.ENDINGS.find(e => size < e[0]);
+  const after = story.ENDINGS[story.ENDINGS.indexOf(nextRank) + 1];
+  if (short <= 0 && after) $('res-goal').innerHTML += `<small>再大 <b>${fmt(nextRank[0] - size)}</b> 就是「${after[1]}」</small>`;
   const st = ball.stats;
   const mins = Math.floor(G.time / 60), secs = Math.floor(G.time % 60);
   const big = st.biggest ? `${st.biggest.name}（${fmt(st.biggest.size)}）` : '—';
@@ -1393,6 +1427,7 @@ window.__wanwu = {
   get maps() { return maps; },
   get warn() { return warn; },
   get dex() { return dex; },
+  get sky() { return sky; },
   get wishes() { return wishes; },
   get glints() { return glints.list.map(o => [o.spec.id, +o.size.toFixed(3), +Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z).toFixed(2)]); },
   GROW,

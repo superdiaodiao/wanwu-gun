@@ -290,7 +290,8 @@ export function buildLayout(world, seed = 20260923) {
   scatter(CATS, 4, inRect(CX0 + 6, 35, CX1 - 6, CZ1 - 3), { margin: 0.4 });
   // courtyard walkers along the paths
   const cyLoop = path([[-40, -12.5], [40, -12.5], [40, -13], [-40, -13]], true);
-  const cySpine = path([[0, -40], [0, 34]]);
+  // (bending round the start square: nobody walks straight at a ball that has just started)
+  const cySpine = path([[0, -40], [0, -7.5], [3.4, -4.5], [3.4, 11], [0, 15], [0, 34]]);
   for (let i = 0; i < 5; i++) put(rng.weighted(PEOPLE_WALK), rng.range(-38, 38), -12.5, { moverState: { path: cyLoop } });
   for (let i = 0; i < 3; i++) put(rng.weighted(PEOPLE_WALK), 0, rng.range(-38, 30), { moverState: { path: cySpine } });
   scatter([['sparrow', 1]], 10, inRect(-40, -30, 40, 10), { margin: 0.2 });

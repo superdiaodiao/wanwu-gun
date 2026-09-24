@@ -201,7 +201,7 @@ export class Movers {
       }
 
       switch (m.kind) {
-        case 'walk': this.walk(o, m, step, pt); break;
+        case 'walk': this.walk(o, m, step, pt, ball); break;
         case 'drive': this.drive(o, m, step, pt, ball, events); break;
         case 'wander': this.wander(o, m, step, t, dxb, dzb, db); break;
         case 'fly': this.fly(o, m, step, t, db, S); break;
@@ -216,19 +216,37 @@ export class Movers {
     }
   }
 
-  walk(o, m, dt, pt) {
+  walk(o, m, dt, pt, ball) {
     const p = this.L.paths[m.path];
-    m.s += m.dir * m.speed * dt;
+    if (!m.waiting) m.s += m.dir * m.speed * dt;
     if (!p.loop && (m.s <= 0 || m.s >= p.len)) {
       m.dir *= -1;
       m.s = Math.max(0, Math.min(p.len, m.s));
     }
     pointAt(p, m.s, pt);
-    o.x = pt.x;
-    o.z = pt.z;
-    const yaw = Math.atan2(pt.dx * m.dir, pt.dz * m.dir);
+    // people give the ball room: a few steps before it they move over to pass it by (on whichever
+    // side is less of a detour), back onto the path after; one too big to step round, they wait for
+    const fx = pt.dx * m.dir, fz = pt.dz * m.dir, sx = -fz, sz = fx;
+    const rx = ball.pos.x - pt.x, rz = ball.pos.z - pt.z;
+    const ahead = rx * fx + rz * fz, lat = rx * sx + rz * sz;
+    const room = o.hw + ball.r + Math.max(0.6, ball.S * 0.8);
+    let want = 0;
+    m.waiting = false;
+    if (ahead > -room && ahead < room + 5 && Math.abs(lat) < room) {
+      const a = lat - room, b = lat + room;
+      want = Math.abs(a) < Math.abs(b) ? a : b;
+      if (Math.abs(want) > 2.5) {
+        want = m.side || 0;
+        m.waiting = ahead > 0 && ahead < room + 1.5;
+      }
+    }
+    const side = m.side || 0;
+    m.side = side + Math.max(-1.3 * dt, Math.min(1.3 * dt, want - side));
+    o.x = pt.x + sx * m.side;
+    o.z = pt.z + sz * m.side;
+    const yaw = Math.atan2(fx, fz);
     o.yaw += angDiff(o.yaw, yaw) * Math.min(1, dt * 6);
-    this.gait(o, m, dt, m.speed);
+    this.gait(o, m, dt, m.waiting ? 0 : m.speed);
   }
 
   gait(o, m, dt, speed) {

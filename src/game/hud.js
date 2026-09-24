@@ -1,6 +1,6 @@
 // HUD: size gauge (with what is still to be absorbed), next goal, timer, last item rolled up, the
 // pickup streak, "+size" pop-ups, goal stamps, toasts.
-import { MILESTONES } from './story.js';
+import { MILESTONES, SKY_GOAL } from './story.js';
 
 const RING = 2 * Math.PI * 52;
 
@@ -29,6 +29,7 @@ export class HUD {
     this.stampSize = $('stamp-size');
     this.stampSub = $('stamp-sub');
     this.goal = $('goal-text');
+    this.goalLbl = $('goal-lbl');
     this.timeBox = $('hud-time');
     this.timeText = $('time-text');
     this.last = $('hud-last');
@@ -52,8 +53,12 @@ export class HUD {
     if (u !== this.shown.unit) this.sizeUnit.textContent = this.shown.unit = u;
     const next = MILESTONES[milestoneIdx];
     const prev = milestoneIdx > 0 ? MILESTONES[milestoneIdx - 1][0] : 0.1;
-    const goalText = next ? fmt(next[0]) : '∞';
-    if (goalText !== this.shown.goal) this.goal.textContent = this.shown.goal = goalText;
+    const goalText = next ? (next[0] === SKY_GOAL ? `${SKY_GOAL} m` : fmt(next[0])) : '∞';
+    if (goalText !== this.shown.goal) {
+      this.goal.textContent = this.shown.goal = goalText;
+      // the size that patches the sky says so
+      this.goalLbl.textContent = next && next[0] === SKY_GOAL ? '补天' : '目标';
+    }
     const frac = x => (next ? Math.max(0, Math.min(1, Math.log(x / prev) / Math.log(next[0] / prev))) : 1);
     // (in half-pixel steps, written only when they move: every repaint of the gauge redraws its shadow)
     const bar = Math.round(RING * (1 - frac(S)) * 2) / 2;
