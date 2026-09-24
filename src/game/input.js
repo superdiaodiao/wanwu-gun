@@ -1,5 +1,15 @@
 // Keyboard, mouse drag, touch joystick (plus a second finger swiping the view) and gamepad → raw
 // controls; Driver turns them into { dir, m, quick, turnImpulse, dash } for the ball and the camera.
+
+// A touch screen? `(pointer: coarse)` alone comes out false in some embedded and in-app browsers on
+// phones (the page then hid its joystick and dash button), so go by touch support too, and by any
+// touch actually seen.
+let touchSeen = false;
+if (typeof window !== 'undefined') window.addEventListener('touchstart', () => (touchSeen = true), { capture: true, passive: true, once: true });
+export function isTouch() {
+  return touchSeen || matchMedia('(pointer: coarse)').matches || matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+}
+
 export class Input {
   constructor(canvas) {
     this.keys = new Set();

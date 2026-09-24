@@ -1,5 +1,7 @@
 // 女娲's dialog box: typewriter text with gibberish voice blips. Lines are either blocking (the intro:
 // wait for a click) or passing remarks that dismiss themselves while the game keeps running.
+import { isTouch } from './input.js';
+
 export class Dialog {
   constructor(audio) {
     this.audio = audio;
@@ -48,7 +50,7 @@ export class Dialog {
     this.cur.t = 0;
     this.cur.wait = 0;
     this.text.textContent = '';
-    const touch = matchMedia('(pointer: coarse)').matches;
+    const touch = isTouch();
     this.next.textContent = this.cur.blocking ? (touch ? '点击继续 ▸' : '点击继续 ▸ · Esc 跳过') : '';
   }
 

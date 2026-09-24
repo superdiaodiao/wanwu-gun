@@ -14,7 +14,7 @@ import { Movers } from './game/movers.js';
 import { Ball, GROW, PICK_RATIO, STUCK, COMBO } from './game/ball.js';
 import { Player } from './game/player.js';
 import { CameraRig } from './game/camera.js';
-import { Input, Driver } from './game/input.js';
+import { Input, Driver, isTouch } from './game/input.js';
 import { FX } from './game/fx.js';
 import { Preview } from './game/preview.js';
 import { HUD, fmt } from './game/hud.js';
@@ -332,7 +332,7 @@ function beginPlay() {
 }
 
 function showTouch(on) {
-  const touch = matchMedia('(pointer: coarse)').matches;
+  const touch = isTouch();
   $('touch-zone').hidden = !(on && touch);
   $('touch-dash').hidden = !(on && touch);
 }
@@ -360,6 +360,8 @@ function setupUI() {
   cm.addEventListener('change', () => { store.set('music', cm.checked); applyAudioPrefs(); });
   cs.addEventListener('change', () => { store.set('sfx', cs.checked); applyAudioPrefs(); });
   $('btn-pause').addEventListener('click', () => togglePause());
+  // a finger on the screen means a touch screen, whatever the browser said: joystick and dash button now
+  addEventListener('touchstart', () => { if (G.state === 'play' && $('touch-dash').hidden) showTouch(true); }, { passive: true });
   $('btn-sound').addEventListener('click', async () => {
     // silent because it never got going (or was muted): switch it on; otherwise mute
     if (!audio.running || audio.muted) {
