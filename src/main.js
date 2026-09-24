@@ -19,6 +19,7 @@ import { FX } from './game/fx.js';
 import { Preview } from './game/preview.js';
 import { HUD, fmt } from './game/hud.js';
 import { Maps } from './game/minimap.js';
+import { Dex } from './game/dex.js';
 import { Dialog } from './game/dialog.js';
 import * as story from './game/story.js';
 import { audio } from './audio/audio.js';
@@ -38,7 +39,7 @@ const G = {
   hinted: new Set(), hintCd: 0, idleT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
   gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0, mapWhole: true, redHinted: false, soundT: 0,
 };
-let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps;
+let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps, dex;
 let driver = new Driver();
 let giant = null; // 女娲 towering in the sky during the intro and the finale
 let ballCam = null; // results-screen portrait of the finished ball
@@ -98,6 +99,10 @@ async function boot() {
   hud = new HUD();
   maps = new Maps(world, layout);
   maps.attach($('minimap'));
+  dex = new Dex({ world, renderer: engine.renderer, material, store, pickRatio: PICK_RATIO });
+  // (so nothing found is lost when the page goes away mid-game)
+  addEventListener('pagehide', () => dex.save());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) dex.save(); });
   input.lookSurface($('minimap-btn'));
   dialog = new Dialog(audio);
   lastPreview = new Preview($('last-view'), material);
@@ -262,6 +267,7 @@ function resetGame(mode) {
   sky.u.uHole.value = 1;
   sky.u.uPatch.value = 0;
   $('hud-last').hidden = true;
+  dex.newGame();
   maps.reset();
   hud.update(ball.S, 0, mode === 'timed' ? GAME_SECONDS : null, 0);
   lastPreview.clear();
@@ -276,6 +282,7 @@ function enterTitle() {
   $('pause').hidden = true;
   $('results').hidden = true;
   showTouch(false);
+  syncDexButton();
   const best = store.get('best', null);
   const bl = $('best-line');
   if (best && best.size) {
@@ -335,6 +342,10 @@ function beginPlay() {
   setTimeout(() => hud.fadeKeys(), 12000);
 }
 
+function syncDexButton() {
+  $('dex-num').textContent = `${dex.found}/${dex.total}`;
+}
+
 function showTouch(on) {
   const touch = isTouch();
   $('touch-zone').hidden = !(on && touch);
@@ -351,6 +362,8 @@ function applyAudioPrefs() {
 
 function setupUI() {
   $('btn-timed').addEventListener('click', () => startGame('timed'));
+  $('btn-dex').addEventListener('click', () => dex.open(syncDexButton));
+  $('res-dex-open').addEventListener('click', () => dex.open());
   $('btn-free').addEventListener('click', () => startGame('free'));
   const q = $('sel-quality');
   q.value = engine.quality;
@@ -500,6 +513,13 @@ function togglePause(force) {
 let oddFrame = false;
 function loop() {
   requestAnimationFrame(loop);
+  if (dex && dex.isOpen) {
+    // the 图鉴 covers the screen: the game isn't drawn, just the 图鉴's pictures
+    const now = performance.now() / 1000;
+    dex.pump(Math.min(0.1, now - lastT));
+    lastT = now;
+    return;
+  }
   if (G.state === 'pause' && !G.redraw) return;
   const slow = G.fpsCap === 30 || G.state === 'title' || G.state === 'results';
   if (slow && (oddFrame = !oddFrame)) return;
@@ -938,8 +958,10 @@ function handleEvents() {
           if (e.combo % 10 === 0) audio.comboChime(e.combo / 10);
         }
         fx.pickup(o.centerX(), o.y + o.h * 0.5, o.centerZ(), o.size, ball.S);
-        if (e.rel > 0.04 || !lastPreview.spec) {
-          hud.lastItem(o.spec.name, o.size);
+        // first time ever for this kind of thing: into the 图鉴, and always shown as 新收集
+        const fresh = dex.add(o.spec.id);
+        if (e.rel > 0.04 || !lastPreview.spec || fresh) {
+          hud.lastItem(o.spec.name, o.size, fresh);
           lastPreview.show(o.spec, o.tint);
         }
         if (e.rel > 0.2) hud.bump();
@@ -1141,6 +1163,12 @@ function showResults() {
   const top = Object.entries(st.byType).sort((a, b) => b[1] - a[1]).slice(0, 18);
   $('res-items').innerHTML = top.map(([id, n]) => `<span>${(CATALOG.get(id) || {}).name || id} <b>×${n}</b></span>`).join('');
   $('res-brag').textContent = bragLine(size, rank, st);
+  dex.save();
+  const fresh = [...dex.fresh].map(id => (CATALOG.get(id) || {}).name || id);
+  $('res-dex-line').innerHTML = fresh.length
+    ? `图鉴新收集 <b>${fresh.length}</b> 种 · 共 <b>${dex.found}</b>/${dex.total}`
+    : `这局没有新收集 · 图鉴 <b>${dex.found}</b>/${dex.total}`;
+  $('res-dex-new').textContent = fresh.length ? fresh.slice(0, 10).join('、') + (fresh.length > 10 ? ` 等 ${fresh.length} 种` : '') : '';
   ball.portraitOnly(true);
   $('btn-copy').textContent = '复制战绩';
   $('results').hidden = false;
@@ -1308,6 +1336,7 @@ window.__wanwu = {
   get audio() { return audio; },
   get maps() { return maps; },
   get warn() { return warn; },
+  get dex() { return dex; },
   get glints() { return glints.list.map(o => [o.spec.id, +o.size.toFixed(3), +Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z).toFixed(2)]); },
   GROW,
   start: mode => startGame(mode || 'timed'),

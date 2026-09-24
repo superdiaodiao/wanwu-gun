@@ -58,6 +58,7 @@
       <button id="btn-timed" class="btn primary"><b>开始补天</b><small>限时 6 分钟</small></button>
       <button id="btn-free" class="btn ghost"><b>自由滚</b><small>不限时 · 随时补天</small></button>
     </div>
+    <button id="btn-dex" class="chip dex-chip">图鉴 <b id="dex-num">0/0</b></button>
     <div class="settings">
       <label for="sel-quality">画质</label>
       <select id="sel-quality"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select>
@@ -111,6 +112,8 @@
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
     <div id="res-items" class="res-items"></div>
+    <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
+    <div id="res-dex-new" class="res-dex-new"></div>
     <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
     <div class="actions">
       <button id="btn-again" class="btn primary"><b>再滚一次</b></button>
@@ -118,6 +121,21 @@
       <button id="btn-title" class="btn ghost"><b>回到标题</b></button>
     </div>
   </div>
+  </div>
+</div>
+
+<div id="dex" class="screen" hidden>
+  <div class="panel dex-panel">
+    <div class="dex-head"><h2>图鉴</h2><span id="dex-count"></span><button id="dex-close" class="chip">关闭</button></div>
+    <div id="dex-list" class="dex-list"></div>
+  </div>
+  <div id="dex-card" hidden>
+    <div class="panel dex-card">
+      <canvas id="dex-big" width="1" height="1"></canvas>
+      <h3 id="dex-name"></h3>
+      <div id="dex-info"></div>
+      <div class="dex-nav"><button id="dex-prev" class="chip" aria-label="上一个">‹</button><button id="dex-card-close" class="chip">返回</button><button id="dex-next" class="chip" aria-label="下一个">›</button></div>
+    </div>
   </div>
 </div>
 

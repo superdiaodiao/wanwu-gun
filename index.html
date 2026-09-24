@@ -491,6 +491,57 @@ kbd {
 .res-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-height: 30vh; overflow-y: auto; font-size: 13px; color: var(--paper-dim); }
 .res-items span { padding: 3px 9px; border-radius: 8px; background: rgba(246, 239, 224, 0.07); }
 .res-items b { color: var(--paper); font-weight: 700; }
+.res-dex { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14px; }
+.res-dex b { font: 800 16px var(--num); color: var(--gold); }
+.res-dex-new { font-size: 13px; color: var(--paper-dim); text-align: center; }
+.res-dex-new:empty { display: none; }
+
+/* ---------- 图鉴 ---------- */
+.dex-chip { font-size: 14px; padding: 7px 16px; }
+.dex-chip b { font: 800 14px var(--num); color: var(--gold); margin-left: 4px; }
+#dex { z-index: 12; background: rgba(14, 12, 18, 0.7); overflow: hidden; }
+/* (a height of its own: the list scrolls inside, the panel stays on screen) */
+.dex-panel {
+  width: min(100%, 760px); height: min(calc(100vh - 32px), 900px); height: min(calc(100dvh - 32px), 900px);
+  display: flex; flex-direction: column; gap: 8px; padding: 16px 14px;
+}
+.dex-head { display: flex; align-items: center; gap: 12px; }
+.dex-head h2 { margin: 0; font: 28px var(--display); }
+#dex-count { flex: 1; color: var(--paper-dim); font: 700 15px var(--num); }
+#dex-count b { color: var(--gold); font-size: 20px; }
+.dex-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 2px 8px; }
+.dex-sec h3 {
+  position: sticky; top: 0; z-index: 1;
+  margin: 0; padding: 10px 2px 8px;
+  font: 18px var(--display); background: rgb(31, 27, 36);
+}
+.dex-sec h3 small { margin-left: 6px; font: 700 13px var(--num); color: var(--paper-dim); }
+.dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.dex-cell {
+  position: relative; display: grid; justify-items: center; gap: 4px;
+  padding: 7px 3px 8px; border-radius: 12px;
+  border: 1px solid rgba(246, 239, 224, 0.12); background: #2e2836;
+  color: var(--paper); font-size: 12px; cursor: pointer;
+}
+.dex-cell:hover { border-color: rgba(242, 193, 78, 0.6); }
+.dex-cell canvas { width: 64px; height: 64px; border-radius: 8px; }
+.dex-cell span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dex-cell.missing { background: #1c1921; color: rgba(246, 239, 224, 0.4); }
+.dex-cell .new {
+  display: none; position: absolute; top: 4px; right: 4px;
+  padding: 1px 5px; border-radius: 6px;
+  background: var(--gold); color: var(--ink); font: 800 11px/1.3 var(--body); font-style: normal;
+}
+.dex-cell.fresh .new { display: block; }
+#dex-card { position: fixed; inset: 0; z-index: 13; display: grid; place-items: center; padding: 16px; background: rgba(12, 10, 16, 0.55); }
+.dex-card { width: min(100%, 360px); display: grid; justify-items: center; gap: 8px; }
+#dex-big { width: min(70vw, 240px); height: min(70vw, 240px); border-radius: 18px; }
+#dex-name { margin: 0; font: 26px var(--display); }
+#dex-info { display: grid; gap: 4px; justify-items: center; font-size: 14px; color: var(--paper-dim); text-align: center; }
+#dex-info b { color: var(--gold); }
+.dex-nav { display: flex; gap: 10px; margin-top: 4px; }
+.dex-nav .chip { min-width: 44px; font-size: 15px; }
+#hud-last.fresh .label { color: var(--gold); font-weight: 800; }
 .panel .actions .btn { min-width: 150px; }
 .brag { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(246, 239, 224, 0.08); text-align: left; }
 .brag p { flex: 1; margin: 0; font-size: 13px; line-height: 1.6; color: var(--paper); user-select: text; -webkit-user-select: text; }
@@ -681,6 +732,7 @@ kbd {
       <button id="btn-timed" class="btn primary"><b>开始补天</b><small>限时 6 分钟</small></button>
       <button id="btn-free" class="btn ghost"><b>自由滚</b><small>不限时 · 随时补天</small></button>
     </div>
+    <button id="btn-dex" class="chip dex-chip">图鉴 <b id="dex-num">0/0</b></button>
     <div class="settings">
       <label for="sel-quality">画质</label>
       <select id="sel-quality"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select>
@@ -734,6 +786,8 @@ kbd {
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
     <div id="res-items" class="res-items"></div>
+    <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
+    <div id="res-dex-new" class="res-dex-new"></div>
     <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
     <div class="actions">
       <button id="btn-again" class="btn primary"><b>再滚一次</b></button>
@@ -741,6 +795,21 @@ kbd {
       <button id="btn-title" class="btn ghost"><b>回到标题</b></button>
     </div>
   </div>
+  </div>
+</div>
+
+<div id="dex" class="screen" hidden>
+  <div class="panel dex-panel">
+    <div class="dex-head"><h2>图鉴</h2><span id="dex-count"></span><button id="dex-close" class="chip">关闭</button></div>
+    <div id="dex-list" class="dex-list"></div>
+  </div>
+  <div id="dex-card" hidden>
+    <div class="panel dex-card">
+      <canvas id="dex-big" width="1" height="1"></canvas>
+      <h3 id="dex-name"></h3>
+      <div id="dex-info"></div>
+      <div class="dex-nav"><button id="dex-prev" class="chip" aria-label="上一个">‹</button><button id="dex-card-close" class="chip">返回</button><button id="dex-next" class="chip" aria-label="下一个">›</button></div>
+    </div>
   </div>
 </div>
 
@@ -754,7 +823,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.71e2b1f8.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.4e57c590.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {

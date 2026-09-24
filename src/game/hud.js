@@ -33,6 +33,7 @@ export class HUD {
     this.timeText = $('time-text');
     this.last = $('hud-last');
     this.lastName = $('last-name');
+    this.lastLabel = this.last.querySelector('.label');
     this.lastSize = $('last-size');
     this.count = $('count-num');
     this.keys = $('hud-keys');
@@ -78,7 +79,10 @@ export class HUD {
     this.sizeBox.classList.add('bump');
   }
 
-  lastItem(name, size) {
+  /** fresh: the first of its kind ever (a new 图鉴 entry) */
+  lastItem(name, size, fresh = false) {
+    this.last.classList.toggle('fresh', fresh);
+    this.lastLabel.textContent = fresh ? '新收集！' : '刚滚起';
     this.last.hidden = false;
     this.lastName.textContent = name;
     this.lastSize.textContent = fmt(size);
