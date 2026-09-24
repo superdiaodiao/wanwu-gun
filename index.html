@@ -81,14 +81,14 @@ kbd {
   stroke-linecap: round;
   stroke-dasharray: 326.7;
   stroke-dashoffset: 326.7;
-  transition: stroke-dashoffset 0.25s ease-out, stroke 0.4s;
+  transition: stroke 0.4s;
 }
 #hud-size .num { position: relative; display: flex; align-items: baseline; gap: 2px; margin-top: -8px; }
 #size-num { font: 800 40px/1 var(--num); color: var(--paper); font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
 #size-unit { font: 800 17px/1 var(--num); color: var(--gold); }
 #hud-size .goal { position: absolute; bottom: 26px; font-size: 12px; color: var(--paper-dim); letter-spacing: 0.5px; }
 #hud-size .goal b { color: var(--paper); font-weight: 700; }
-#hud-size .ring .bar.next { stroke: rgba(242, 193, 78, 0.34); transition: stroke-dashoffset 0.12s ease-out; }
+#hud-size .ring .bar.next { stroke: rgba(242, 193, 78, 0.34); }
 #hud-size.bump { animation: bump 0.35s ease-out; }
 /* "+1.2 cm" floating off the gauge as things get rolled up */
 #hud-gains { position: absolute; left: calc(100% - 10px); top: 34%; width: 0; height: 0; }
@@ -627,6 +627,7 @@ kbd {
       <select id="sel-quality"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select>
       <label class="check"><input type="checkbox" id="chk-music" checked> 音乐</label>
       <label class="check"><input type="checkbox" id="chk-sfx" checked> 音效</label>
+      <label class="check" title="每秒画 30 帧而不是 60 帧：手机不容易发烫，更省电"><input type="checkbox" id="chk-save"> 省电</label>
     </div>
     <div class="keys-help">
       <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 往哪按往哪滚</span><span><kbd>空格</kbd> 冲刺</span><span>拖动鼠标转镜头 · 手机：左手摇杆往哪推球就往哪滚，右手在屏幕上左右滑动转镜头</span><span><b class="k-gold">金边</b>的能滚起，<b class="k-red">红纹</b>的还太大、先绕开；平时撞一下不掉东西，冲刺撞上才会掉</span>
@@ -691,7 +692,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.c460153f.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.d09dcc00.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {

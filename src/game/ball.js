@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Model } from '../core/modeler.js';
 import { noise2 } from '../core/rng.js';
+import { wantCoarse } from '../core/assets.js';
 
 export const PICK_RATIO = 0.6; // roll up things smaller than 0.6 × diameter
 // growth: S^P accumulates C × (0.3 + fill) × size^P per item. With P ≈ 2 an item a third of the
@@ -63,6 +64,8 @@ function buildCoreGeometry() {
   return m.build({ lift: false });
 }
 
+const levelGeometry = (spec, level) => (level === 2 ? spec.coarse : level === 1 ? spec.lod : spec.geometry);
+
 export class Ball {
   constructor(scene, world, material, startSize = 0.12) {
     this.scene = scene;
@@ -92,6 +95,7 @@ export class Ball {
     this.displayS = size;
     this.expand = 1;
     this.lodK = 12;
+    this.coarseK = 60;
     this.lodDist = 0;
     this.pos = new THREE.Vector3(x, 0, z);
     this.vel = new THREE.Vector3();
@@ -365,7 +369,7 @@ export class Ball {
     const id = o.spec.id;
     let st = this.stuckTypes.get(id);
     if (!st) {
-      st = { spec: o.spec, cap: 8, mesh: null, entries: [], hasTint: o.type.hasTint, dirty: false, lod: false };
+      st = { spec: o.spec, cap: 8, mesh: null, entries: [], hasTint: o.type.hasTint, dirty: false, level: 0 };
       st.mesh = this.makeStuckMesh(st, st.cap);
       this.stuckTypes.set(id, st);
     }
@@ -389,7 +393,7 @@ export class Ball {
   }
 
   makeStuckMesh(st, cap) {
-    const mesh = new THREE.InstancedMesh(st.lod ? st.spec.lod : st.spec.geometry, this.material, cap);
+    const mesh = new THREE.InstancedMesh(levelGeometry(st.spec, st.level), this.material, cap);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     if (st.hasTint) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
     mesh.count = 0;
@@ -471,13 +475,19 @@ export class Ball {
   }
 
   cleanup() {
-    // things that have become small next to the ball switch to their far-away stand-ins (lodDist and
-    // lodK come from the camera, see main.js updateView)
+    // things that have become small next to the ball switch to their far-away stand-ins, then to
+    // their coarse ones (lodDist, lodK and coarseK come from the camera, see main.js updateView)
     for (const st of this.stuckTypes.values()) {
-      const lod = !!st.spec.lod && st.spec.maxDim * this.lodK < this.lodDist;
-      if (lod !== st.lod) {
-        st.lod = lod;
-        st.mesh.geometry = lod ? st.spec.lod : st.spec.geometry;
+      const sp = st.spec;
+      let level = 0;
+      if (sp.maxDim * this.coarseK < this.lodDist) {
+        wantCoarse(sp);
+        if (sp.coarse) level = 2;
+      }
+      if (!level && sp.lod && sp.maxDim * this.lodK < this.lodDist) level = 1;
+      if (level !== st.level) {
+        st.level = level;
+        st.mesh.geometry = levelGeometry(sp, level);
       }
     }
     // items keep riding on the surface; only drop what has become a speck next to the ball

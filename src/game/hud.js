@@ -54,9 +54,12 @@ export class HUD {
     const goalText = next ? fmt(next[0]) : '∞';
     if (goalText !== this.shown.goal) this.goal.textContent = this.shown.goal = goalText;
     const frac = x => (next ? Math.max(0, Math.min(1, Math.log(x / prev) / Math.log(next[0] / prev))) : 1);
-    this.ring.style.strokeDashoffset = String(RING * (1 - frac(S)));
+    // (in half-pixel steps, written only when they move: every repaint of the gauge redraws its shadow)
+    const bar = Math.round(RING * (1 - frac(S)) * 2) / 2;
+    if (bar !== this.shown.bar) this.ring.style.strokeDashoffset = String((this.shown.bar = bar));
     // lighter arc ahead of it: what has been rolled up but not grown into yet
-    this.ringNext.style.strokeDashoffset = String(RING * (1 - frac(Math.max(S, futureS))));
+    const ahead = Math.round(RING * (1 - frac(Math.max(S, futureS))) * 2) / 2;
+    if (ahead !== this.shown.ahead) this.ringNext.style.strokeDashoffset = String((this.shown.ahead = ahead));
     if (secondsLeft === null) {
       this.timeBox.hidden = true;
     } else {

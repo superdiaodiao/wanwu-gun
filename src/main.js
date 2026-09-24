@@ -4,7 +4,7 @@ import './catalog/index.js';
 import { CATALOG } from './catalog/registry.js';
 import { buildAtlas, loadFonts, atlasTexture, repaintAtlas } from './core/atlas.js';
 import { objectMaterial, U as MU } from './core/materials.js';
-import { buildSpec, LOD_PART } from './core/assets.js';
+import { buildSpec, LOD_PART, LOD_COARSE, pumpCoarse, wantCoarse } from './core/assets.js';
 import { Engine } from './game/engine.js';
 import { Sky } from './game/sky.js';
 import { Ground } from './game/ground.js';
@@ -124,6 +124,8 @@ async function boot() {
   updateView(ball.displayS);
   engine.renderer.compile(engine.scene, engine.camera);
   T.compile = performance.now();
+  // coarse stand-ins get made a few milliseconds a frame from here on, while the title screen is up
+  for (const t of world.types.values()) wantCoarse(t.spec);
   const r = k => Math.round(T[k] - T.t0);
   if (world.missing.size) console.warn('[world] missing catalog ids:', [...world.missing].join(' '));
   window.__boot = T;
@@ -354,6 +356,14 @@ function setupUI() {
     engine.setQuality(q.value);
     store.set('quality', q.value);
   });
+  // power saving (30 frames a second): on by default on phones, which warm up over a long game
+  const save = $('chk-save');
+  save.checked = store.get('powersave', isTouch() && Math.min(screen.width, screen.height) < 700);
+  G.fpsCap = save.checked ? 30 : 60;
+  save.addEventListener('change', () => {
+    store.set('powersave', save.checked);
+    G.fpsCap = save.checked ? 30 : 60;
+  });
   const cm = $('chk-music'), cs = $('chk-sfx');
   cm.checked = store.get('music', true);
   cs.checked = store.get('sfx', true);
@@ -382,7 +392,10 @@ function setupUI() {
   };
   $('map-all').addEventListener('click', () => mapTab(true));
   $('map-near').addEventListener('click', () => mapTab(false));
-  addEventListener('resize', drawPauseMap);
+  addEventListener('resize', () => {
+    G.redraw = true;
+    drawPauseMap();
+  });
   $('btn-resume').addEventListener('click', () => togglePause(false));
   $('btn-restart').addEventListener('click', () => { $('pause').hidden = true; startGame(G.mode); });
   $('btn-home').addEventListener('click', () => { $('pause').hidden = true; audio.music(null); resetGame('timed'); enterTitle(); });
@@ -454,6 +467,7 @@ function togglePause(force) {
   const on = force !== undefined ? force : G.state !== 'pause';
   if (on && G.state === 'play') {
     G.state = 'pause';
+    G.redraw = true;
     $('pause').hidden = false;
     drawPauseMap();
     $('btn-finish').hidden = G.mode !== 'free';
@@ -469,8 +483,16 @@ function togglePause(force) {
 
 // ---- main loop -------------------------------------------------------------------------------
 
+// Frame pacing, to keep phones cool: paused, nothing moves, so the scene is drawn once and then left
+// alone; the title and results screens (slow camera drift) and the power-saving mode (G.fpsCap = 30)
+// run on every other screen refresh.
+let oddFrame = false;
 function loop() {
   requestAnimationFrame(loop);
+  if (G.state === 'pause' && !G.redraw) return;
+  const slow = G.fpsCap === 30 || G.state === 'title' || G.state === 'results';
+  if (slow && (oddFrame = !oddFrame)) return;
+  G.redraw = false;
   const now = performance.now() / 1000;
   const raw = now - lastT;
   let dt = Math.min(0.05, Math.max(0, raw));
@@ -484,12 +506,14 @@ function loop() {
   step(dt);
   render(dt);
   adaptResolution(raw);
+  // coarse stand-ins asked for since the last frame (assets.js), a couple of milliseconds' worth
+  if (!pumpCoarse(G.state === 'play' || G.state === 'finale' ? 2 : 5) && window.__boot && !window.__boot.coarse) window.__boot.coarse = performance.now();
 }
 
 // ---- adaptive resolution: trade sharpness for frame rate on slow devices ------------------------
-// Every 2 s of play: under ~45 fps, render fewer pixels (down to 60 %); if that didn't help, the GPU
-// wasn't the bottleneck (or the display is capped at 30 Hz), so undo it and stop trying. Back up
-// again after a while at a solid 60.
+// Every 2 s of play: under ~45 fps (~22 in power-saving mode), render fewer pixels (down to 60 %);
+// if that didn't help, the GPU wasn't the bottleneck (or the display is capped at 30 Hz), so undo it
+// and stop trying. Back up again after a while at a solid 60 (30).
 const perf = { acc: 0, n: 0, good: 0, prev: 0, lock: false, fps: 0 };
 function adaptResolution(raw) {
   if (G.state !== 'play' || raw <= 0 || raw > 0.25) return;
@@ -508,11 +532,12 @@ function adaptResolution(raw) {
     return;
   }
   perf.prev = 0;
-  if (avg > 1 / 45 && !perf.lock && k > 0.61) {
+  const cap = G.fpsCap === 30 ? 2 : 1; // screen refreshes per frame
+  if (avg > cap / 45 && !perf.lock && k > 0.61) {
     perf.prev = avg;
     perf.good = 0;
     engine.setScale(Math.max(0.6, k * 0.85));
-  } else if (avg < 1 / 57 && k < 1) {
+  } else if (avg < cap / 57 && k < 1) {
     if (++perf.good >= 3) {
       perf.good = 0;
       engine.setScale(Math.min(1, k / 0.85));
@@ -662,6 +687,7 @@ function updateView(S) {
   const F = engine.height / (2 * Math.tan((cam.fov * Math.PI) / 360));
   const det = engine.q.detail;
   ball.lodK = ((LOD_PART * F) / 1.5) * det;
+  ball.coarseK = G.noCoarse ? Infinity : ((LOD_COARSE * F) / 1.5) * det;
   ball.lodDist = cam.position.distanceTo(ball.group.position) - ball.displayS * 0.25;
   STUCK.max = engine.q.stuck;
   // beyond 2 fog lengths everything is >98 % fog: don't draw it
@@ -671,7 +697,7 @@ function updateView(S) {
     Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t, red: 0, warn: warn.list, spot: warn.spot });
     MU.hiStripe.value = 1 / (hi.limit * 0.45);
   }
-  G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ((LOD_PART * F) / 1.5) * det, focus, engine.q.shadows ? shadowR * 1.25 : 0, hi);
+  G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ball.lodK, ball.coarseK, focus, engine.q.shadows ? shadowR * 1.25 : 0, hi);
   engine.updateShadow(focus, shadowR);
 }
 
@@ -1208,6 +1234,18 @@ window.__wanwu = {
     return out;
   },
   teleport(x, z) { ball.pos.x = x; ball.pos.z = z; rig.snap(ball); },
+  /** triangles of each type's full model, far-away stand-in and coarse stand-in (made now if need be) */
+  /** coarse stand-ins still waiting to be made */
+  coarseLeft: () => pumpCoarse(0),
+  lods() {
+    const out = {};
+    for (const t of world.types.values()) {
+      wantCoarse(t.spec);
+      pumpCoarse(1e9);
+      out[t.spec.id] = [t.spec.tris, t.spec.lod ? t.spec.lodTris : 0, t.spec.coarse ? t.spec.coarseTris : 0];
+    }
+    return out;
+  },
   /** average ms for n synchronous frames (update + render + wait for the GPU) */
   bench(n = 60) {
     const r = engine.renderer, gl = r.getContext(), px = new Uint8Array(4);

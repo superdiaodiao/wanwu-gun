@@ -17,6 +17,12 @@ set('balloon', { pickScale: 0.5 });
 // wall segments are long and thin: count them about as big as they are tall
 set('wall_seg', { pickScale: 0.6 });
 set('wall_slogan', { pickScale: 0.6 });
+// low, wide things look smaller than their outline says (a hill is a hump in the ground, a flower bed
+// a low ring): count them smaller, so they roll up about when they start to look as if they would
+set('hill_small', { pickScale: 0.72 }); // 85 m across but 18 m high: from a ~75 m ball, not ~104 m
+set('flower_bed', { pickScale: 0.82 });
+set('lotus', { pickScale: 0.76 });
+set('washbasin', { pickScale: 0.7 });
 set('kid_balloon', { pickScale: 0.75 });
 set('spinning_top', { mover: { kind: 'spin', axis: 'y', speed: 14 } });
 // high-speed rail: rail top at 12.62 m, tracks 2.5 m either side of the viaduct's centre line;

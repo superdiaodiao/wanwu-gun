@@ -77,9 +77,12 @@ function unitPrism(kind) {
   });
 }
 
-// geometries with a lighter equivalent for LOD builds (e.g. a finer icosphere → a coarser one)
+// geometries with a lighter equivalent for LOD builds (e.g. a finer icosphere → a coarser one);
+// coarse builds take the lighter one's lighter one, then its coarse swap if it has one
 const LOD_SWAP = new Map();
 export function lodSwap(g, lighter) { LOD_SWAP.set(g, lighter); }
+const COARSE_SWAP = new Map();
+export function coarseSwap(g, lighter) { COARSE_SWAP.set(g, lighter); }
 
 // bounding-box size of each (cached, unit) primitive geometry
 const boxSize = new WeakMap();
@@ -102,6 +105,8 @@ export class Model {
    * segment counts of round things. Colour functions draw random numbers per vertex, so fewer
    * vertices would shift everything built after them: `replay` (the full build's `draws`) puts the
    * random stream back where the full build had it after every part, so colours and layout match.
+   * `coarse` (for things down to a few pixels): round things get a third of their segments and
+   * spheres the next coarser stand-in again.
    */
   constructor(seed = 1, lod = null) {
     this.P = []; this.N = []; this.C = []; this.U = []; this.G = []; this.T = [];
@@ -112,13 +117,17 @@ export class Model {
     this.rng = new RNG(seed);
     this.tris = 0;
     this.minPart = lod ? lod.minPart : 0;
+    this.coarse = !!(lod && lod.coarse);
     this.replay = lod ? lod.replay : null;
     this.draws = []; // random numbers drawn inside each geo() call
     this._decal = false;
   }
 
-  /** segment count for round primitives (halved in a LOD build) */
-  seg(n, min = 4) { return this.minPart ? Math.max(min, Math.ceil(n / 2)) : n; }
+  /** segment count for round primitives (halved in a LOD build, a third in a coarse one) */
+  seg(n, min = 4) {
+    if (!this.minPart) return n;
+    return this.coarse ? Math.max(Math.min(min, 4), Math.ceil(n / 3)) : Math.max(min, Math.ceil(n / 2));
+  }
 
   /** in a LOD build: is this part (unit geometry g under matrix m) too small to keep? */
   tooSmall(g, m) {
@@ -171,6 +180,10 @@ export class Model {
 
   addGeo(g, col, x, y, z, rx, ry, rz, sx, sy, sz, uvRect) {
     if (this.minPart && LOD_SWAP.has(g)) g = LOD_SWAP.get(g);
+    if (this.coarse) {
+      if (LOD_SWAP.has(g)) g = LOD_SWAP.get(g);
+      if (COARSE_SWAP.has(g)) g = COARSE_SWAP.get(g);
+    }
     if (g.index) g = g.toNonIndexed();
     _local.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(sx, sy, sz));
     _m.multiplyMatrices(this.matrix, _local);

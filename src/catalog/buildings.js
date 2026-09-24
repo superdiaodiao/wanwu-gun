@@ -396,15 +396,27 @@ decal('bd_crane', 128, 32, (ctx, w, h) => {
 // ---- geometry helpers -------------------------------------------------------------------------
 const _qv = new THREE.Vector3(), _qn = new THREE.Vector3(), _qnm = new THREE.Matrix3();
 
-/** Batch of single-sided quads (2 tris each) in the current transform frame; flushed as one part. */
+/**
+ * Batch of single-sided quads (2 tris each) in the current transform frame; flushed as one part.
+ * Far-away stand-ins (Model lod builds) leave out the quads too small to see, like any other part;
+ * coarse ones turn a column of plain quads (a tower's windows, floor after floor) into one strip,
+ * narrowed to cover as much wall as they did.
+ */
 class Quads {
-  constructor(m) { this.m = m; this.P = []; this.N = []; this.UV = []; }
+  constructor(m) { this.m = m; this.P = []; this.N = []; this.UV = []; this.n = 0; this.raw = m.coarse ? [] : null; }
   /**
    * Quad centred at (x, y, z) facing local +Z (or local +Y when up = true; u along x, v towards −z).
    * uv = [u0, v0, u1, v1] picks part of a decal; flip = true makes it face the other way.
    */
   add(x, y, z, w, h, up = false, uv = null, flip = false) {
-    const M = this.m.matrix, hw = w / 2, hh = h / 2;
+    const M = this.m.matrix, mp = this.m.minPart;
+    this.n++;
+    if (this.raw) this.raw.push([M, x, y, z, w, h, up, uv, flip]);
+    else if (!mp || !quadTooSmall(mp, M, w, h, up)) this.emit(M, x, y, z, w, h, up, uv, flip);
+    return this;
+  }
+  emit(M, x, y, z, w, h, up, uv, flip) {
+    const hw = w / 2, hh = h / 2;
     const pts = up
       ? [[x - hw, y, z + hh], [x + hw, y, z + hh], [x + hw, y, z - hh], [x - hw, y, z - hh]]
       : [[x - hw, y - hh, z], [x + hw, y - hh, z], [x + hw, y + hh, z], [x - hw, y + hh, z]];
@@ -419,12 +431,13 @@ class Quads {
       this.N.push(_qn.x, _qn.y, _qn.z);
       this.UV.push(T[i][0], T[i][1]);
     }
-    return this;
   }
   /** both faces */
   add2(x, y, z, w, h, up = false, uv = null) { this.add(x, y, z, w, h, up, uv); return this.add(x, y, z, w, h, up, uv, true); }
   flush(col, glow = 0, key = null) {
-    if (!this.P.length) return;
+    if (!this.n) return;
+    if (this.raw) this.coarsen(!key);
+    // (a part even if every quad was left out, so the random stream stays in step with the full build)
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.P, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.N, 3));
@@ -436,7 +449,44 @@ class Quads {
     m.stack = stack;
     m.glow(gl);
     this.P = []; this.N = []; this.UV = [];
+    this.n = 0;
+    if (this.raw) this.raw = [];
   }
+  /** coarse build: stack plain upright quads into strips (merge), drop what is too small */
+  coarsen(merge) {
+    const mp = this.m.minPart, cols = new Map();
+    for (const q of this.raw) {
+      const [M, x, y, z, w, h, up, uv, flip] = q;
+      if (!merge || up || uv) {
+        if (!quadTooSmall(mp, M, w, h, up)) this.emit(...q);
+        continue;
+      }
+      let byM = cols.get(M);
+      if (!byM) cols.set(M, (byM = new Map()));
+      const k = `${flip}|${x.toFixed(2)}|${z.toFixed(2)}|${w.toFixed(2)}`;
+      const c = byM.get(k);
+      if (c) {
+        c.y0 = Math.min(c.y0, y - h / 2);
+        c.y1 = Math.max(c.y1, y + h / 2);
+        c.sum += h;
+      } else byM.set(k, { M, x, z, w, flip, y0: y - h / 2, y1: y + h / 2, sum: h });
+    }
+    for (const byM of cols.values()) {
+      for (const c of byM.values()) {
+        const h = c.y1 - c.y0, w = c.w * Math.min(1, c.sum / h);
+        if (!quadTooSmall(mp, c.M, w, h, false)) this.emit(c.M, c.x, (c.y0 + c.y1) / 2, c.z, w, h, false, null, c.flip);
+      }
+    }
+  }
+}
+
+/** would a w × h quad under matrix M vanish in a stand-in that drops parts under mp (see Model.tooSmall)? */
+function quadTooSmall(mp, M, w, h, up) {
+  const e = M.elements;
+  const a = Math.hypot(e[0], e[1], e[2]) * w;
+  const b = (up ? Math.hypot(e[8], e[9], e[10]) : Math.hypot(e[4], e[5], e[6])) * h;
+  const big = Math.max(a, b), mid = Math.min(a, b);
+  return big < mp || (mid < mp * 0.5 && big < mp * 2.5);
 }
 
 /** Window kit: glass (two tones), warm lit panes (glow), frames, open-balcony voids, AC grilles, bars, louvres. */

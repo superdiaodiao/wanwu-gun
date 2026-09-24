@@ -7,7 +7,7 @@
 // ball, whose surroundings the sun's shadow frustum hugs.
 import * as THREE from 'three';
 import { CATALOG } from '../catalog/registry.js';
-import { buildSpec } from '../core/assets.js';
+import { buildSpec, wantCoarse } from '../core/assets.js';
 import { objectMaterial } from '../core/materials.js';
 import { atlasTexture } from '../core/atlas.js';
 import { SpatialGrid } from './grid.js';
@@ -108,6 +108,15 @@ export class WorldObject {
 // it, the main camera doesn't (see Packed).
 export const SHADOW_LAYER = 2;
 
+// per-instance highlight (see objectMaterial): lives on the geometry, which only the world's meshes
+// draw with the highlight material
+function hiAttr(g, cap) {
+  const a = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
+  a.setUsage(THREE.DynamicDrawUsage);
+  g.setAttribute('iHi', a);
+  return a;
+}
+
 function instMesh(world, t, geometry, cap, name, color) {
   const mesh = new THREE.InstancedMesh(geometry, world.material, cap);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -128,8 +137,8 @@ function instMesh(world, t, geometry, cap, name, color) {
 /**
  * All instances of one type. Matrices live in a CPU-side array; every frame the instances near
  * enough and in view are packed into the GPU buffers — near ones into the full model's, far ones
- * into the far-away stand-in's — and only those are drawn. A third mesh, seen only by the shadow
- * camera, gets the ones close to the ball.
+ * into the far-away stand-in's, those down to a few pixels into the coarse one's — and only those
+ * are drawn. Another mesh, seen only by the shadow camera, gets the ones close to the ball.
  */
 class Packed {
   constructor(world, type, cap) {
@@ -143,6 +152,7 @@ class Packed {
     this.dirty = true; // something moved, came or went since the last pack
     this.lastF = new Int32Array(this.cap).fill(-1);
     this.lastL = new Int32Array(this.cap).fill(-1);
+    this.lastC = new Int32Array(this.cap).fill(-1);
     this.makeMeshes(this.cap);
   }
 
@@ -151,16 +161,19 @@ class Packed {
     this.mesh = instMesh(this.world, t, t.spec.geometry, cap, id, t.hasTint);
     this.lod = t.spec.lod ? instMesh(this.world, t, t.spec.lod, cap, id + ':lod', t.hasTint) : null;
     this.shadow = null; // made on first use
-    // per-instance highlight (see objectMaterial): lives on the geometry, which only these two
-    // meshes draw with the highlight material
-    const hi = g => {
-      const a = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
-      a.setUsage(THREE.DynamicDrawUsage);
-      g.setAttribute('iHi', a);
-      return a;
-    };
-    this.hiF = hi(t.spec.geometry);
-    this.hiL = t.spec.lod ? hi(t.spec.lod) : null;
+    this.coarse = null; // made once something is that far and the coarse stand-in exists
+    this.hiF = hiAttr(t.spec.geometry, cap);
+    this.hiL = t.spec.lod ? hiAttr(t.spec.lod, cap) : null;
+    this.hiC = null;
+  }
+
+  coarseMesh() {
+    if (!this.coarse) {
+      const t = this.type, g = t.spec.coarse;
+      this.coarse = instMesh(this.world, t, g, this.cap, t.spec.id + ':coarse', t.hasTint);
+      this.hiC = hiAttr(g, this.cap);
+    }
+    return this.coarse;
   }
 
   shadowMesh() {
@@ -174,7 +187,7 @@ class Packed {
   }
 
   grow() {
-    const old = [this.mesh, this.lod, this.shadow];
+    const old = [this.mesh, this.lod, this.shadow, this.coarse];
     this.cap *= 2;
     const grow = (arr, n, fill = 0) => {
       const out = new arr.constructor(this.cap * n).fill(fill);
@@ -186,6 +199,7 @@ class Packed {
     this.sph = grow(this.sph, 4);
     this.lastF = new Int32Array(this.cap).fill(-1);
     this.lastL = new Int32Array(this.cap).fill(-1);
+    this.lastC = new Int32Array(this.cap).fill(-1);
     this.makeMeshes(this.cap);
     for (const m of old) {
       if (!m) continue;
@@ -245,16 +259,17 @@ class Packed {
 
   /**
    * Pack what is worth drawing this frame: within maxDist of the camera and inside the view planes
-   * (stand-in beyond lodDist); and, for the shadow pass, whatever lies within shadowR of `focus`.
-   * The GPU buffers are only rewritten when the packed set or any matrix changed.
+   * (stand-in beyond lodDist, coarse one beyond coarseDist); and, for the shadow pass, whatever lies
+   * within shadowR of `focus`. The GPU buffers are only rewritten when the packed set or any matrix
+   * changed.
    */
-  pack(cam, planes, maxDist, lodDist, focus, shadowR, hi) {
+  pack(cam, planes, maxDist, lodDist, coarseDist, focus, shadowR, hi) {
     const objs = this.objs, t = this.type, n = objs.length;
-    const sph = this.sph, lod = this.lod;
-    const far = lod ? lodDist : Infinity;
+    const sph = this.sph, lod = this.lod, spec = t.spec;
+    const far = lod ? lodDist : Infinity, far2 = spec.coarse ? coarseDist : Infinity;
     const cx = cam.x, cy = cam.y, cz = cam.z;
-    const lastF = this.lastF, lastL = this.lastL;
-    let nf = 0, nl = 0, changed = this.dirty;
+    const lastF = this.lastF, lastL = this.lastL, lastC = this.lastC;
+    let nf = 0, nl = 0, nc = 0, changed = this.dirty, want = false;
     const shadows = shadowR > 0 && t.castShadow && t.visible;
     const sd = shadows ? this.shadowMesh().instanceMatrix.array : null, src = this.mats;
     const fx = focus.x, fz = focus.z;
@@ -276,16 +291,23 @@ class Packed {
         let p = 0;
         for (; p < 24; p += 4) if (planes[p] * x + planes[p + 1] * y + planes[p + 2] * z + planes[p + 3] < -r) break;
         if (p < 24) continue;
-        if (d > far) {
+        if (d > far2) {
+          if (lastC[nc] !== i) { lastC[nc] = i; changed = true; }
+          nc++;
+        } else if (d > far) {
+          if (d > coarseDist) want = true;
           if (lastL[nl] !== i) { lastL[nl] = i; changed = true; }
           nl++;
         } else {
+          if (d > coarseDist) want = true;
           if (lastF[nf] !== i) { lastF[nf] = i; changed = true; }
           nf++;
         }
       }
     }
-    if (nf !== this.mesh.count || (lod && nl !== lod.count)) changed = true;
+    if (want) wantCoarse(spec);
+    const cm = nc ? this.coarseMesh() : this.coarse;
+    if (nf !== this.mesh.count || (lod && nl !== lod.count) || (cm && nc !== cm.count)) changed = true;
     if (changed) {
       this.copyAll(this.mesh.instanceMatrix.array, lastF, nf);
       this.commit(this.mesh, lastF, nf);
@@ -293,10 +315,15 @@ class Packed {
         this.copyAll(lod.instanceMatrix.array, lastL, nl);
         this.commit(lod, lastL, nl);
       }
+      if (cm) {
+        this.copyAll(cm.instanceMatrix.array, lastC, nc);
+        this.commit(cm, lastC, nc);
+      }
     }
     this.dirty = false;
     this.highlight(this.hiF, lastF, nf, hi);
     if (lod) this.highlight(this.hiL, lastL, nl, hi);
+    if (cm) this.highlight(this.hiC, lastC, nc, hi);
     if (this.shadow) {
       const m = this.shadow;
       m.count = ns;
@@ -648,12 +675,13 @@ export class World {
 
   /**
    * Decide what gets drawn this frame. Each type is drawn out to `sizeK` × its size (about where it
-   * shrinks to a pixel or two) or to `fogDist`, whichever is nearer, and as its stand-in beyond
-   * `lodK` × its size. Chunks are switched on or off; packed things are culled one by one.
+   * shrinks to a pixel or two) or to `fogDist`, whichever is nearer, as its stand-in beyond `lodK` ×
+   * its size and as its coarse one beyond `coarseK` × its size. Chunks are switched on or off; packed
+   * things are culled one by one.
    * `focus`/`keep`: packed things this close to the ball are drawn even when off screen, so they
    * still cast their shadows into view. Returns how many packed instances were drawn.
    */
-  updateVisibility(camera, fogDist, sizeK, lodK, focus, shadowR, hi = null) {
+  updateVisibility(camera, fogDist, sizeK, lodK, coarseK, focus, shadowR, hi = null) {
     const cam = camera.position;
     camera.updateMatrixWorld();
     _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -669,7 +697,7 @@ export class World {
     for (const t of this.types.values()) {
       if (!t.dyn) continue;
       t.dd = Math.min(fogDist, sizeK * t.size);
-      drawn += t.dyn.pack(cam, _planes, t.dd, lodK * t.size, focus, shadowR, hi);
+      drawn += t.dyn.pack(cam, _planes, t.dd, lodK * t.size, coarseK * t.size, focus, shadowR, hi);
     }
     return drawn;
   }

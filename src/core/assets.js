@@ -28,6 +28,7 @@ export function buildSpec(spec) {
   spec.shape = spec.shape || (spec.cat !== 'building' && footprintAspect < 1.5 && cornerShare(g, bb) < 0.15 ? 'cyl' : 'box');
   spec.tris = m.tris;
   if (!spec.hits && !spec.hit) spec.autoHits = sliceHits(spec, g);
+  spec.draws = m.draws; // kept for the coarse stand-in, built later (see wantCoarse)
   buildLod(spec, g, m.draws);
   return spec;
 }
@@ -126,28 +127,58 @@ function sliceHits(spec, g) {
   });
 }
 
-// parts smaller than this fraction of the model's size are dropped from its far-away stand-in
+// parts smaller than this fraction of the model's size are dropped from its far-away stand-in, and
+// from its coarse one, for when it is down to a few pixels
 export const LOD_PART = 0.02;
+export const LOD_COARSE = 0.1;
 
 /** A lighter stand-in used far away (see Model's lod option); kept only if it saves a good share. */
 function buildLod(spec, g, replay) {
   spec.lod = null;
   if (spec.tris < 240) return;
-  const m = new Model(hashString(spec.id), { minPart: spec.maxDim * LOD_PART, replay });
+  const lg = standIn(spec, g, { minPart: spec.maxDim * LOD_PART, replay }, spec.tris * 0.75);
+  if (!lg) return;
+  spec.lod = lg;
+  spec.lodTris = lg.userData.tris;
+}
+
+function standIn(spec, g, lod, maxTris) {
+  const m = new Model(hashString(spec.id), lod);
   try {
     spec.build(m, spec);
   } catch (e) {
-    return;
+    return null;
   }
-  if (!m.tris || m.tris > spec.tris * 0.75) return;
+  if (!m.tris || m.tris > maxTris) return null;
   const lg = m.build({ lift: false });
   // same placement as the full model even if its lowest part was dropped
   if (g.userData.liftedBy) lg.translate(0, g.userData.liftedBy, 0);
   lg.boundingSphere = g.boundingSphere.clone();
   lg.boundingBox = g.boundingBox.clone();
   lg.userData.tinted = g.userData.tinted;
-  spec.lod = lg;
-  spec.lodTris = m.tris;
+  return lg;
+}
+
+// The coarse stand-in (a building's windows, balconies and signs gone, trees in a few facets):
+// most things never get that small on screen, so it is made on first use, a few at a time
+// (pumpCoarse, from the main loop). spec.coarse: undefined = not made yet, null = it wouldn't save
+// much over the far-away one (keep using that), else the geometry.
+const coarseQueue = [];
+export function wantCoarse(spec) {
+  if (spec.coarse !== undefined || spec.coarseQueued || !spec.geometry) return;
+  spec.coarseQueued = true;
+  coarseQueue.push(spec);
+}
+/** make queued coarse stand-ins for up to `ms` milliseconds; returns how many are left */
+export function pumpCoarse(ms) {
+  const t0 = performance.now();
+  while (coarseQueue.length && performance.now() - t0 < ms) {
+    const spec = coarseQueue.shift();
+    const base = spec.lod ? spec.lodTris : spec.tris;
+    spec.coarse = base < 60 ? null : standIn(spec, spec.geometry, { minPart: spec.maxDim * LOD_COARSE, replay: spec.draws, coarse: true }, base * 0.75);
+    if (spec.coarse) spec.coarseTris = spec.coarse.userData.tris;
+  }
+  return coarseQueue.length;
 }
 
 /** Human readable length: 3.2 mm / 4.5 cm / 1.25 m / 1.3 km */

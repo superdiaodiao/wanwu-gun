@@ -4,7 +4,7 @@
 // lattice surfaces of revolution pushed by seeded noise and painted per face by height and slope.
 import * as THREE from 'three';
 import { def } from './registry.js';
-import { D, shade, mix, lodSwap } from '../core/modeler.js';
+import { D, shade, mix, lodSwap, coarseSwap } from '../core/modeler.js';
 import { decal, fitText, FONTS } from '../core/atlas.js';
 
 // ---- noise (seeded 3D value noise) ----------------------------------------------------------------
@@ -72,11 +72,19 @@ const cushion = src => {
   g.computeVertexNormals();
   return g;
 };
-const PAD = cushion(ICO[1]);
-// far-away stand-ins use the next coarser sphere
+const PAD = cushion(ICO[1]), PAD0 = cushion(ICO[0]), OCT = new THREE.OctahedronGeometry(1, 0);
+// far-away stand-ins use the next coarser sphere; coarse ones (a few pixels) come down to octahedra
 lodSwap(ICO[2], ICO[1]);
 lodSwap(ICO[1], ICO[0]);
-lodSwap(PAD, cushion(ICO[0]));
+lodSwap(PAD, PAD0);
+coarseSwap(ICO[0], OCT);
+coarseSwap(DOD, OCT);
+coarseSwap(PAD0, cushion(OCT));
+// stand-ins: fewer rings on a hill or mountain (0.7 far away, half when coarse); lumpy parts (clouds,
+// rocks) keep their spheres far away (with fewer, a cloud looks like crumpled paper) and take the
+// coarsest only when down to a few pixels
+const rings = (m, K) => (m.coarse ? Math.max(2, Math.ceil(K / 2)) : m.minPart ? Math.max(2, Math.round(K * 0.7)) : K);
+const ico = (m, d) => ICO[m.coarse ? Math.max(0, d - 2) : d];
 // double-sided leaf / petal with a folded midrib; base at the origin, tip at +Y, face ±Z
 const LEAF = (() => {
   const L = [0, 0, 0], R = [0.5, 0.36, -0.14], T = [0, 1, 0], Q = [-0.5, 0.36, -0.14];
@@ -185,6 +193,10 @@ function lump(g, amp, freq, seed, x, y, z, sx, sy, sz, ry = 0, floor = -Infinity
 function taper(m, pts, r, col, seg = 6, N = 0, caps = true, warp = null) {
   const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2])));
   N = N || Math.max(2, (pts.length - 1) * 2);
+  if (m.coarse) {
+    seg = Math.max(3, Math.ceil(seg / 2));
+    N = Math.max(1, Math.ceil(N / 2));
+  }
   const fr = curve.computeFrenetFrames(N, false);
   const R = typeof r === 'function' ? r : t => r[0] + (r[1] - r[0]) * t;
   const P = [], T = [], C = [];
@@ -986,8 +998,8 @@ def('rock_small', {
   sfx: 'rumble',
   fill: 0.65,
   build(m) {
-    const a = settle(lump(ICO[1], 0.32, 1.3, 3, 0, 0, 0, 0.21, 0.17, 0.18, 0.4), 0.04);
-    const b = settle(lump(ICO[0], 0.25, 1.5, 8, 0.25, 0, 0.12, 0.07, 0.055, 0.065, 1.2), 0.015);
+    const a = settle(lump(ico(m, 1), 0.32, 1.3, 3, 0, 0, 0, 0.21, 0.17, 0.18, 0.4), 0.04);
+    const b = settle(lump(ico(m, 0), 0.25, 1.5, 8, 0.25, 0, 0.12, 0.07, 0.055, 0.065, 1.2), 0.015);
     meshOut(m, a.P, a.T, stonePaint(m, 6));
     meshOut(m, b.P, b.T, stonePaint(m, 6));
   },
@@ -1000,7 +1012,7 @@ def('rock_big', {
   sfx: 'rumble',
   fill: 0.65,
   build(m) {
-    const a = settle(lump(ICO[2], 0.3, 1.1, 21, 0, 0, 0, 1.3, 1.2, 1.05, 0.2), 0.25);
+    const a = settle(lump(ico(m, 2), 0.3, 1.1, 21, 0, 0, 0, 1.3, 1.2, 1.05, 0.2), 0.25);
     const maxZ = Math.max(...a.P.map(p => p[2])), zc = maxZ - 0.32;
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const p of a.P) if (p[2] > zc) { p[2] = zc; x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
@@ -1009,8 +1021,8 @@ def('rock_big', {
     meshOut(m, a.P, a.T, (cx, cy, cz, nx, ny, nz, i) => (nz > 0.995 ? shade(0xb9b3a6, 0.97 + m.rng.r() * 0.05) : rock(cx, cy, cz, nx, ny, nz, i)));
     const s = Math.min(x1 - x0, y1 - y0) * 0.62;
     m.decal(s, s, 'na_rock_shou', (x0 + x1) / 2, (y0 + y1) / 2, zc + 0.02);
-    const b = settle(lump(ICO[1], 0.3, 1.4, 5, -1.25, 0, 0.7, 0.45, 0.33, 0.4, 0.7), 0.06);
-    const c = settle(lump(ICO[1], 0.3, 1.4, 9, 1.2, 0, 0.8, 0.33, 0.24, 0.3, 2.0), 0.05);
+    const b = settle(lump(ico(m, 1), 0.3, 1.4, 5, -1.25, 0, 0.7, 0.45, 0.33, 0.4, 0.7), 0.06);
+    const c = settle(lump(ico(m, 1), 0.3, 1.4, 9, 1.2, 0, 0.8, 0.33, 0.24, 0.3, 2.0), 0.05);
     meshOut(m, b.P, b.T, stonePaint(m, 3, 0.35, warm));
     meshOut(m, c.P, c.T, stonePaint(m, 3, 0.35, warm));
   },
@@ -1035,7 +1047,7 @@ def('rockery', {
       z + (noise3(x * 1.5, y * 1.5, z * 1.5 + s, s + 2) - 0.5) * 2 * k];
     // a low bed of stones
     [[0, 0.45, 0, 1.75, 0.6, 1.2, 0.3], [-1.35, 0.35, 0.5, 0.8, 0.45, 0.7, 1.1], [1.4, 0.33, -0.3, 0.9, 0.42, 0.8, 2.0]].forEach(([x, y, z, sx, sy, sz, ry], i) => {
-      const g = lump(ICO[1], 0.34, 0.9, i + 1, x, y, z, sx, sy, sz, ry, 0);
+      const g = lump(ico(m, 1), 0.34, 0.9, i + 1, x, y, z, sx, sy, sz, ry, 0);
       meshOut(m, g.P, g.T, paint);
     });
     // two twisting limbs that part and rejoin, leaving see-through holes (漏, 透)
@@ -1044,7 +1056,7 @@ def('rockery', {
     taper(m, [[-0.75, 0.5, 0.1], [-0.95, 1.6, 0.2], [-0.6, 2.55, 0.2], [0.25, 3.0, 0.15], [0.9, 3.75, 0.1], [0.6, 4.55, 0.05]],
       t => 0.44 - 0.1 * t, perFace(paint), 7, 10, true, warp(5, 0.12));
     taper(m, [[0.2, 5.15, 0], [-0.55, 5.5, 0.1], [-1.15, 5.2, 0.15]], [0.36, 0.2], perFace(paint), 6, 5, true, warp(7, 0.08));
-    const crown = lump(ICO[1], 0.3, 0.9, 9, 0.2, 5.5, 0, 0.8, 0.4, 0.62, 0.5);
+    const crown = lump(ico(m, 1), 0.3, 0.9, 9, 0.2, 5.5, 0, 0.8, 0.4, 0.62, 0.5);
     meshOut(m, crown.P, crown.T, paint);
     // one more small hole through the crown's side
     const g = new THREE.TorusGeometry(0.34, 0.15, 5, 10).toNonIndexed();
@@ -1212,7 +1224,7 @@ def('hill_small', {
   build(m) {
     const R = 40, H = 13, prof = [];
     for (let i = 0; i <= 20; i++) { const x = i / 20; prof.push([x * R, H * (1 - x * x) ** 2]); }
-    const g = hexRevolve(16, prof, (p, n, u) => {
+    const g = hexRevolve(rings(m, 16), prof, (p, n, u) => {
       const b = 3.2 * Math.exp(-((p[0] + 12) ** 2 + (p[2] - 9) ** 2) / 150);
       return (b + (fbm(p[0] / 13 + 4, p[1] / 13, p[2] / 13, 31, 3) - 0.5) * 3.2) * (1 - u * u);
     });
@@ -1251,7 +1263,7 @@ def('hill_small', {
     });
     for (const [x, z, r] of [[7, 20, 1.3], [-20, -3, 1.0], [23, -6, 0.9]]) {
       const y = groundAt(g.P, g.T, x, z);
-      const k = lump(ICO[0], 0.25, 1.2, x, x, y + r * 0.3, z, r * 1.3, r * 0.8, r, x);
+      const k = lump(ico(m, 0), 0.25, 1.2, x, x, y + r * 0.3, z, r * 1.3, r * 0.8, r, x);
       meshOut(m, k.P, k.T, stonePaint(m, 1));
     }
   },
@@ -1273,7 +1285,7 @@ def('mountain_green', {
       h += (ridged(Math.cos(a) * 3 + 3, Math.sin(a) * 3, d / 55, 41) - 0.45) * 18 * sstep(8, 50, d);
       return h + (fbm(x / 22, 0, z / 22, 43, 3) - 0.5) * 12;
     };
-    const g = hexField(18, R, hf);
+    const g = hexField(rings(m, 18), R, hf);
     const fit = fitTo(g.P, 300, 220);
     meshOut(m, g.P, g.T, (cx, cy, cz, nx, ny) => {
       if (ny < -0.9) return 0x5b4a38;
@@ -1313,7 +1325,7 @@ def('mountain_rocky', {
       h += (ridged(Math.cos(a) * 2.6 + 9, Math.sin(a) * 2.6, d / 70, 51, 4) - 0.42) * 38 * sstep(6, 40, d);
       return h + (fbm(x / 18, 0, z / 18, 53, 2) - 0.5) * 10;
     };
-    const g = hexField(20, R, hf);
+    const g = hexField(rings(m, 20), R, hf);
     fitTo(g.P, 400, 320);
     meshOut(m, g.P, g.T, (cx, cy, cz, nx, ny) => {
       if (ny < -0.9) return 0x55504a;
@@ -1343,12 +1355,12 @@ def('mountain_karst', {
     const P = [], T = [];
     const add = g => { const o = P.length; P.push(...g.P); g.T.forEach(t => T.push([t[0] + o, t[1] + o, t[2] + o])); };
     towers.forEach(([tx, tz, r, H, K, lx, lz], ti) => {
-      const g = hexRevolve(K, shape.map(([a, b]) => [a * r, b * H]), (p, n, u, th) =>
+      const g = hexRevolve(rings(m, K), shape.map(([a, b]) => [a * r, b * H]), (p, n, u, th) =>
         (fbm(Math.cos(th) * 3 + ti * 7, Math.sin(th) * 3, (p[1] / H) * 1.6, 61 + ti, 3) - 0.5) * 2 * 0.18 * r * sstep(1.0, 0.9, u));
       g.P.forEach(p => { p[0] += tx + lx * p[1]; p[2] += tz + lz * p[1]; });
       add(g);
     });
-    const mound = hexRevolve(6, [[0, 9], [20, 8], [40, 5], [58, 0]], (p, n, u) => (fbm(p[0] / 12, 0, p[2] / 12, 67, 2) - 0.5) * 4 * (1 - u));
+    const mound = hexRevolve(rings(m, 6), [[0, 9], [20, 8], [40, 5], [58, 0]], (p, n, u) => (fbm(p[0] / 12, 0, p[2] / 12, 67, 2) - 0.5) * 4 * (1 - u));
     wobble(mound.P, 0.14, 3);
     const moundFrom = T.length;
     add(mound);
@@ -1380,7 +1392,7 @@ def('cloud', {
     const puffs = [[0, 9, 0, 13, 2], [-14, 7, 2, 10, 2], [15, 6.5, -1, 10.5, 2], [-24, 4.5, 0, 6.5, 1], [25, 4.2, 1, 6, 1], [-5, 16, -2, 8.5, 1],
       [6, 15, 3, 7.5, 1], [-3, 6, 9, 8, 1], [4, 6, -9, 8, 1], [-13, 5, -7, 6.5, 1], [13, 5, 8, 6.5, 1]];
     puffs.forEach(([x, y, z, r, d], i) => {
-      const g = lump(ICO[d], 0.1, 1.1, i * 3 + 1, x, y, z, r, r * 0.88, r, 0, 0);
+      const g = lump(ico(m, d), 0.1, 1.1, i * 3 + 1, x, y, z, r, r * 0.88, r, 0, 0);
       meshOut(m, g.P, g.T, (cx, cy, cz, nx, ny) => (ny < -0.8 ? 0xd4dce8 : shade(mix(0xe2e9f1, 0xfbfbf9, clamp01((ny + 0.3) / 1.1)), 0.99 + m.rng.r() * 0.02)));
     });
   },
