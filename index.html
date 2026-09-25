@@ -203,7 +203,13 @@ kbd {
 #hud-count .wish-lbl { margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(246, 239, 224, 0.25); }
 #hud-wish { margin-left: 3px; letter-spacing: 1px; color: rgba(246, 239, 224, 0.55); }
 #hud-wish .on { color: var(--gold); }
-#hud-wish-note { margin-left: 6px; font-weight: 700; color: var(--gold); }
+/* (a line of its own under the pill, so a long note doesn't push it into the clock on phones) */
+#hud-wish-note {
+  position: absolute; left: 0; top: calc(100% + 5px);
+  padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  background: rgba(31, 27, 36, 0.62);
+  font-weight: 700; color: var(--gold);
+}
 #hud-wish-note:empty { display: none; }
 #hud-wish i { font-style: normal; }
 #wish-card {
@@ -266,16 +272,51 @@ kbd {
 #edge-warn i { font: 900 26px/1 var(--num); font-style: normal; color: var(--paper); }
 @keyframes edge-warn { to { scale: 1.15; } }
 /* the way to something that can still be rolled up (see main.js foodPointer) */
-#food-arrow {
-  position: absolute; left: 0; top: 0; width: 38px; height: 38px; margin: -19px 0 0 -19px;
-  display: grid; place-items: center;
-  border-radius: 50%;
+#food-arrow { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+#food-arrow .dir, #food-arrow .ping { position: absolute; left: -28px; top: -28px; width: 56px; height: 56px; box-sizing: border-box; border-radius: 50%; }
+#food-arrow .dir {
+  display: flex; align-items: center; justify-content: center;
   background: var(--gold); border: 3px solid var(--paper);
-  box-shadow: 0 4px 14px rgba(10, 6, 14, 0.45);
-  pointer-events: none;
-  animation: edge-warn 0.6s ease-in-out infinite alternate;
+  box-shadow: 0 6px 18px rgba(10, 6, 14, 0.55);
 }
-#food-arrow i { width: 0; height: 0; margin-left: 4px; border-left: 13px solid var(--ink); border-top: 8px solid transparent; border-bottom: 8px solid transparent; }
+/* an arrow with a shaft (a bare triangle reads either way round) */
+#food-arrow .dir::before { content: ''; width: 15px; height: 7px; margin-right: -1px; border-radius: 2px 0 0 2px; background: var(--ink); }
+#food-arrow .dir::after { content: ''; width: 0; height: 0; border-left: 15px solid var(--ink); border-top: 11px solid transparent; border-bottom: 11px solid transparent; }
+/* a ring going out from it, over and over, to catch the eye */
+#food-arrow .ping { border: 4px solid var(--gold); animation: food-ping 1.1s ease-out infinite; }
+@keyframes food-ping { from { scale: 1; opacity: 0.95; } to { scale: 2.2; opacity: 0; } }
+#food-arrow span {
+  position: absolute; left: 0; top: 36px; transform: translateX(-50%); white-space: nowrap;
+  padding: 4px 11px; border-radius: 999px; background: rgba(31, 27, 36, 0.82);
+  color: var(--gold); font-weight: 800; font-size: 14px;
+}
+#food-arrow.up span { top: auto; bottom: 36px; }
+#food-arrow.bare span { display: none; }
+/* over the thing the arrow points at, once it's in view */
+#food-mark { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+#food-mark b {
+  position: absolute; left: 0; bottom: 12px; transform: translateX(-50%); white-space: nowrap;
+  padding: 5px 12px; border-radius: 999px; background: var(--gold); border: 3px solid var(--paper);
+  color: var(--ink); font: 800 15px/1 var(--body);
+  box-shadow: 0 4px 14px rgba(10, 6, 14, 0.5);
+  animation: wish-bob 0.6s ease-in-out infinite alternate;
+}
+#food-mark b::after { content: ''; position: absolute; left: 50%; top: 100%; margin-left: -8px; border: 8px solid transparent; border-top-color: var(--paper); }
+/* over things a wish wants (see main.js wishMarks) */
+#wish-marks { position: absolute; inset: 0; pointer-events: none; }
+.wish-mark { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+/* (the nearest one says what the star means: the same star as the wishes on the HUD) */
+.wish-mark b {
+  position: absolute; left: 0; bottom: 8px; transform: translateX(-50%);
+  min-width: 24px; height: 24px; padding: 0 5px; box-sizing: border-box;
+  display: grid; place-items: center; white-space: nowrap;
+  border-radius: 999px; background: var(--gold); border: 2px solid var(--paper);
+  color: var(--ink); font: 800 12px/1 var(--body);
+  box-shadow: 0 3px 10px rgba(10, 6, 14, 0.45);
+  animation: wish-bob 0.8s ease-in-out infinite alternate;
+}
+.wish-mark:first-child b { padding: 0 8px; }
+@keyframes wish-bob { to { translate: 0 -6px; } }
 
 /* on the thing about to be run into: that it can't be taken yet, and how big the ball must get */
 #warn-tag {
@@ -750,7 +791,7 @@ kbd {
   #hud-keys { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #food-arrow, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
+  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #food-arrow .ping, #food-mark b, .wish-mark b, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
 }
 
 </style>
@@ -773,7 +814,9 @@ kbd {
   <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
   <button id="btn-patch" hidden>去补天 <b>›</b></button>
-  <div id="food-arrow" hidden aria-hidden="true"><i></i></div>
+  <div id="food-arrow" hidden aria-hidden="true"><i class="ping"></i><i class="dir"></i><span>能滚的在这边</span></div>
+  <div id="food-mark" hidden aria-hidden="true"><b>能滚</b></div>
+  <div id="wish-marks" aria-hidden="true"><i class="wish-mark" hidden><b>★ 心愿</b></i><i class="wish-mark" hidden><b>★</b></i><i class="wish-mark" hidden><b>★</b></i></div>
   <div id="hud-last" hidden>
     <div id="last-view"></div>
     <div class="info">
@@ -908,7 +951,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.205d1e42.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.6e033eb9.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {

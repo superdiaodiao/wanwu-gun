@@ -62,13 +62,25 @@ export class Wishes {
 
   get doneCount() { return this.list.filter(x => x.done).length; }
 
+  /** whether rolling up o would move wish x on */
+  counts(x, o) {
+    const w = x.w;
+    if (x.done) return false;
+    return w.tag ? o.tag === w.tag : w.set ? w.set.includes(o.spec.id) && !x.got.has(o.spec.id) : !!(w.ids && w.ids.includes(o.spec.id));
+  }
+
+  /** the first unfinished wish o counts for, or null */
+  wants(o) {
+    for (const x of this.list) if (this.counts(x, o)) return x;
+    return null;
+  }
+
   /** a pickup: [{ x, justDone }] for the wishes it moved on */
   pickup(o) {
     const out = [];
     for (const x of this.list) {
       const w = x.w;
-      if (x.done) continue;
-      if (w.tag ? o.tag === w.tag : w.set ? w.set.includes(o.spec.id) && !x.got.has(o.spec.id) : w.ids && w.ids.includes(o.spec.id)) {
+      if (this.counts(x, o)) {
         if (w.set) x.got.add(o.spec.id);
         x.p = w.set ? x.got.size : x.p + 1;
         x.done = x.p >= this.need(w);

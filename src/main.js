@@ -37,7 +37,7 @@ const store = {
 const G = {
   state: 'loading', mode: 'timed', time: 0, t: 0, milestone: 0, events: [],
   finale: null, toastCd: 0, tickSec: -1, hurry: false, cullT: 0, patched: false, prelaunch: null,
-  hinted: new Set(), hintCd: 0, idleT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
+  hinted: new Set(), hintCd: 0, idleT: 0, sizes: [], sizeT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
   gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0, mapWhole: true, redHinted: false, soundT: 0,
 };
 let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps, dex, wishes;
@@ -278,6 +278,10 @@ function resetGame(mode) {
   G.rolledT = 3;
   food.said = false;
   food.target = null;
+  G.sizes = [];
+  G.sizeT = 0;
+  wishNear.said.clear();
+  wishNear.list.length = 0;
   dex.newGame();
   maps.reset();
   hud.update(ball.S, 0, mode === 'timed' ? GAME_SECONDS : null, 0);
@@ -744,9 +748,11 @@ function touchHints(dt, raw) {
 }
 
 // ---- where there's still something to roll up ------------------------------------------------
-// Late in a game everything near the ball can be too big to take. After a few seconds without a
-// pickup, with nothing worth taking right by the ball, a gold arrow next to it points the way to the
-// nearest thing that is (the first time, 女娲 says what it means).
+// Late in a game everything near the ball can be too big to take. When the ball has about stopped
+// growing (or nothing at all was rolled up for a few seconds) and there's nothing worth taking right
+// by it, a gold arrow next to it points the way to the nearest thing that is (the first time, 女娲
+// says what it means), and the thing itself, once in view, reads 「能滚」. Rolling up bits too
+// small to matter doesn't count as growing.
 const food = { t: 0, target: null, cands: [], said: false };
 const _fa = new THREE.Vector3();
 function foodPointer(dt) {
@@ -756,7 +762,9 @@ function foodPointer(dt) {
     food.t = 0.5;
     food.target = null;
     const S = ball.S, limit = ball.pickLimit();
-    if (G.idleT > 4) {
+    // (G.sizes: the size once a second, the last 6 s)
+    const stalled = G.sizes.length >= 7 && S < G.sizes[0] * 1.03;
+    if ((G.idleT > 4 || stalled) && G.time > 15) {
       let best = null, bd = Infinity;
       for (const R of [S * 8, S * 25, S * 80, 6000]) {
         for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, food.cands, limit * 0.1)) {
@@ -769,28 +777,93 @@ function foodPointer(dt) {
         }
         if (best) break;
       }
-      if (best && bd > S * 2.5 + ball.r) food.target = best;
+      if (best && bd > S * 1.2 + ball.r) food.target = best;
     }
   }
-  const o = food.target;
-  let show = false;
+  const o = food.target, markEl = $('food-mark');
+  let show = false, mark = false;
   if (o && o.state === 0) {
-    // round the ball on screen, towards it (up is ahead, as on the stick)
-    const cam = engine.camera;
+    // round the ball on screen, towards it (up is ahead, as on the stick), clear of the ball
+    const cam = engine.camera, W = innerWidth, H = innerHeight, top = W < 640 ? 215 : 130;
     _fa.copy(ball.group.position).project(cam);
-    const bx = ((_fa.x + 1) / 2) * innerWidth, by = ((1 - _fa.y) / 2) * innerHeight;
+    const bx = ((_fa.x + 1) / 2) * W, by = ((1 - _fa.y) / 2) * H;
     _fa.set(ball.pos.x, ball.group.position.y + ball.displayS / 2, ball.pos.z).project(cam);
-    const rr = Math.abs(by - ((1 - _fa.y) / 2) * innerHeight);
+    const rr = Math.abs(by - ((1 - _fa.y) / 2) * H);
     const rel = Math.atan2(o.centerX() - ball.pos.x, -(o.centerZ() - ball.pos.z)) - rig.yaw;
-    const ux = Math.sin(rel), uy = -Math.cos(rel), r = Math.min(rr + 34, innerHeight * 0.3);
-    el.style.transform = `translate(${bx + ux * r}px, ${by + uy * r}px) rotate(${Math.atan2(uy, ux)}rad)`;
+    const ux = Math.sin(rel), uy = -Math.cos(rel), r = Math.min(rr + 64, H * 0.32);
+    // (and clear of the minimap in the top right corner)
+    const ax = Math.min(W - 60, Math.max(60, bx + ux * r));
+    const ay = Math.min(H - 170, Math.max(top + (ax > W - 150 ? 100 : 40), by + uy * r));
+    el.style.transform = `translate(${ax}px, ${ay}px)`;
+    el.firstElementChild.nextElementSibling.style.transform = `rotate(${Math.atan2(uy, ux)}rad)`;
+    el.classList.toggle('up', uy < -0.3);
     show = true;
+    // and over the thing itself, once it's in view (then the arrow needs no words)
+    _fa.set(o.centerX(), o.y + o.bob + o.h, o.centerZ()).project(cam);
+    const mx = ((_fa.x + 1) / 2) * W, my = ((1 - _fa.y) / 2) * H;
+    if (_fa.z < 1 && mx > 30 && mx < W - 30 && my > top && my < H - 20) {
+      markEl.style.transform = `translate(${mx}px, ${my}px)`;
+      mark = true;
+    }
+    el.classList.toggle('bare', mark);
     if (!food.said && !dialog.active) {
       food.said = true;
       dialog.say('附近都滚不动了？跟着金色箭头走，那边还有能滚的！');
     }
   }
   if (el.hidden === show) el.hidden = !show;
+  if (markEl.hidden === mark) markEl.hidden = !mark;
+}
+
+// ---- things a wish wants, close by -------------------------------------------------------------
+// So the wishes aren't forgotten: a little gold star over the nearest few things close by that
+// count for one and can be rolled up now (the nearest one reads 「★ 心愿」), and a word under the
+// HUD's stars when one shows up (once in a while for each wish).
+const wishNear = { t: 0, list: [], wish: null, cands: [], found: [], said: new Map() };
+const _wm = new THREE.Vector3();
+function wishMarks(dt) {
+  if ((wishNear.t -= dt) <= 0) {
+    wishNear.t = 0.3;
+    const list = wishNear.list, found = wishNear.found;
+    list.length = found.length = 0;
+    if (wishes.list.some(x => !x.done)) {
+      const S = ball.S, limit = ball.pickLimit(), R = Math.max(1.5, S * 12);
+      for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, wishNear.cands, S / 90)) {
+        // (not what's too small to be drawn any more, see world.cullTiny)
+        if (o.state !== 0 || o.size > limit || G.t < o.noPickUntil || o.spec.maxDim <= S / 220) continue;
+        const x = wishes.wants(o);
+        if (x) found.push({ o, x, d: Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z) });
+      }
+      found.sort((a, b) => a.d - b.d);
+      for (let i = 0; i < Math.min(3, found.length); i++) list.push(found[i].o);
+      wishNear.wish = found.length ? found[0].x : null;
+    }
+  }
+  const marks = $('wish-marks').children, W = innerWidth, H = innerHeight;
+  // (not up among the gauges along the top of the screen)
+  const top = W < 640 ? 215 : 130;
+  for (let i = 0; i < marks.length; i++) {
+    const o = wishNear.list[i], el = marks[i];
+    let show = false;
+    if (o && o.state === 0) {
+      _wm.set(o.centerX(), o.y + o.bob + o.h, o.centerZ()).project(engine.camera);
+      const x = ((_wm.x + 1) / 2) * W, y = ((1 - _wm.y) / 2) * H;
+      if (_wm.z < 1 && x > 20 && x < W - 20 && y > top && y < H - 20) {
+        el.style.transform = `translate(${x}px, ${y}px)`;
+        show = true;
+      }
+    }
+    if (el.hidden === show) el.hidden = !show;
+    // the first time in a while that one of this wish's things shows: say so under the stars
+    if (show && i === 0 && wishNear.wish) {
+      const x = wishNear.wish, last = wishNear.said.get(x.w.id);
+      if (last === undefined || G.time - last > 25) {
+        wishNear.said.set(x.w.id, G.time);
+        $('hud-wish-note').textContent = `附近有${x.w.short}`;
+        G.wishNoteT = 3;
+      }
+    }
+  }
 }
 
 // ---- what the ball is about to run into ------------------------------------------------------
@@ -920,7 +993,13 @@ function step(dt) {
     rig.quick = inp.quick;
     rig.hold = !!inp.hold;
     touchHints(dt, raw);
+    if ((G.sizeT -= dt) <= 0) {
+      G.sizeT = 1;
+      G.sizes.push(ball.S);
+      if (G.sizes.length > 7) G.sizes.shift();
+    }
     foodPointer(dt);
+    wishMarks(dt);
     ball.update(dt, inp, G.t, G.events);
     updateWarning(dt, inp);
     if (G.mode === 'timed') {
@@ -948,6 +1027,8 @@ function step(dt) {
     if (!$('stick-hint').hidden) $('stick-hint').hidden = true;
     if (!$('wish-card').hidden) $('wish-card').hidden = true;
     if (!$('food-arrow').hidden) $('food-arrow').hidden = true;
+    if (!$('food-mark').hidden) $('food-mark').hidden = true;
+    for (const el of $('wish-marks').children) if (!el.hidden) el.hidden = true;
   }
 
   if (G.state !== 'pause') {
