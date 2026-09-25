@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { CATALOG } from '../catalog/registry.js';
 import { buildSpec, wantCoarse } from '../core/assets.js';
-import { objectMaterial } from '../core/materials.js';
+import { objectMaterial, variant } from '../core/materials.js';
 import { atlasTexture } from '../core/atlas.js';
 import { SpatialGrid } from './grid.js';
 
@@ -119,8 +119,10 @@ function hiAttr(g, cap) {
 }
 
 function instMesh(world, t, geometry, cap, name, color) {
-  const mesh = new THREE.InstancedMesh(geometry, world.material, cap);
+  const mesh = new THREE.InstancedMesh(geometry, color ? variant(world.material, 'tint') : world.material, cap);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  // (never moves: its instances carry the positions)
+  mesh.matrixAutoUpdate = false;
   if (color) {
     mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
     mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);

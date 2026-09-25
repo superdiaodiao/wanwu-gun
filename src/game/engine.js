@@ -7,7 +7,8 @@ import * as THREE from 'three';
 export const QUALITY = {
   high: { label: '高', pr: 2, shadow: 2048, shadows: true, detail: 1, stuck: 1400 },
   medium: { label: '中', pr: 1.35, shadow: 1536, shadows: true, detail: 0.85, stuck: 1100 },
-  low: { label: '低', pr: 1, shadow: 0, shadows: false, detail: 0.7, stuck: 700 },
+  // (low: fewer things drawn rather than fewer pixels, which save next to nothing: see README)
+  low: { label: '低', pr: 1, shadow: 0, shadows: false, detail: 0.6, stuck: 450, speck: 0.015 },
 };
 
 const _v = new THREE.Vector3();

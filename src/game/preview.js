@@ -1,5 +1,6 @@
 // Small 3D views drawn into HUD slots (scissored onto the main canvas): the last thing rolled up,
 // and 女娲's portrait in the dialog box.
+import { variant } from '../core/materials.js';
 import * as THREE from 'three';
 
 const _c = new THREE.Color();
@@ -35,7 +36,7 @@ export class Preview {
   show(spec, tint = null, opts = {}) {
     if (!spec || !spec.geometry) return;
     if (this.mesh) this.scene.remove(this.mesh);
-    const m = new THREE.InstancedMesh(spec.geometry, this.material, 1);
+    const m = new THREE.InstancedMesh(spec.geometry, tint != null ? variant(this.material, 'tint') : this.material, 1);
     m.setMatrixAt(0, new THREE.Matrix4());
     if (tint != null) {
       m.setColorAt(0, _c.setHex(tint));

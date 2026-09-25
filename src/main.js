@@ -413,6 +413,8 @@ function introLines(mode) {
 
 function beginPlay() {
   G.state = 'play';
+  // (a game that ended in the sky switched the controls off)
+  input.enabled = true;
   G.touchScreen = isTouch();
   resetTips();
   // (read them during the countdown: they go when 滚 comes up)
@@ -422,6 +424,7 @@ function beginPlay() {
   G.cd = G.rules.countdown ? 3.2 : -1;
   G.cdShown = null;
   G.cdGo = null;
+  if (G.rules.countdown) cdHint(true);
   if (giant) giant.userData.target = 0;
   rig.override = null;
   rig.zoomIdx = 0;
@@ -878,12 +881,12 @@ function updateGlints(dt) {
   const S = ball.S;
   glints.t -= dt;
   if (glints.t <= 0) {
-    glints.t = 0.3;
+    glints.t = 0.4;
     const limit = ball.pickLimit();
     const cam = engine.camera.position;
     const vx = Math.sin(rig.yaw), vz = -Math.cos(rig.yaw);
     const picks = [];
-    for (const o of world.grid.query(ball.pos.x, ball.pos.z, Math.max(1.2, S * 12), glints.cands, S / 90)) {
+    for (const o of world.grid.query(ball.pos.x, ball.pos.z, Math.max(1.2, S * 8), glints.cands, S / 60)) {
       if (o.state !== 0 || o.size > limit || o.size < S * 0.15 || G.t < o.noPickUntil || (ball.canPick && !ball.canPick(o))) continue;
       if ((o.x - cam.x) * vx + (o.z - cam.z) * vz < 0) continue; // behind the camera
       o.glintV = o.size ** 1.5 / (Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z) + S);
@@ -942,7 +945,7 @@ function touchHints(dt, raw) {
     }
     tips.stickT += dt;
   }
-  const stickOn = !tips.stick && tips.stickT > 1;
+  const stickOn = (!tips.stick && tips.stickT > 1) || !!G.cdHint;
   if (sh.hidden === stickOn) sh.hidden = !stickOn;
   // right thumb
   if (tips.swipe) {
@@ -1062,12 +1065,12 @@ function levelWants(o) {
 const _wm = new THREE.Vector3();
 function wishMarks(dt) {
   if ((wishNear.t -= dt) <= 0) {
-    wishNear.t = 0.3;
+    wishNear.t = 0.45;
     const list = wishNear.list, found = wishNear.found;
     list.length = found.length = 0;
     if (wishes.list.some(x => !x.done) || G.level) {
-      const S = ball.S, limit = ball.pickLimit(), R = Math.max(1.5, S * 12);
-      for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, wishNear.cands, S / 90)) {
+      const S = ball.S, limit = ball.pickLimit(), R = Math.max(1.5, S * 8);
+      for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, wishNear.cands, S / 60)) {
         // (not what's too small to be drawn any more, see world.cullTiny)
         if (o.state !== 0 || o.size > limit || G.t < o.noPickUntil || o.spec.maxDim <= S / 220) continue;
         const x = levelWants(o) || wishes.wants(o);
@@ -1119,12 +1122,18 @@ function updateWarning(dt, inp) {
   const sp = ball.speed(), vmax = ball.maxSpeed();
   const pushing = inp.dir !== null && inp.m > 0.2;
   const v = Math.max(sp, pushing ? vmax * inp.m : 0) * (ball.dashT > 0 ? 1.85 : 1);
-  const dist = Math.max(ball.S * 2.5, v * 1.6 + ball.r);
-  const n1 = pushing ? ball.ahead(inp.dir, dist, warn.hits) : 0;
-  const n2 = sp > vmax * 0.15 ? ball.ahead(Math.atan2(ball.vel.x, -ball.vel.z), dist, warn.hits2) : 0;
-  const all = warn.hits.slice(0, n1);
-  for (const h of warn.hits2.slice(0, n2)) if (!all.some(a => a.o === h.o)) all.push(h);
-  all.sort((a, b) => a.dist - b.dist);
+  // (the sweeps are a dozen grid look-ups each: at 60 a second, every other frame is plenty)
+  warn.odd = !warn.odd;
+  if (G.fpsCap === 30 || warn.odd || !warn.all) {
+    const dist = Math.max(ball.S * 2.5, v * 1.6 + ball.r);
+    const n1 = pushing ? ball.ahead(inp.dir, dist, warn.hits) : 0;
+    const n2 = sp > vmax * 0.15 ? ball.ahead(Math.atan2(ball.vel.x, -ball.vel.z), dist, warn.hits2) : 0;
+    const all = warn.hits.slice(0, n1).map(h => ({ ...h }));
+    for (const h of warn.hits2.slice(0, n2)) if (!all.some(a => a.o === h.o)) all.push({ ...h });
+    all.sort((a, b) => a.dist - b.dist);
+    warn.all = all;
+  }
+  const all = warn.all;
   edgeWarning(all[0], v);
   obstacleTag(all[0], v);
   warn.list.length = 0;
@@ -1212,6 +1221,7 @@ function updateView(S) {
   ball.lodDist = cam.position.distanceTo(ball.group.position) - ball.displayS * 0.25;
   rivals.view(cam, ball.lodK, ball.coarseK);
   STUCK.max = engine.q.stuck;
+  STUCK.speck = engine.q.speck || 0.012;
   // beyond 2 fog lengths everything is >98 % fog: don't draw it
   // gold edges / red stripes on what the ball can and can't take yet (see world.js highlight)
   const hi = G.state === 'play' || G.state === 'pause' ? G.hi || (G.hi = {}) : null;
@@ -1234,6 +1244,7 @@ function step(dt) {
   G.events.length = 0;
 
   if (G.state === 'play' && G.rules.countdown && G.cd > -0.5) countdown(dt, raw, inp);
+  if (G.cdHint && ((G.cdHintT += dt) > 6.5 || G.state !== 'play' || (G.cd <= 0.2 && (raw.fwd || (raw.stick && raw.stick.m > 0.45))))) cdHint(false);
   if (G.state === 'play') {
     if (!counting) G.time += dt;
     // mouse drags turn the view (and so where "up" on the stick / W goes)
@@ -1545,6 +1556,20 @@ function newlyEdible() {
 }
 
 // ---- the start, the end, and what counts (modes.js) ---------------------------------------------
+
+/**
+ * What to do when 滚 comes up, shown through the countdown: the left thumb pushing up (touch), or
+ * W (keys). Goes once the ball is rolling, or a few seconds after 滚.
+ */
+function cdHint(on) {
+  G.cdHint = on;
+  G.cdHintT = 0;
+  const el = $('cd-hint'), sh = $('stick-hint');
+  el.hidden = !on;
+  if (on) el.textContent = G.touchScreen ? '「滚」字一出来，左手按住左下角往上推' : '「滚」字一出来，按住 W（或 ↑）往前滚';
+  sh.classList.toggle('cd', on && G.touchScreen);
+  sh.lastElementChild.textContent = on && G.touchScreen ? '按住这里往上推' : '左手按住拖 · 往哪推往哪滚';
+}
 
 /** 3 · 2 · 1 · 滚！ — pushing off right as 滚 comes up (not before) gives a flying start */
 function countdown(dt, raw, inp) {
@@ -2118,6 +2143,7 @@ window.__wanwu = {
   start: (mode, level) => startGame(mode || 'timed', level),
   get rivals() { return rivals; },
   get progress() { return progress; },
+  get inputEnabled() { return input.enabled; },
   get shards() { return shards; },
   openShare,
   step: dt => step(dt),

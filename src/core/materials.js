@@ -24,6 +24,26 @@ const cache = new Map();
  * Whatever the ball is about to run into flashes too, however big it is: all over (iHi = −4), or for
  * a big thing only the part it would hit (iHi in [−3, −2]).
  */
+/**
+ * The same material again as an object of its own (one per tag). three.js keeps one shader program
+ * per material at a time: meshes of one material drawn instanced with per-instance colours, instanced
+ * without, or not instanced at all make it look its program up again at every switch between them,
+ * which with hundreds of draws a frame was an eighth of the frame on a phone. Each variant keeps
+ * its own (the programs themselves are shared: same shader source).
+ */
+const variants = new WeakMap();
+export function variant(mat, tag) {
+  let v = variants.get(mat);
+  if (!v) variants.set(mat, (v = {}));
+  if (!v[tag]) {
+    const m = mat.clone();
+    m.onBeforeCompile = mat.onBeforeCompile;
+    m.customProgramCacheKey = mat.customProgramCacheKey;
+    v[tag] = m;
+  }
+  return v[tag];
+}
+
 export function objectMaterial(map, { highlight = false } = {}) {
   const key = highlight ? 'hi' : 'base';
   if (cache.has(key)) return cache.get(key);

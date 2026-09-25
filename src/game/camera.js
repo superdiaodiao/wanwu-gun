@@ -89,8 +89,11 @@ export class CameraRig {
     this.desired(ball, _d, _l, this.yaw);
     // camera collision: walk from the ball out to the wanted spot and stop before anything tall
     // (a building wall behind the ball would otherwise swallow the camera)
-    let pull = 1;
-    if (this.world) {
+    // (five grid look-ups: at 60 frames a second every other frame is enough, the lift eases anyway)
+    let pull = this.pull ?? 1;
+    this.odd = !this.odd;
+    if (this.world && (this.odd || dt > 1 / 45)) {
+      pull = 1;
       const S = ball.displayS;
       const r = S * 0.25 + 0.04;
       _from.set(ball.pos.x, ball.centerY + S * 0.2, ball.pos.z);
@@ -106,6 +109,7 @@ export class CameraRig {
         if (hit) { pull = prev; break; }
         prev = t;
       }
+      this.pull = pull;
     }
     this.lift += (pull - this.lift) * Math.min(1, dt * (pull < this.lift ? 8 : 1.5));
     if (this.lift < 0.999) {

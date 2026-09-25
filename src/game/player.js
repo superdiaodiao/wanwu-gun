@@ -1,5 +1,6 @@
 // The pusher: a little clay kid (小泥人) made by 女娲, walking behind the ball with arms out.
 // Uses creatures.buildClayKid when the catalog provides it, else a simple stand-in.
+import { variant } from '../core/materials.js';
 import * as THREE from 'three';
 import { Model } from '../core/modeler.js';
 import * as creatures from '../catalog/creatures.js';
@@ -42,7 +43,7 @@ export class Player {
     }
     const P = kid.parts, J = kid.joints;
     const mk = g => {
-      const m = new THREE.Mesh(g, material);
+      const m = new THREE.Mesh(g, variant(material, 'plain'));
       m.castShadow = true;
       return m;
     };

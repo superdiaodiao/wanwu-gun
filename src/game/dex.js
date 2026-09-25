@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { fmt } from './hud.js';
 import { PLACES } from './minimap.js';
 import { BLURBS } from './blurbs.js';
+import { variant } from '../core/materials.js';
 
 export const DEX_CATS = [
   ['food', '吃的'], ['daily', '日用'], ['toy', '玩具'], ['street', '街边'], ['person', '人'], ['animal', '动物'],
@@ -195,7 +196,7 @@ export class Dex {
     const sp = e.spec, g = sp.geometry;
     const m = this.mesh;
     m.geometry = g;
-    m.material = found ? this.material : this.dark;
+    m.material = found ? variant(this.material, 'tint') : this.dark;
     m.setColorAt(0, _c.setHex(found && e.tint != null ? e.tint : 0xffffff));
     m.instanceColor.needsUpdate = true;
     const c = sp.center;

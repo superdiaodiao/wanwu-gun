@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Model } from '../core/modeler.js';
 import { wantCoarse } from '../core/assets.js';
+import { variant } from '../core/materials.js';
 import { SKINS } from './skins.js';
 
 export const PICK_RATIO = 0.6; // roll up things smaller than 0.6 × diameter
@@ -20,7 +21,7 @@ const TURN = 10, ACC = 8, BRAKE = 5;
 // next pickup, up to +`max` — rolling through a cluster pays off right away
 export const COMBO = { window: 1, step: 0.02, max: 0.4 };
 // most stuck items drawn at once (the smallest go first); set per quality (engine.js QUALITY.stuck)
-export const STUCK = { max: 1400 };
+export const STUCK = { max: 1400, speck: 0.012 };
 // The visible stone core shrinks relative to the ball as items pile up (0.9 → 0.7 of the radius),
 // so recent pickups stay on the surface for a long while instead of sinking straight in.
 const ATTACH_K = 0.9; // stuck item centres sit at this × (S / 2)
@@ -74,7 +75,7 @@ export class Ball {
     this.root = new THREE.Group();
     this.group.add(this.root);
     scene.add(this.group);
-    this.core = new THREE.Mesh(buildCoreGeometry(), material);
+    this.core = new THREE.Mesh(buildCoreGeometry(), variant(material, 'plain'));
     this.core.castShadow = true;
     this.core.receiveShadow = true;
     this.core.layers.enable(1); // layer 1 = the results-screen portrait of the ball
@@ -119,6 +120,7 @@ export class Ball {
     for (const st of this.stuckTypes.values()) {
       st.entries.length = 0;
       st.mesh.count = 0;
+      st.mesh.visible = false;
     }
     this.visible.length = 0;
     this.cleanT = 0;
@@ -402,7 +404,7 @@ export class Ball {
   }
 
   makeStuckMesh(st, cap) {
-    const mesh = new THREE.InstancedMesh(levelGeometry(st.spec, st.level), this.material, cap);
+    const mesh = new THREE.InstancedMesh(levelGeometry(st.spec, st.level), st.hasTint ? variant(this.material, 'tint') : this.material, cap);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     if (st.hasTint) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
     mesh.count = 0;
@@ -426,6 +428,7 @@ export class Ball {
     };
     st.entries.push(e);
     st.mesh.count = st.entries.length;
+    st.mesh.visible = true;
     if (st.hasTint && o.tint != null) {
       _c.setHex(o.tint);
       st.mesh.setColorAt(e.idx, _c);
@@ -474,6 +477,8 @@ export class Ball {
       }
     }
     st.mesh.count = st.entries.length;
+    // (an empty one is left out of the scene walk)
+    st.mesh.visible = st.entries.length > 0;
     st.dirty = true;
     const vl = this.visible.pop();
     if (vl !== e) {
@@ -500,7 +505,7 @@ export class Ball {
       }
     }
     // items keep riding on the surface; only drop what has become a speck next to the ball
-    const speck = this.S * 0.012;
+    const speck = this.S * STUCK.speck;
     for (let i = this.visible.length - 1; i >= 0; i--) {
       const e = this.visible[i];
       if (e.t < 1) continue;

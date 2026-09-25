@@ -690,6 +690,18 @@ kbd {
 }
 #countdown.go { font: 130px/1 var(--display); color: var(--gold); }
 #countdown.tick { animation: cd-pop 1s ease-out both; }
+#cd-hint {
+  position: fixed; left: 50%; top: calc(36% + 100px); z-index: 6;
+  transform: translateX(-50%);
+  padding: 7px 16px; border-radius: 999px;
+  background: rgba(31, 27, 36, 0.8); color: var(--paper);
+  font-weight: 700; font-size: 16px; white-space: nowrap;
+  box-shadow: var(--shadow); pointer-events: none;
+}
+/* the thumb hint during the countdown: straight up, ringed in gold */
+#stick-hint.cd { box-shadow: 0 0 0 3px var(--gold), var(--shadow); }
+#stick-hint.cd .dot { animation: stick-up 1s ease-in-out infinite; }
+@keyframes stick-up { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(0, -20px); } }
 @keyframes cd-pop { 0% { scale: 1.7; opacity: 0; } 10% { scale: 1; opacity: 1; } 88% { opacity: 1; scale: 0.94; } 100% { scale: 0.86; opacity: 0.2; } }
 /* rays round the edges while dashing */
 #speed-lines {
@@ -907,6 +919,7 @@ kbd {
   #rank-board li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #rank-board li b { font-size: 12px; }
   #countdown { top: 30%; font-size: 120px; }
+  #cd-hint { top: calc(30% + 84px); font-size: 14px; }
   #countdown.go { font-size: 100px; }
 }
 /* upright phone: the ball sits half way down (see main.js), so the milestone stamp goes above it */
