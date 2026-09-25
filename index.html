@@ -655,12 +655,148 @@ kbd {
 #dex-info b { color: var(--gold); }
 .dex-nav { display: flex; gap: 10px; margin-top: 4px; }
 .dex-nav .chip { min-width: 44px; font-size: 15px; }
+.dex-said { margin: 0 0 4px; font: 16px/1.6 var(--display); color: var(--paper); text-wrap: balance; }
 #hud-last.fresh .label { color: var(--gold); font-weight: 800; }
 .panel .actions .btn { min-width: 150px; }
 .brag { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(246, 239, 224, 0.08); text-align: left; }
 .brag p { flex: 1; margin: 0; font-size: 13px; line-height: 1.6; color: var(--paper); user-select: text; -webkit-user-select: text; }
 .chip { flex: none; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(246, 239, 224, 0.35); background: rgba(246, 239, 224, 0.12); font-size: 13px; }
 .chip:hover { background: rgba(246, 239, 224, 0.22); }
+
+/* ---------- more ways to play (modes.js, rivals.js, skins.js, shards.js, share.js) ---------- */
+/* the title letters hop when tapped; 女娲's picture wobbles when poked */
+.logo span { cursor: pointer; }
+.logo span.hop { animation: letter-hop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both !important; }
+@keyframes letter-hop { 0% { translate: 0 0; } 40% { translate: 0 -26px; } 100% { translate: 0 0; } }
+#dialog-portrait.poked { animation: poke 0.45s ease-out; }
+@keyframes poke { 20% { rotate: -9deg; scale: 0.92; } 55% { rotate: 7deg; } 100% { rotate: 0deg; scale: 1; } }
+.btn.daily { background: var(--gold); color: var(--ink); }
+.btn.daily:hover { background: #f6cf6c; }
+.modes { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.btn.mode {
+  min-width: 0; padding: 9px 16px 8px;
+  background: rgba(31, 27, 36, 0.84); color: var(--paper);
+  border: 1px solid rgba(246, 239, 224, 0.28);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+.btn.mode:hover { background: rgba(43, 38, 50, 0.95); }
+.btn.mode b { font-size: 19px; }
+.btn.mode small { font-size: 11px; }
+.title-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.title-chips .chip { font-size: 14px; padding: 7px 14px; background: rgba(31, 27, 36, 0.6); }
+.title-chips .chip b { font: 800 14px var(--num); color: var(--gold); margin-left: 4px; }
+/* the level's own count in the pill, where the wishes go in other modes */
+#hud-count.no-wish .wish-lbl, #hud-count.no-wish #hud-wish { display: none; }
+#hud-lvl { margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(246, 239, 224, 0.25); font-weight: 700; color: var(--gold); }
+#hud-lvl b { font: 800 16px/1 var(--num); color: var(--paper); margin: 0 2px; }
+/* 3 · 2 · 1 · 滚！ */
+#countdown {
+  position: fixed; left: 50%; top: 36%; z-index: 6;
+  transform: translate(-50%, -50%);
+  font: 800 150px/1 var(--num); color: var(--paper);
+  text-shadow: 0 7px 0 rgba(0, 0, 0, 0.35), 0 0 34px rgba(0, 0, 0, 0.45);
+  pointer-events: none; white-space: nowrap;
+}
+#countdown.go { font: 130px/1 var(--display); color: var(--gold); }
+#countdown.tick { animation: cd-pop 1s ease-out both; }
+@keyframes cd-pop { 0% { scale: 1.7; opacity: 0; } 10% { scale: 1; opacity: 1; } 88% { opacity: 1; scale: 0.94; } 100% { scale: 0.86; opacity: 0.2; } }
+/* rays round the edges while dashing */
+#speed-lines {
+  position: fixed; inset: -12%; z-index: 2; pointer-events: none; opacity: 0;
+  background: repeating-conic-gradient(from 3deg at 50% 50%, rgba(255, 255, 255, 0) 0deg 5.2deg, rgba(255, 255, 255, 0.8) 5.5deg 6.1deg, rgba(255, 255, 255, 0) 6.4deg 9deg),
+    repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 255, 255, 0) 0deg 9.4deg, rgba(255, 244, 214, 0.55) 9.6deg 10.2deg, rgba(255, 255, 255, 0) 10.4deg 13deg);
+  -webkit-mask-image: radial-gradient(closest-side, transparent 52%, #000 96%);
+  mask-image: radial-gradient(closest-side, transparent 52%, #000 96%);
+}
+#speed-lines.on { animation: speed-lines 0.7s ease-out both; }
+@keyframes speed-lines { 0% { opacity: 0; rotate: 0deg; scale: 1.08; } 14% { opacity: 1; } 100% { opacity: 0; rotate: 5deg; scale: 1; } }
+/* 对手赛: who's how big, and names over the other balls */
+#rank-board {
+  position: absolute; left: max(16px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 240px);
+  margin: 0; padding: 7px 10px; list-style: none;
+  display: grid; gap: 3px; min-width: 160px;
+  border-radius: 12px; background: rgba(31, 27, 36, 0.66);
+  font-size: 13px;
+}
+#rank-board li { display: grid; grid-template-columns: 14px 1fr auto; gap: 6px; align-items: baseline; color: var(--paper-dim); }
+#rank-board li i { font: 800 12px var(--num); font-style: normal; color: rgba(246, 239, 224, 0.5); }
+#rank-board li b { font: 700 13px var(--num); color: var(--paper); }
+#rank-board li.me span, #rank-board li.me b, #rank-board li.me i { color: var(--gold); font-weight: 800; }
+#rank-board li.out { opacity: 0.5; }
+#rank-board li.out b { font-family: var(--body); font-size: 12px; }
+/* (out of the way while a goal stamp is up) */
+#rank-board.hush { opacity: 0; transition: opacity 0.2s; }
+#rival-tags { position: absolute; inset: 0; pointer-events: none; }
+.rival-tag {
+  position: absolute; left: 0; top: 0; translate: -50% -100%;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 2px 9px 3px; border-radius: 9px;
+  background: rgba(31, 27, 36, 0.72); white-space: nowrap;
+}
+.rival-tag b { font: 14px/1.2 var(--display); font-weight: normal; color: #ffb0a4; }
+.rival-tag span { font: 700 12px/1.1 var(--num); color: var(--paper); }
+/* small enough to roll up: gold */
+.rival-tag.prey { background: rgba(242, 193, 78, 0.92); }
+.rival-tag.prey b, .rival-tag.prey span { color: var(--ink); }
+/* panels: 关卡, 球皮 */
+#levels, #skins { z-index: 12; background: rgba(14, 12, 18, 0.72); }
+.list-panel { width: min(100%, 560px); max-height: min(calc(100vh - 32px), 900px); max-height: min(calc(100dvh - 32px), 900px); overflow-y: auto; overscroll-behavior: contain; text-align: left; }
+.list-panel .dex-head h2 { margin: 0; font: 28px var(--display); }
+.head-count { flex: 1; font: 800 17px var(--num); color: var(--gold); }
+.panel .panel-how { margin: 0; font-size: 13px; line-height: 1.6; color: var(--paper-dim); }
+.level-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.level-list button {
+  width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline;
+  padding: 12px 14px; border-radius: 14px;
+  border: 1px solid rgba(246, 239, 224, 0.2); background: rgba(246, 239, 224, 0.07);
+  text-align: left; color: var(--paper);
+}
+.level-list button:hover:not(:disabled) { background: rgba(246, 239, 224, 0.14); }
+.level-list button:disabled { opacity: 0.45; cursor: default; }
+.level-list .ln { font: 21px var(--display); }
+.level-list .ls { font: 18px var(--num); letter-spacing: 2px; color: var(--gold); }
+.level-list .ls i { font-style: normal; color: rgba(246, 239, 224, 0.25); }
+.level-list .lt { grid-column: 1 / -1; font-size: 13px; color: var(--paper-dim); }
+.level-list .lb { grid-column: 1 / -1; font-size: 12px; color: rgba(246, 239, 224, 0.55); }
+.skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+.skin-card {
+  display: grid; justify-items: center; gap: 3px;
+  padding: 10px 6px 8px; border-radius: 14px;
+  border: 2px solid transparent; background: rgba(246, 239, 224, 0.07); color: var(--paper);
+}
+.skin-card canvas { width: 84px; height: 84px; }
+.skin-card b { font: 17px var(--display); font-weight: normal; }
+.skin-card small { font-size: 11px; color: var(--paper-dim); }
+.skin-card.on { border-color: var(--gold); background: rgba(242, 193, 78, 0.14); }
+.skin-card.on small { color: var(--gold); font-weight: 700; }
+.skin-card.locked { cursor: default; }
+.skin-card.locked canvas { filter: grayscale(1) brightness(0.5); }
+.shard-h { margin: 6px 0 0; font: 20px var(--display); font-weight: normal; color: var(--paper); }
+.shard-h b { font: 800 17px var(--num); color: var(--gold); margin-left: 6px; }
+.shard-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 13px; color: var(--paper-dim); }
+.shard-list li::before { content: '◇ '; color: rgba(246, 239, 224, 0.4); }
+.shard-list li.found { color: var(--paper); }
+.shard-list li.found::before { content: '◆ '; color: var(--gold); }
+/* 战绩图 */
+#share { z-index: 13; background: rgba(14, 12, 18, 0.75); }
+.share-panel { width: min(100%, 420px); }
+#share-img { display: block; width: 100%; max-height: 66vh; max-height: 66dvh; object-fit: contain; border-radius: 12px; -webkit-touch-callout: default; }
+/* results: a level's stars, the 对手赛 table */
+.res-level { display: grid; gap: 4px; justify-items: center; }
+.res-level .stars { font-size: 38px; line-height: 1; letter-spacing: 6px; color: var(--gold); }
+.res-level .stars i { font-style: normal; color: rgba(246, 239, 224, 0.22); }
+.res-level p { margin: 0; font-size: 16px; color: var(--paper); }
+.res-level small { font-size: 13px; color: var(--paper-dim); }
+.res-rivals { list-style: none; margin: 0 auto; padding: 0; display: grid; gap: 4px; width: min(100%, 330px); }
+.res-rivals li { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: baseline; padding: 6px 12px; border-radius: 10px; background: rgba(246, 239, 224, 0.07); font-size: 15px; text-align: left; }
+.res-rivals li i { font: 800 15px var(--num); font-style: normal; color: var(--paper-dim); }
+.res-rivals li b { font: 700 15px var(--num); }
+.res-rivals li.me { background: rgba(242, 193, 78, 0.2); color: var(--gold); font-weight: 700; }
+.res-rivals li.me i { color: var(--gold); }
+.res-rivals li.out b { font-family: var(--body); font-size: 13px; color: var(--paper-dim); }
+.brag-btns { display: grid; gap: 6px; }
+.share-chip { background: var(--gold); color: var(--ink); border-color: var(--gold); font-weight: 700; }
+.share-chip:hover { background: #f6cf6c; }
 
 /* ---------- touch ---------- */
 #touch-zone { position: fixed; left: 0; bottom: 0; width: 62%; height: 60%; pointer-events: auto; touch-action: none; z-index: 3; }
@@ -774,6 +910,13 @@ kbd {
   .gain { font-size: 16px; }
   .gain.big { font-size: 21px; }
   .btn { min-width: 140px; }
+  .btn.mode { min-width: 0; padding: 8px 12px 7px; }
+  .btn.mode b { font-size: 17px; }
+  #rank-board { top: calc(max(14px, env(safe-area-inset-top)) + 196px); min-width: 0; max-width: 150px; padding: 5px 8px; gap: 1px; font-size: 11.5px; }
+  #rank-board li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #rank-board li b { font-size: 12px; }
+  #countdown { top: 30%; font-size: 120px; }
+  #countdown.go { font-size: 100px; }
 }
 /* upright phone: the ball sits half way down (see main.js), so the milestone stamp goes above it */
 @media (max-width: 640px) and (orientation: portrait) {
@@ -791,7 +934,7 @@ kbd {
   #hud-keys { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #food-arrow .ping, #food-mark b, .wish-mark b, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
+  .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #food-arrow .ping, #food-mark b, .wish-mark b, #countdown, #speed-lines, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
 }
 
 </style>
@@ -799,6 +942,8 @@ kbd {
 <body>
 <canvas id="game"></canvas>
 <div id="vignette"></div>
+<div id="speed-lines" aria-hidden="true"></div>
+<div id="countdown" hidden aria-live="polite"></div>
 
 <div id="hud" hidden>
   <div id="hud-size">
@@ -813,6 +958,8 @@ kbd {
   </div>
   <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
+  <ol id="rank-board" hidden aria-label="名次"></ol>
+  <div id="rival-tags" aria-hidden="true"></div>
   <button id="btn-patch" hidden>去补天 <b>›</b></button>
   <div id="food-arrow" hidden aria-hidden="true"><i class="ping"></i><i class="dir"></i><span>能滚的在这边</span></div>
   <div id="food-mark" hidden aria-hidden="true"><b>能滚</b></div>
@@ -825,7 +972,7 @@ kbd {
       <div id="last-size"></div>
     </div>
   </div>
-  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span><span id="hud-wish-note"></span></div>
+  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span><span id="hud-lvl" hidden></span><span id="hud-wish-note"></span></div>
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
@@ -853,9 +1000,18 @@ kbd {
     <p class="pitch">天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。</p>
     <div class="actions">
       <button id="btn-timed" class="btn primary"><b>开始补天</b><small>限时 6 分钟</small></button>
-      <button id="btn-free" class="btn ghost"><b>自由滚</b><small>不限时 · 随时补天</small></button>
+      <button id="btn-daily" class="btn daily"><b>每日挑战</b><small id="daily-sub">4 分钟 · 今天人人同一题</small></button>
     </div>
-    <button id="btn-dex" class="chip dex-chip">图鉴 <b id="dex-num">0/0</b></button>
+    <div class="modes">
+      <button id="btn-levels" class="btn mode"><b>关卡</b><small id="levels-sub">5 关</small></button>
+      <button id="btn-rivals" class="btn mode"><b>对手赛</b><small>3 分钟 · 比谁大</small></button>
+      <button id="btn-free" class="btn mode"><b>自由滚</b><small>不限时</small></button>
+    </div>
+    <div class="title-chips">
+      <button id="btn-dex" class="chip dex-chip">图鉴 <b id="dex-num">0/0</b></button>
+      <button id="btn-skins" class="chip">球皮 <b id="star-num">★ 0</b></button>
+      <button id="btn-shards" class="chip">五色石碎片 <b id="shard-num">0/10</b></button>
+    </div>
     <div class="settings">
       <label for="sel-quality">画质</label>
       <select id="sel-quality"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select>
@@ -903,9 +1059,11 @@ kbd {
   <div class="results-stack">
   <div id="res-ball" aria-hidden="true"></div>
   <div class="panel results">
-    <div class="eyebrow">补天石 · 最终尺寸</div>
+    <div id="res-eyebrow" class="eyebrow">补天石 · 最终尺寸</div>
     <div id="res-size" class="res-size">0 m</div>
     <div id="res-rank" class="res-rank"></div>
+    <div id="res-level" class="res-level" hidden></div>
+    <ol id="res-rivals" class="res-rivals" hidden></ol>
     <div id="res-goal" class="res-goal"></div>
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
@@ -914,13 +1072,41 @@ kbd {
     <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
     <div id="res-dex-new" class="res-dex-new"></div>
     <p id="res-tip" class="res-tip" hidden>手机发烫的话，回开始页勾上「省电」，会凉快很多。</p>
-    <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
+    <div class="brag"><p id="res-brag"></p><div class="brag-btns"><button id="btn-copy" class="chip">复制战绩</button><button id="btn-share" class="chip share-chip">生成战绩图</button></div></div>
     <div class="actions">
+      <button id="btn-next" class="btn primary" hidden><b>下一关</b></button>
       <button id="btn-again" class="btn primary"><b>再滚一次</b></button>
       <button id="btn-keep" class="btn ghost"><b>继续自由滚</b></button>
       <button id="btn-title" class="btn ghost"><b>回到标题</b></button>
     </div>
   </div>
+  </div>
+</div>
+
+<div id="levels" class="screen" hidden>
+  <div class="panel list-panel">
+    <div class="dex-head"><h2>关卡</h2><span id="levels-stars" class="head-count"></span><button id="levels-close" class="chip">关闭</button></div>
+    <p class="panel-how">每关有自己的规矩，拿到 ★ 就开下一关。</p>
+    <ol id="level-list" class="level-list"></ol>
+  </div>
+</div>
+
+<div id="skins" class="screen" hidden>
+  <div class="panel list-panel">
+    <div class="dex-head"><h2>球皮</h2><span id="skins-stars" class="head-count"></span><button id="skins-close" class="chip">关闭</button></div>
+    <p class="panel-how">星星这么来：心愿达成一个 ★；每个关卡最多 ★★★；对手赛拿第一 ★★★。</p>
+    <div id="skin-grid" class="skin-grid"></div>
+    <h3 class="shard-h">五色石碎片 <b id="shards-count"></b></h3>
+    <p class="panel-how">女娲当年炼石头掉的，一共十块，藏在城里各处。靠近了会闪光；有的要球够大才够得着。</p>
+    <ol id="shard-list" class="shard-list"></ol>
+  </div>
+</div>
+
+<div id="share" class="screen" hidden>
+  <div class="panel share-panel">
+    <img id="share-img" alt="战绩图">
+    <p class="panel-how">长按图片保存，发给朋友 · 电脑上右键「图片另存为」</p>
+    <div class="actions"><a id="share-dl" class="btn ghost" download="万物皆可滚-战绩.png"><b>下载图片</b></a><button id="share-close" class="btn primary"><b>好的</b></button></div>
   </div>
 </div>
 
@@ -951,7 +1137,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.6e033eb9.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.ea9d5783.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {

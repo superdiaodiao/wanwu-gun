@@ -84,3 +84,29 @@ def('wall_slogan', {
     m.decal(3.4, 0.64, 'ex_wall_slogan', 0, 1.3, -T / 2 - 0.01, 0, Math.PI, 0);
   },
 });
+
+// 五色石碎片: ten of them hidden round the map (game/shards.js), a little cluster of crystals in the
+// five colours of the stone, ~10 cm tall (scaled per place). Not in the 图鉴: they have a count of
+// their own.
+def('wuse_shard', {
+  name: '五色石碎片',
+  cat: 'nature',
+  sfx: 'glass',
+  hidden: true,
+  fill: 0.5,
+  build(m) {
+    const COL = [0x3fd0c0, 0xe8453c, 0xf6c945, 0xf8f4ea, 0x7b5cd6];
+    const crystal = (h, r, col, x, z, tx, tz) => {
+      m.push(x, 0, z, tx, 0, tz);
+      m.cone(r, h * 0.72, col, 0, h * 0.64, 0, 0, 0, 0, 5);
+      m.cone(r, h * 0.28, col, 0, h * 0.14, 0, 180 * D, 0, 0, 5);
+      m.pop();
+    };
+    crystal(0.1, 0.022, COL[0], 0, 0, 0, 0);
+    crystal(0.07, 0.016, COL[1], 0.018, 0.008, 0, -26 * D);
+    crystal(0.065, 0.015, COL[2], -0.016, 0.01, 0, 24 * D);
+    crystal(0.055, 0.013, COL[4], 0.004, -0.018, -24 * D, 0);
+    crystal(0.05, 0.012, COL[3], -0.004, 0.02, 22 * D, 0);
+    m.cyl(0.03, 0.034, 0.008, 0x8a7a66, 0, 0.004, 0, 0, 0, 0, 7);
+  },
+});

@@ -2,8 +2,8 @@
 // items when it slams into something too big.
 import * as THREE from 'three';
 import { Model } from '../core/modeler.js';
-import { noise2 } from '../core/rng.js';
 import { wantCoarse } from '../core/assets.js';
+import { SKINS } from './skins.js';
 
 export const PICK_RATIO = 0.6; // roll up things smaller than 0.6 × diameter
 // growth: S^P accumulates C × (0.3 + fill) × size^P per item. With P ≈ 2 an item a third of the
@@ -38,14 +38,12 @@ const UP = new THREE.Vector3(0, 1, 0);
 const _ct = {};
 const _a = new THREE.Vector3();
 
-function buildCoreGeometry() {
+/** the stone core in a skin's colours (skins.js), with its ring of studs */
+export function buildCoreGeometry(skin = SKINS[0]) {
   const m = new Model(5);
-  const pal = [0x2aa198, 0xd8342c, 0xf2c14e, 0xf4efe2, 0x2b2733];
-  const agate = (x, y, z) => {
-    const t = y * 2.1 + 0.55 * Math.sin(x * 3.1 + z * 2.3) + 0.6 * noise2(x * 2.2 + 7.1, z * 2.2 - 3.3) + 0.3 * noise2(y * 3 + 1, x * 3);
-    return pal[(((Math.floor((t + 10) * 1.55)) % 5) + 5) % 5];
-  };
-  m.geo(new THREE.IcosahedronGeometry(1, 3), agate);
+  m.geo(new THREE.IcosahedronGeometry(1, 3), skin.color);
+  if (!skin.studs) return m.build({ lift: false });
+  const [ring, knob] = skin.studs;
   const N = 26;
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
@@ -57,8 +55,8 @@ function buildCoreGeometry() {
     q.setFromUnitVectors(UP, n);
     e.setFromQuaternion(q);
     m.push(n.x * 0.98, n.y * 0.98, n.z * 0.98, e.x, e.y, e.z);
-    m.cyl(0.06, 0.1, 0.1, 0xd9a432, 0, 0.03, 0, 0, 0, 0, 6);
-    m.sphere(0.065, 0xf6d06a, 0, 0.09, 0, 1, 0.75, 1, 0, 0, 0, 6);
+    m.cyl(0.06, 0.1, 0.1, ring, 0, 0.03, 0, 0, 0, 0, 6);
+    m.sphere(0.065, knob, 0, 0.09, 0, 1, 0.75, 1, 0, 0, 0, 6);
     m.pop();
   }
   return m.build({ lift: false });
@@ -84,7 +82,17 @@ export class Ball {
     this.stuckTypes = new Map();
     this.visible = [];
     this.buried = 0;
+    this.maxStuck = 0; // most stuck items drawn (0: STUCK.max)
+    this.canPick = null; // (o) => bool: only these can be rolled up (the rest, if small, is rolled over)
     this.reset(startSize, 0, 0, 0);
+  }
+
+  setSkin(skin) {
+    if (this.skin === skin) return;
+    this.skin = skin;
+    const old = this.core.geometry;
+    this.core.geometry = buildCoreGeometry(skin);
+    old.dispose();
   }
 
   reset(size, x, z, heading) {
@@ -180,7 +188,8 @@ export class Ball {
     for (let i = 0; i < cands.length; i++) {
       const o = cands[i];
       if (o.state !== 0) continue;
-      const pickable = o.size <= limit && now >= o.noPickUntil;
+      if (this.canPick && !this.canPick(o) && o.size <= limit) continue;
+      const pickable = o.size <= limit && now >= o.noPickUntil && (!this.canPick || this.canPick(o));
       const ct = this.world.contact(o, this.pos, pickable ? this.r * MAGNET : this.r, _ct, !pickable);
       if (!ct) continue;
       if (pickable) this.pick(o, now, events);
@@ -500,9 +509,10 @@ export class Ball {
         this.buried++;
       }
     }
-    if (this.visible.length > STUCK.max) {
+    const max = this.maxStuck || STUCK.max;
+    if (this.visible.length > max) {
       const sorted = [...this.visible].sort((a, b) => a.o.radius - b.o.radius || a.born - b.born);
-      const n = this.visible.length - STUCK.max;
+      const n = this.visible.length - max;
       for (let i = 0; i < n; i++) {
         this.removeStuck(sorted[i]);
         this.buried++;

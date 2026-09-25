@@ -362,7 +362,8 @@ class Packed {
         if (rel < 3 && o.state === 0) {
           const d = Math.hypot(o.x - x, o.z - z);
           if (rel <= 1) {
-            if (d < g1 && rel > 0.12 && t >= o.noPickUntil) v = Math.min(1, (rel - 0.12) / 0.7) * Math.min(1, (g1 - d) / (g1 - g0));
+            // (吃货专场: only food glows)
+            if (d < g1 && rel > 0.12 && t >= o.noPickUntil && (!hi.only || o.spec.cat === hi.only)) v = Math.min(1, (rel - 0.12) / 0.7) * Math.min(1, (g1 - d) / (g1 - g0));
           } else if (d < r1) {
             v = -Math.min(1, 3 - rel) * Math.min(1, (r1 - d) / (r1 - r0));
           }

@@ -11,7 +11,7 @@ import { Ground } from './game/ground.js';
 import { World } from './game/world.js';
 import { buildLayout } from './game/layout.js';
 import { Movers } from './game/movers.js';
-import { Ball, GROW, PICK_RATIO, STUCK, COMBO } from './game/ball.js';
+import { Ball, GROW, PICK_RATIO, STUCK, COMBO, buildCoreGeometry } from './game/ball.js';
 import { Player } from './game/player.js';
 import { CameraRig } from './game/camera.js';
 import { Input, Driver, isTouch } from './game/input.js';
@@ -23,10 +23,15 @@ import { Dex } from './game/dex.js';
 import { Wishes } from './game/wishes.js';
 import { Dialog } from './game/dialog.js';
 import * as story from './game/story.js';
+import { MODES, LEVELS, levelById, Progress, dayKey, dayLabel, dayRandom } from './game/modes.js';
+import { SKINS, skinById, skinOpen, skinNeed } from './game/skins.js';
+import { Shards, SHARDS } from './game/shards.js';
+import { Rivals } from './game/rivals.js';
+import { shareCard } from './game/share.js';
 import { audio } from './audio/audio.js';
 
-const GAME_SECONDS = 360;
 const START_SIZE = 0.06;
+const SITE = 'superdiaodiao.github.io/wanwu-gun';
 const $ = id => document.getElementById(id);
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 const store = {
@@ -39,8 +44,10 @@ const G = {
   finale: null, toastCd: 0, tickSec: -1, hurry: false, cullT: 0, patched: false, prelaunch: null,
   hinted: new Set(), hintCd: 0, idleT: 0, sizes: [], sizeT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
   gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0, mapWhole: true, redHinted: false, soundT: 0,
+  rules: MODES.timed, level: null, cd: 0, bumps: 0, catN: 0, curve: [], curveT: 0, splitAt: 60, result: null,
 };
 let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps, dex, wishes;
+let progress, shards, rivals;
 let driver = new Driver();
 let giant = null; // 女娲 towering in the sky during the intro and the finale
 let ballCam = null; // results-screen portrait of the finished ball
@@ -84,6 +91,8 @@ async function boot() {
   await nextFrame();
   T.pre = performance.now();
   layout = buildLayout(world);
+  shards = new Shards(store);
+  shards.place(world);
   T.layout = performance.now();
   ground.build(layout.zones);
   T.ground = performance.now();
@@ -93,6 +102,7 @@ async function boot() {
   T.finalize = performance.now();
   movers = new Movers(world, layout);
   ball = new Ball(engine.scene, world, material, START_SIZE);
+  rivals = new Rivals(engine.scene, world, material);
   player = new Player(engine.scene, material);
   rig = new CameraRig(engine.camera, world);
   input = new Input($('game'));
@@ -105,6 +115,8 @@ async function boot() {
     const i = dex.byId.get(id);
     return i === undefined ? null : dex.entries[i].where;
   });
+  progress = new Progress(store);
+  ball.setSkin(currentSkin());
   // (so nothing found is lost when the page goes away mid-game)
   addEventListener('pagehide', () => dex.save());
   document.addEventListener('visibilitychange', () => { if (document.hidden) dex.save(); });
@@ -244,8 +256,11 @@ function renderBallPortrait(r, t) {
 
 // ---- game setup ------------------------------------------------------------------------------
 
-function resetGame(mode) {
+// ---- ways to play (modes.js): the rules of this game are the mode's, and a 关卡's own on top ----
+function resetGame(mode, levelId = null) {
   G.mode = mode;
+  G.level = mode === 'level' ? levelById(levelId) : null;
+  G.rules = { ...MODES[mode], ...(G.level || {}) };
   G.time = 0;
   G.milestone = 0;
   G.tickSec = -1;
@@ -256,7 +271,11 @@ function resetGame(mode) {
   G.idleT = 0;
   G.nudgeCd = 20;
   world.resetAll();
+  shards.hideFound(world);
+  rivals.stop();
   ball.portraitOnly(false);
+  // 吃货专场: only food can be rolled up (smaller other things are rolled over)
+  ball.canPick = G.rules.only ? o => o.spec.cat === G.rules.only : null;
   movers = new Movers(world, layout);
   const s = layout.start;
   ball.reset(START_SIZE, s.x, s.z, s.heading);
@@ -282,11 +301,45 @@ function resetGame(mode) {
   G.sizeT = 0;
   wishNear.said.clear();
   wishNear.list.length = 0;
+  G.cd = 0;
+  G.bumps = 0;
+  G.catN = 0;
+  G.cats = new Set();
+  G.dancers = G.level && G.level.goal && G.level.goal.dancers ? new Set(layout.groups.dance ? layout.groups.dance.dancers : []) : null;
+  G.curve = [];
+  G.curveT = 0;
+  G.splitAt = 60;
+  G.result = null;
+  G.outro = 0;
+  G.preyHinted = false;
+  G.rivalsEaten = [];
+  $('hud-count').classList.toggle('no-wish', !G.rules.wishes);
+  syncLevelHud();
   dex.newGame();
   maps.reset();
-  hud.update(ball.S, 0, mode === 'timed' ? GAME_SECONDS : null, 0);
+  hud.update(ball.S, 0, G.rules.seconds, 0);
   lastPreview.clear();
 }
+
+/** the level's own count in the HUD pill: 猫 ×3, 撞 2/5, 大妈还剩 20 */
+function syncLevelHud() {
+  const el = $('hud-lvl'), L = G.level;
+  el.hidden = !L;
+  if (!L) return;
+  let html = '';
+  if (L.score === 'cats') html = `猫 <b>${G.catN}</b> 只`;
+  else if (L.bumps) html = `撞了 <b>${G.bumps}</b>/${L.bumps}`;
+  else if (G.dancers) html = `大妈还剩 <b>${G.dancers.size}</b>`;
+  else if (L.goal && L.goal.size) html = `目标 <b>${fmt(L.goal.size)}</b>`;
+  else if (L.only === 'food') html = '只吃<b>吃的</b>';
+  if (html !== G.lvlShown) el.innerHTML = G.lvlShown = html;
+}
+
+function currentSkin() {
+  const s = skinById(store.get('skin', 'wuse'));
+  return skinOpen(s, totalStars(), shards.count) ? s : SKINS[0];
+}
+const totalStars = () => progress.total(wishes.stars);
 
 function enterTitle() {
   G.state = 'title';
@@ -298,6 +351,7 @@ function enterTitle() {
   $('results').hidden = true;
   showTouch(false);
   syncDexButton();
+  syncTitleCounts();
   const best = store.get('best', null);
   const bl = $('best-line');
   if (best && best.size) {
@@ -320,18 +374,19 @@ function titleShot(t) {
   };
 }
 
-async function startGame(mode) {
+async function startGame(mode, levelId = null) {
   try { await audio.init(); } catch (e) { console.warn('[audio] init failed', e); }
   applyAudioPrefs();
   audio.ui('start');
-  resetGame(mode);
-  wishes.start(mode);
+  resetGame(mode, levelId);
+  if (G.rules.wishes) wishes.start(mode, mode === 'daily' ? dayRandom() : null);
+  else wishes.clear();
   syncWishHud();
-  $('title-screen').hidden = true;
+  for (const id of ['title-screen', 'levels', 'skins', 'results']) $(id).hidden = true;
+  if (G.rules.rivals) rivals.start(G.rules.rivals, START_SIZE);
   G.state = 'intro';
   audio.music('title', { fade: 1 });
-  const lines = [...story.INTRO, mode === 'timed' ? story.INTRO_TIMED : story.INTRO_FREE];
-  dialog.say(lines, { blocking: true, onDone: beginPlay });
+  dialog.say(introLines(mode), { blocking: true, onDone: beginPlay });
   if (giant) {
     giant.userData.target = 1;
     giant.userData.dir.set(0.42, 0.5, -0.78).normalize();
@@ -345,11 +400,28 @@ async function startGame(mode) {
   };
 }
 
+/** the long story the first time; after that, a line for the way of playing */
+function introLines(mode) {
+  const seen = store.get('introSeen', false);
+  store.set('introSeen', true);
+  if (mode === 'daily') return [story.INTRO_DAILY];
+  if (mode === 'rivals') return [story.INTRO_RIVALS];
+  if (mode === 'level') return [G.level.intro];
+  const last = mode === 'timed' ? story.INTRO_TIMED : story.INTRO_FREE;
+  return seen ? [last] : [...story.INTRO, last];
+}
+
 function beginPlay() {
   G.state = 'play';
   G.touchScreen = isTouch();
   resetTips();
-  showWishes(6);
+  // (read them during the countdown: they go when 滚 comes up)
+  if (G.rules.wishes) showWishes(G.rules.countdown ? 3 : 6);
+  if (G.level) hud.toast(`<em>${G.level.name}</em> · ${G.level.text}`);
+  // 3 · 2 · 1 · 滚！ (roll off right on 滚 for a flying start)
+  G.cd = G.rules.countdown ? 3.2 : -1;
+  G.cdShown = null;
+  G.cdGo = null;
   if (giant) giant.userData.target = 0;
   rig.override = null;
   rig.zoomIdx = 0;
@@ -394,6 +466,107 @@ function syncDexButton() {
   $('dex-num').textContent = `${dex.found}/${dex.total}`;
 }
 
+/** the counts on the title screen: today's challenge, the levels' stars, all stars, shards */
+function syncTitleCounts() {
+  const d = progress.daily, streak = progress.streak;
+  $('daily-sub').textContent = `${dayLabel()} · 4 分钟` + (d ? ` · 今日最佳 ${fmt(d.size)}` : ' · 人人同一题') + (streak > 1 ? ` · 连续 ${streak} 天` : '');
+  $('levels-sub').textContent = `★ ${progress.levelStars}/${LEVELS.length * 3}`;
+  $('star-num').textContent = `★ ${totalStars()}`;
+  $('shard-num').textContent = `${shards.count}/${shards.total}`;
+}
+
+// ---- panels: 关卡, 球皮 & 五色石碎片, 战绩图 -----------------------------------------------------
+function openLevels() {
+  $('levels-stars').textContent = `★ ${progress.levelStars}/${LEVELS.length * 3}`;
+  $('level-list').innerHTML = LEVELS.map((L, i) => {
+    const b = progress.levelBest(L.id), open = progress.levelOpen(i), n = b ? b.stars : 0;
+    const best = !open ? '上一关拿到 ★ 才能玩' : b && b.score !== null ? `最佳 ${fmtScore(L, b.score)}` : b ? '还没过关' : '还没玩过';
+    const need = `★ ${fmtScore(L, L.stars[0])} · ★★ ${fmtScore(L, L.stars[1])} · ★★★ ${fmtScore(L, L.stars[2])}`;
+    return `<li><button data-i="${i}"${open ? '' : ' disabled'}><span class="ln">${i + 1}. ${L.name}</span><span class="ls">${'★'.repeat(n)}<i>${'★'.repeat(3 - n)}</i></span>` +
+      `<span class="lt">${L.text}</span><span class="lb">${best} · ${need}</span></button></li>`;
+  }).join('');
+  $('levels').hidden = false;
+}
+
+const skinGeo = new Map();
+function openSkins() {
+  const stars = totalStars(), cur = currentSkin();
+  $('skins-stars').textContent = `★ ${stars}`;
+  const grid = $('skin-grid');
+  grid.innerHTML = SKINS.map(k => {
+    const open = skinOpen(k, stars, shards.count);
+    const note = k === cur ? '使用中' : open ? '点一下换上' : k.shards ? `碎片 ${shards.count}/${k.shards}` : `★ ${stars}/${k.need} 解锁`;
+    return `<button class="skin-card${k === cur ? ' on' : ''}${open ? '' : ' locked'}" data-id="${k.id}" title="${open ? '' : skinNeed(k)}"><canvas width="1" height="1"></canvas><b>${k.name}</b><small>${note}</small></button>`;
+  }).join('');
+  // their pictures, drawn the way the 图鉴 draws its things
+  [...grid.children].forEach((b, i) => {
+    const k = SKINS[i];
+    if (!skinGeo.has(k.id)) {
+      const g = buildCoreGeometry(k);
+      g.computeBoundingSphere();
+      skinGeo.set(k.id, g);
+    }
+    dex.draw({ spec: { geometry: skinGeo.get(k.id), center: { x: 0, y: 0, z: 0 } }, tint: null }, b.firstChild, 112, -0.5, true);
+  });
+  $('shards-count').textContent = `${shards.count}/${shards.total}`;
+  $('shard-list').innerHTML = shards.hints().map(h => `<li class="${h.found ? 'found' : ''}">${h.found ? h.hint : '？？？'}</li>`).join('');
+  $('skins').hidden = false;
+}
+
+/** 战绩图: the finished ball on a card, to save */
+function openShare() {
+  const r = G.result;
+  if (!r) return;
+  const c = shareCard({ ball: ballSnapshot(512), size: r.size, title: r.title, mode: r.mode, lines: r.lines, quote: r.quote, url: SITE });
+  const url = c.toDataURL('image/png');
+  $('share-img').src = url;
+  $('share-dl').href = url;
+  // (a page shown inside another one, like an Artifact, may not start downloads: long-press only)
+  let framed = true;
+  try { framed = window.self !== window.top; } catch {}
+  $('share-dl').hidden = framed;
+  $('share').hidden = false;
+  audio.ui('open');
+}
+
+/** the finished ball, alone on a transparent square (for the 战绩图) */
+function ballSnapshot(n) {
+  const r = engine.renderer;
+  const rt = new THREE.WebGLRenderTarget(n, n, { samples: 4 });
+  rt.texture.colorSpace = THREE.SRGBColorSpace;
+  const S = ball.displayS, dist = S * 2.3, c = ball.group.position;
+  ballCam.position.set(c.x + dist * 0.3, c.y + S * 0.45, c.z + dist);
+  ballCam.lookAt(c);
+  ballCam.aspect = 1;
+  ballCam.near = dist * 0.05;
+  ballCam.far = dist * 6;
+  ballCam.updateProjectionMatrix();
+  const bd = ballCam.userData.backdrop;
+  bd.visible = false;
+  ballCam.updateMatrixWorld(true);
+  const prev = r.getRenderTarget(), cc = r.getClearColor(new THREE.Color()).getHex(), ca = r.getClearAlpha();
+  const fog = engine.scene.fog;
+  engine.scene.fog = null;
+  r.setRenderTarget(rt);
+  r.setClearColor(0x000000, 0);
+  r.clear();
+  r.render(engine.scene, ballCam);
+  const px = new Uint8Array(n * n * 4);
+  r.readRenderTargetPixels(rt, 0, 0, n, n, px);
+  r.setRenderTarget(prev);
+  r.setClearColor(cc, ca);
+  engine.scene.fog = fog;
+  bd.visible = true;
+  rt.dispose();
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(n, n), row = n * 4;
+  for (let y = 0; y < n; y++) img.data.set(px.subarray((n - 1 - y) * row, (n - y) * row), y * row);
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
 function showTouch(on) {
   const touch = isTouch();
   $('touch-zone').hidden = !(on && touch);
@@ -410,9 +583,53 @@ function applyAudioPrefs() {
 
 function setupUI() {
   $('btn-timed').addEventListener('click', () => startGame('timed'));
+  $('btn-daily').addEventListener('click', () => startGame('daily'));
+  $('btn-rivals').addEventListener('click', () => startGame('rivals'));
+  $('btn-levels').addEventListener('click', openLevels);
+  $('btn-skins').addEventListener('click', openSkins);
+  $('btn-shards').addEventListener('click', openSkins);
+  $('levels-close').addEventListener('click', () => ($('levels').hidden = true));
+  $('skins-close').addEventListener('click', () => ($('skins').hidden = true));
+  $('level-list').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b && !b.disabled) startGame('level', LEVELS[+b.dataset.i].id);
+  });
+  $('skin-grid').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.classList.contains('locked')) return;
+    store.set('skin', b.dataset.id);
+    ball.setSkin(skinById(b.dataset.id));
+    audio.ui('click');
+    openSkins();
+  });
+  $('btn-share').addEventListener('click', openShare);
+  $('share-close').addEventListener('click', () => ($('share').hidden = true));
+  $('btn-next').addEventListener('click', () => {
+    const i = LEVELS.indexOf(G.level);
+    if (i >= 0 && LEVELS[i + 1]) startGame('level', LEVELS[i + 1].id);
+  });
+  // 女娲 talking: poke her picture and she answers back
+  $('dialog-portrait').addEventListener('pointerdown', e => {
+    if (G.state !== 'play' || dialog.blocking) return;
+    e.stopPropagation();
+    dialog.interrupt(story.POKES[Math.floor(Math.random() * story.POKES.length)]);
+    audio.babble('nuwa');
+    const p = $('dialog-portrait');
+    p.classList.remove('poked');
+    void p.offsetWidth;
+    p.classList.add('poked');
+  });
+  // the title letters: each one hops and plays a note when tapped
+  document.querySelectorAll('.logo span').forEach((sp, i) => sp.addEventListener('pointerdown', async () => {
+    try { await audio.init(); applyAudioPrefs(); } catch {}
+    audio.pickup('glass', 0.12, 0.05, 1 + i * 2);
+    sp.classList.remove('hop');
+    void sp.offsetWidth;
+    sp.classList.add('hop');
+  }));
   $('btn-dex').addEventListener('click', () => dex.open(syncDexButton));
   $('hud-count').addEventListener('click', () => {
-    if (G.state !== 'play') return;
+    if (G.state !== 'play' || !G.rules.wishes) return;
     if ($('wish-card').hidden) showWishes(5);
     else {
       $('wish-card').hidden = true;
@@ -477,11 +694,11 @@ function setupUI() {
     if (!G.touchScreen) hud.showKeys();
     togglePause(false);
   });
-  $('btn-restart').addEventListener('click', () => { $('pause').hidden = true; startGame(G.mode); });
+  $('btn-restart').addEventListener('click', () => { $('pause').hidden = true; startGame(G.mode, G.level && G.level.id); });
   $('btn-home').addEventListener('click', () => { $('pause').hidden = true; audio.music(null); resetGame('timed'); enterTitle(); });
   $('btn-finish').addEventListener('click', () => { togglePause(false); startFinale(); });
   $('btn-patch').addEventListener('click', () => { if (G.state === 'play') startFinale(); });
-  $('btn-again').addEventListener('click', () => { $('results').hidden = true; startGame(G.mode === 'free' ? 'free' : 'timed'); });
+  $('btn-again').addEventListener('click', () => { $('results').hidden = true; startGame(G.mode, G.level && G.level.id); });
   $('btn-keep').addEventListener('click', keepRolling);
   $('btn-copy').addEventListener('click', () => {
     const text = $('res-brag').textContent;
@@ -551,7 +768,7 @@ function togglePause(force) {
     G.redraw = true;
     $('pause').hidden = false;
     drawPauseMap();
-    $('btn-finish').hidden = G.mode !== 'free' && ball.S < story.SKY_GOAL;
+    $('btn-finish').hidden = !G.rules.finale || (G.mode !== 'free' && ball.S < story.SKY_GOAL);
     audio.ui('pause');
     audio.suspend();
   } else if (!on && G.state === 'pause') {
@@ -602,7 +819,7 @@ function loop() {
 // Every 2 s of play: under ~45 fps (~22 in power-saving mode), render fewer pixels (down to 60 %);
 // if that didn't help, the GPU wasn't the bottleneck (or the display is capped at 30 Hz), so undo it
 // and stop trying. Back up again after a while at a solid 60 (30).
-const perf = { acc: 0, n: 0, good: 0, prev: 0, lock: false, fps: 0 };
+const perf = { acc: 0, n: 0, good: 0, prev: 0, lock: false, fps: 0, slow: 0 };
 function adaptResolution(raw) {
   if (G.state !== 'play' || raw <= 0 || raw > 0.25) return;
   perf.acc += raw;
@@ -621,6 +838,13 @@ function adaptResolution(raw) {
   }
   perf.prev = 0;
   const cap = G.fpsCap === 30 ? 2 : 1; // screen refreshes per frame
+  // still slow at the lowest resolution: once, say what else helps (as 穿越火线 does)
+  if (k <= 0.61 && avg > cap / 40 && G.time > 20 && !G.fpsHinted && (engine.quality !== 'low' || G.fpsCap !== 30)) {
+    if (++perf.slow >= 3) {
+      G.fpsHinted = true;
+      hud.toast('画面有点卡？回开始页把画质调低、勾上「省电」，会顺一些');
+    }
+  } else perf.slow = 0;
   if (avg > cap / 45 && !perf.lock && k > 0.61) {
     perf.prev = avg;
     perf.good = 0;
@@ -637,7 +861,7 @@ function hourFor() {
   if (G.debugHour !== undefined) return G.debugHour;
   if (G.state === 'finale' || G.state === 'results') return sky.hour;
   if (G.state === 'title' || G.state === 'intro') return 9.2;
-  if (G.mode === 'timed') return 9.2 + (G.time / GAME_SECONDS) * 9.4;
+  if (G.rules.seconds) return 9.2 + (Math.min(G.time, G.rules.seconds) / G.rules.seconds) * 9.4;
   const cyc = (G.time / 960) % 1; // 16 min day in free mode
   return 8 + cyc * 13;
 }
@@ -660,7 +884,7 @@ function updateGlints(dt) {
     const vx = Math.sin(rig.yaw), vz = -Math.cos(rig.yaw);
     const picks = [];
     for (const o of world.grid.query(ball.pos.x, ball.pos.z, Math.max(1.2, S * 12), glints.cands, S / 90)) {
-      if (o.state !== 0 || o.size > limit || o.size < S * 0.15 || G.t < o.noPickUntil) continue;
+      if (o.state !== 0 || o.size > limit || o.size < S * 0.15 || G.t < o.noPickUntil || (ball.canPick && !ball.canPick(o))) continue;
       if ((o.x - cam.x) * vx + (o.z - cam.z) * vz < 0) continue; // behind the camera
       o.glintV = o.size ** 1.5 / (Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z) + S);
       picks.push(o);
@@ -672,6 +896,13 @@ function updateGlints(dt) {
     if (o.state !== 0 || Math.random() > dt * 4) continue;
     const j = () => (Math.random() - 0.5) * 1.2;
     fx.glint(o.centerX() + j() * o.hw, o.y + o.bob + o.h, o.centerZ() + j() * o.hd, o.size, S);
+  }
+  // a 五色石碎片 not found yet twinkles from a good way off, big enough to see
+  for (const o of shards.objs) {
+    if (!o || o.state !== 0 || Math.random() > dt * 6) continue;
+    if (Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z) > Math.max(14, S * 30)) continue;
+    const j = () => (Math.random() - 0.5) * 1.4;
+    fx.glint(o.centerX() + j() * o.hw, o.y + o.h * (0.5 + Math.random() * 0.6), o.centerZ() + j() * o.hd, Math.max(o.size, S * 0.25), S);
   }
 }
 
@@ -768,7 +999,7 @@ function foodPointer(dt) {
       let best = null, bd = Infinity;
       for (const R of [S * 8, S * 25, S * 80, 6000]) {
         for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, food.cands, limit * 0.1)) {
-          if (o.state !== 0 || o.size > limit || o.size < limit * 0.12 || G.t < o.noPickUntil) continue;
+          if (o.state !== 0 || o.size > limit || o.size < limit * 0.12 || G.t < o.noPickUntil || (ball.canPick && !ball.canPick(o))) continue;
           const d = Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z);
           if (d < bd) {
             bd = d;
@@ -820,23 +1051,34 @@ function foodPointer(dt) {
 // count for one and can be rolled up now (the nearest one reads 「★ 心愿」), and a word under the
 // HUD's stars when one shows up (once in a while for each wish).
 const wishNear = { t: 0, list: [], wish: null, cands: [], found: [], said: new Map() };
+// a 关卡's own targets get the stars too: the cats, the dancing aunties
+const CAT_MARK = { label: '★ 猫' }, AUNTIE_MARK = { label: '★ 大妈' };
+function levelWants(o) {
+  if (!G.level) return null;
+  if (G.level.score === 'cats' && o.spec.id.startsWith('cat_')) return CAT_MARK;
+  if (G.dancers && G.dancers.has(o)) return AUNTIE_MARK;
+  return null;
+}
 const _wm = new THREE.Vector3();
 function wishMarks(dt) {
   if ((wishNear.t -= dt) <= 0) {
     wishNear.t = 0.3;
     const list = wishNear.list, found = wishNear.found;
     list.length = found.length = 0;
-    if (wishes.list.some(x => !x.done)) {
+    if (wishes.list.some(x => !x.done) || G.level) {
       const S = ball.S, limit = ball.pickLimit(), R = Math.max(1.5, S * 12);
       for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, wishNear.cands, S / 90)) {
         // (not what's too small to be drawn any more, see world.cullTiny)
         if (o.state !== 0 || o.size > limit || G.t < o.noPickUntil || o.spec.maxDim <= S / 220) continue;
-        const x = wishes.wants(o);
+        const x = levelWants(o) || wishes.wants(o);
         if (x) found.push({ o, x, d: Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z) });
       }
       found.sort((a, b) => a.d - b.d);
       for (let i = 0; i < Math.min(3, found.length); i++) list.push(found[i].o);
       wishNear.wish = found.length ? found[0].x : null;
+      const label = (wishNear.wish && wishNear.wish.label) || '★ 心愿';
+      const first = $('wish-marks').firstChild.firstChild;
+      if (first.textContent !== label) first.textContent = label;
     }
   }
   const marks = $('wish-marks').children, W = innerWidth, H = innerHeight;
@@ -855,7 +1097,7 @@ function wishMarks(dt) {
     }
     if (el.hidden === show) el.hidden = !show;
     // the first time in a while that one of this wish's things shows: say so under the stars
-    if (show && i === 0 && wishNear.wish) {
+    if (show && i === 0 && wishNear.wish && wishNear.wish.w) {
       const x = wishNear.wish, last = wishNear.said.get(x.w.id);
       if (last === undefined || G.time - last > 25) {
         wishNear.said.set(x.w.id, G.time);
@@ -968,26 +1210,32 @@ function updateView(S) {
   ball.lodK = ((LOD_PART * F) / 1.5) * det;
   ball.coarseK = G.noCoarse ? Infinity : ((LOD_COARSE * F) / 1.5) * det;
   ball.lodDist = cam.position.distanceTo(ball.group.position) - ball.displayS * 0.25;
+  rivals.view(cam, ball.lodK, ball.coarseK);
   STUCK.max = engine.q.stuck;
   // beyond 2 fog lengths everything is >98 % fog: don't draw it
   // gold edges / red stripes on what the ball can and can't take yet (see world.js highlight)
   const hi = G.state === 'play' || G.state === 'pause' ? G.hi || (G.hi = {}) : null;
   if (hi) {
-    Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t, red: 0, warn: warn.list, spot: warn.spot });
+    Object.assign(hi, { limit: ball.pickLimit(), S: ball.S, x: ball.pos.x, z: ball.pos.z, t: G.t, red: 0, warn: warn.list, spot: warn.spot, only: G.rules.only || null });
     MU.hiStripe.value = 1 / (hi.limit * 0.45);
   }
   G.drawn = world.updateVisibility(cam, 2 / engine.scene.fog.density, (F / 2) * det, ball.lodK, ball.coarseK, focus, engine.q.shadows ? shadowR * 1.25 : 0, hi);
   engine.updateShadow(focus, shadowR);
 }
 
+const NO_INPUT = { dir: null, m: 0, quick: false, hold: false, turnImpulse: 0, dash: false };
 function step(dt) {
   const raw = input.poll();
-  const inp = G.state === 'play' ? driver.update(raw, rig.yaw, ball.heading, dt, ball.speed() > ball.maxSpeed() * 0.3) : { dir: null, m: 0, quick: false, hold: false, turnImpulse: 0, dash: false };
+  // (while counting down the ball waits, but the view can still be turned)
+  const counting = G.state === 'play' && G.cd > 0.2;
+  const inp = G.state === 'play' ? driver.update(raw, rig.yaw, ball.heading, dt, ball.speed() > ball.maxSpeed() * 0.3) : { ...NO_INPUT };
   if (G.autopilot && G.state === 'play') Object.assign(inp, autopilot(dt));
+  if (counting) Object.assign(inp, { dir: null, m: 0, dash: false });
   G.events.length = 0;
 
+  if (G.state === 'play' && G.rules.countdown && G.cd > -0.5) countdown(dt, raw, inp);
   if (G.state === 'play') {
-    G.time += dt;
+    if (!counting) G.time += dt;
     // mouse drags turn the view (and so where "up" on the stick / W goes)
     rig.yaw += inp.turnImpulse;
     rig.quick = inp.quick;
@@ -1002,21 +1250,28 @@ function step(dt) {
     wishMarks(dt);
     ball.update(dt, inp, G.t, G.events);
     updateWarning(dt, inp);
-    if (G.mode === 'timed') {
-      const left = GAME_SECONDS - G.time;
-      if (left <= 60 && !G.hurry) { G.hurry = true; audio.setHurry(true); dialog.interrupt(story.HURRY); }
+    if (rivals.active) rivalEvents(rivals.update(counting ? 0 : dt, G.t, ball));
+    if (G.rules.seconds && !counting) {
+      const left = G.rules.seconds - G.time;
+      if (left <= Math.min(60, G.rules.seconds / 4) && !G.hurry) { G.hurry = true; audio.setHurry(true); dialog.interrupt(story.hurryLine(left)); }
       if (left <= 10) {
         const s = Math.ceil(left);
         if (s !== G.tickSec && s > 0) { G.tickSec = s; audio.tick(s); }
       }
-      if (left <= 0) startFinale();
+      if (left <= 0) timeUp();
     }
+    if (G.level && G.state === 'play') levelGoals();
+    if (G.rules.ghost && !counting) ghostSplits(dt);
     // bounds: soft wall far out
     const d = Math.hypot(ball.pos.x, ball.pos.z);
     if (d > layout.bounds) {
       ball.pos.x *= layout.bounds / d;
       ball.pos.z *= layout.bounds / d;
     }
+  } else if (G.state === 'outro') {
+    // a 关卡 or 对手赛 is over: the ball rolls to a stop, then the results
+    ball.update(dt, NO_INPUT, G.t, G.events);
+    if ((G.outro -= dt) <= 0) showRoundResults();
   } else if (G.state === 'title' || G.state === 'intro' || G.state === 'results') {
     ball.updateVisual(dt, G.t);
   }
@@ -1029,6 +1284,8 @@ function step(dt) {
     if (!$('food-arrow').hidden) $('food-arrow').hidden = true;
     if (!$('food-mark').hidden) $('food-mark').hidden = true;
     for (const el of $('wish-marks').children) if (!el.hidden) el.hidden = true;
+    for (const el of $('rival-tags').children) if (!el.hidden) el.hidden = true;
+    if (!$('countdown').hidden && G.state !== 'pause') $('countdown').hidden = true;
   }
 
   if (G.state !== 'pause') {
@@ -1038,7 +1295,7 @@ function step(dt) {
   handleEvents();
   if (G.state === 'play') {
     checkMilestones();
-    if (ball.S >= story.SKY_GOAL && $('btn-patch').hidden) {
+    if (G.rules.finale && ball.S >= story.SKY_GOAL && $('btn-patch').hidden) {
       // (timed: finishing before the clock runs out is the player's call)
       $('btn-patch').firstChild.textContent = G.mode === 'free' ? '去补天 ' : '提前补天 ';
       $('btn-patch').classList.toggle('timed', G.mode !== 'free');
@@ -1124,7 +1381,8 @@ function step(dt) {
   updateView(S);
 
   if (G.state === 'play') {
-    hud.update(ball.S, G.milestone, G.mode === 'timed' ? GAME_SECONDS - G.time : null, ball.stats.count, ball.futureS);
+    hud.update(ball.S, G.milestone, G.rules.seconds ? G.rules.seconds - G.time : null, ball.stats.count, ball.futureS);
+    rivals.hud(dt, engine.camera, ball, innerWidth, innerHeight, innerWidth < 640 ? 215 : 130);
     // "+size" pop-ups, a few a second at most
     G.gainT -= dt;
     if (G.gainAcc > 0 && G.gainT <= 0) {
@@ -1138,7 +1396,7 @@ function step(dt) {
       G.comboShown = 0;
     }
     const cam = engine.camera;
-    maps.update(dt, ball, rig.yaw, 2 * Math.atan(Math.tan((cam.fov * Math.PI) / 360) * cam.aspect));
+    maps.update(dt, ball, rig.yaw, 2 * Math.atan(Math.tan((cam.fov * Math.PI) / 360) * cam.aspect), rivals.active ? rivals.dots(ball) : null);
     // the first time something striped red comes up, say what the colours mean
     if (!G.redHinted && G.hi && G.hi.red > 0 && G.time > 3 && G.toastCd <= 0) {
       G.redHinted = true;
@@ -1170,6 +1428,15 @@ function handleEvents() {
           if (e.combo % 10 === 0) audio.comboChime(e.combo / 10);
         }
         fx.pickup(o.centerX(), o.y + o.h * 0.5, o.centerZ(), o.size, ball.S);
+        const si = shards.take(o);
+        if (si >= 0) shardFound(si, o);
+        // the level's count
+        if (G.level) {
+          // (a cat knocked off and rolled up again counts once)
+          if (G.level.score === 'cats' && o.spec.id.startsWith('cat_')) G.catN = G.cats.add(o).size;
+          if (G.dancers) G.dancers.delete(o);
+          syncLevelHud();
+        }
         // first time ever for this kind of thing: into the 图鉴, and always shown as 新收集
         const fresh = dex.add(o.spec.id);
         for (const { x, justDone } of wishes.pickup(o)) {
@@ -1195,6 +1462,13 @@ function handleEvents() {
         audio.bump(e.strength);
         rig.shake(0.035 * e.strength);
         fx.bump(ball.pos.x, ball.centerY, ball.pos.z, ball.S);
+        // 小心轻放: every crash counts
+        if (G.level && G.level.bumps && G.state === 'play' && !(G.cd > 0.2)) {
+          G.bumps++;
+          syncLevelHud();
+          if (G.bumps < G.level.bumps) hud.toast(`撞了一下！还能撞 <em>${G.level.bumps - G.bumps}</em> 下`);
+          break;
+        }
         // teach the rule once per kind of thing: how big you need to be
         const o = e.o;
         if (o && G.hintCd <= 0 && !G.hinted.has(o.spec.id) && o.size < ball.S * 12 && o.spec.name) {
@@ -1211,11 +1485,22 @@ function handleEvents() {
           G.toastCd = 1;
         }
         break;
-      case 'dash': audio.dash(); break;
+      case 'dash':
+        audio.dash();
+        speedLines();
+        break;
       case 'scream': audio.voice(e.o.spec.sfx, 0.8); break;
       case 'honk': audio.voice('horn', 0.5); break;
     }
   }
+}
+
+/** rays round the edges of the screen for a moment (a dash) */
+function speedLines() {
+  const el = $('speed-lines');
+  el.classList.remove('on');
+  void el.offsetWidth;
+  el.classList.add('on');
 }
 
 function checkMilestones() {
@@ -1257,6 +1542,151 @@ function newlyEdible() {
     if (out.length === 3) break;
   }
   return out;
+}
+
+// ---- the start, the end, and what counts (modes.js) ---------------------------------------------
+
+/** 3 · 2 · 1 · 滚！ — pushing off right as 滚 comes up (not before) gives a flying start */
+function countdown(dt, raw, inp) {
+  const el = $('countdown');
+  const before = G.cd;
+  G.cd -= dt;
+  const label = G.cd > 0.2 ? String(Math.ceil(G.cd - 0.2)) : G.cd > -0.5 ? '滚！' : '';
+  if (label !== G.cdShown) {
+    G.cdShown = label;
+    el.hidden = !label;
+    if (label) {
+      el.textContent = label;
+      el.className = label === '滚！' ? 'go' : '';
+      void el.offsetWidth;
+      el.classList.add('tick');
+      if (label === '滚！') audio.milestone(1);
+      else audio.tick(+label);
+    }
+  }
+  const pushing = raw.fwd || (raw.stick && raw.stick.m > 0.45);
+  // held down from before 滚 came up: a false start (nothing lost, nothing gained)
+  if (G.cdGo === null && pushing && G.cd > 0.35) G.cdGo = 'early';
+  if (G.cdGo === null && pushing && G.cd <= 0.35 && G.cd > -0.3) {
+    G.cdGo = 'perfect';
+    ball.dashT = 0.9;
+    ball.dashReady = G.t + 1.4;
+    const f = ball.forward();
+    const v = ball.maxSpeed() * 1.4;
+    ball.vel.set(f.x * v, 0, f.z * v);
+    audio.dash();
+    speedLines();
+    hud.toast('<em>完美起步！</em>', 'big');
+  }
+  if (G.cdGo === 'early' && before > 0.2 && G.cd <= 0.2) hud.toast('抢跑了～下次等「滚」字出来再推');
+  if (!pushing && G.cdGo === 'early' && G.cd > 0.35) G.cdGo = null;
+}
+
+function timeUp() {
+  if (G.rules.finale) startFinale();
+  else endRound('time');
+}
+
+/** a 关卡 met its goal (or ran out of crashes) before the time was up */
+function levelGoals() {
+  const L = G.level;
+  if (L.goal && L.goal.size && ball.S >= L.goal.size) endRound('goal');
+  else if (G.dancers && G.dancers.size === 0) endRound('goal');
+  else if (L.bumps && G.bumps >= L.bumps) endRound('bumps');
+}
+
+/** a 关卡 or 对手赛 ends: stop, a word, then the results */
+function endRound(why) {
+  if (G.state !== 'play') return;
+  const L = G.level;
+  let score = null, ok = true;
+  if (L) {
+    if (L.score === 'time') score = why === 'goal' ? G.time : null;
+    else if (L.score === 'cats') score = G.catN;
+    else score = ball.S;
+    ok = score !== null && score > 0;
+  }
+  G.round = { why, score, ok, size: ball.S, standings: rivals.active ? rivals.standings(ball) : null };
+  G.state = 'outro';
+  G.outro = 2.2;
+  input.enabled = false;
+  showTouch(false);
+  $('hud-time').hidden = true;
+  audio.setHurry(false);
+  dialog.clear();
+  if (G.rules.rivals) {
+    const place = G.round.standings.findIndex(e => e.me) + 1;
+    hud.stamp(place === 1 ? '第一名' : `第 ${place} 名`, '');
+    audio.milestone(place === 1 ? 6 : 2);
+  } else if (why === 'bumps') {
+    hud.stamp('撞满了', `撞了 ${G.bumps} 下，这局就到这儿`);
+    audio.timeUp();
+  } else if (why === 'time' && L.score === 'time') {
+    hud.stamp('时间到', story.LEVEL_FAIL);
+    audio.timeUp();
+  } else {
+    hud.stamp(why === 'goal' ? '过关' : '时间到', '');
+    audio.milestone(why === 'goal' ? 5 : 2);
+  }
+}
+
+// every full minute of a 限时补天 or 每日挑战: how it compares with the best game so far, then
+function ghostSplits(dt) {
+  if ((G.curveT -= dt) <= 0) {
+    G.curveT = 5;
+    G.curve.push(+ball.S.toPrecision(4));
+  }
+  if (G.time < G.splitAt) return;
+  G.splitAt += 60;
+  const best = ghostCurve();
+  const then = best && best[Math.round(G.time / 5)];
+  if (!then) return;
+  const d = ball.S - then;
+  hud.toast(`第 ${Math.round(G.time / 60)} 分钟 · 比最好那局${d >= 0 ? '<em>大</em>' : '小'} ${fmt(Math.abs(d))}`);
+}
+function ghostCurve() {
+  if (G.mode === 'timed') return store.get('curve.timed', null);
+  if (G.mode === 'daily') {
+    const c = store.get('curve.daily', null);
+    return c && c.day === dayKey() ? c.curve : null;
+  }
+  return null;
+}
+
+// 对手赛: what the rivals just did
+function rivalEvents(evs) {
+  for (const e of evs) {
+    if (e.type === 'eaten') {
+      ball.pending += e.gain;
+      G.rivalsEaten.push(e.r.name);
+      hud.toast(story.ATE_RIVAL(e.r.name), 'big');
+      audio.milestone(4);
+      const S = ball.S;
+      fx.firework(ball.pos.x, ball.centerY + S, ball.pos.z, S);
+      rig.fovBoost += 8;
+    } else if (e.type === 'rivalAte') {
+      hud.toast(story.RIVAL_ATE(e.by.name, e.r.name));
+    } else if (e.type === 'bump') {
+      audio.bump(0.6);
+      rig.shake(0.03);
+    }
+  }
+  // the first time one of them is small enough to take, say so
+  if (!G.preyHinted && rivals.list.some(r => r.alive && r.ball.S <= ball.pickLimit())) {
+    G.preyHinted = true;
+    dialog.interrupt(story.RIVAL_FIRST);
+  }
+}
+
+// 五色石碎片: one more found
+function shardFound(i, o) {
+  const n = shards.count;
+  hud.toast(`<em>五色石碎片</em> ${n}/${shards.total}！`, 'big');
+  audio.milestone(3);
+  fx.firework(o.centerX(), o.y + o.h + ball.S * 0.6, o.centerZ(), Math.max(ball.S, o.size * 2));
+  if (n === shards.total) dialog.interrupt(story.SHARD_ALL);
+  else if (n === 1) dialog.interrupt(story.SHARD_FIRST);
+  syncTitleCounts();
 }
 
 // ---- finale ------------------------------------------------------------------------------------
@@ -1370,7 +1800,8 @@ function showResults() {
   hud.show(false);
   const size = ball.S;
   const [, rank, quote] = story.ending(size);
-  $('res-size').textContent = fmt(size);
+  resultsCommon(size);
+  $('res-eyebrow').textContent = G.mode === 'daily' ? `每日挑战 · ${dayLabel()}` : '补天石 · 最终尺寸';
   $('res-rank').textContent = `称号：${rank}`;
   $('res-quote').textContent = `女娲：${quote}`;
   const short = story.SKY_GOAL - size;
@@ -1382,6 +1813,50 @@ function showResults() {
   const nextRank = story.ENDINGS.find(e => size < e[0]);
   const after = story.ENDINGS[story.ENDINGS.indexOf(nextRank) + 1];
   if (short <= 0 && after) $('res-goal').innerHTML += `<small>再大 <b>${fmt(nextRank[0] - size)}</b> 就是「${after[1]}」</small>`;
+  $('res-goal').hidden = false;
+  const got = wishes.finish();
+  $('res-wish').innerHTML =
+    `<div class="rw-head">女娲的心愿 <b>★ ${got}/${wishes.list.length}</b><small>累计 ★ ${wishes.stars}</small></div>` +
+    wishes.list.map(x => `<div class="rw${x.done ? ' ok' : ''}"><i>${x.done ? '★' : '☆'}</i>${x.w.text}${x.done ? '' : `<small>${wishes.progress(x)}</small>`}</div>`).join('');
+  const st = ball.stats;
+  let brag = bragLine(size, rank, st);
+  let modeLine = G.mode === 'free' ? '自由滚' : '限时补天 · 6 分钟';
+  // records: the best game (and its size minute by minute, for next time's splits)
+  if (G.mode === 'timed') {
+    const best = store.get('best', null);
+    if (!best || size > best.size) {
+      store.set('best', { size, rank, at: Date.now() });
+      store.set('curve.timed', G.curve);
+      if (best) $('res-goal').innerHTML += `<small class="rec">新纪录！上次最好 ${fmt(best.size)}</small>`;
+    } else $('res-goal').innerHTML += `<small>个人最佳 ${fmt(best.size)}</small>`;
+  } else if (G.mode === 'daily') {
+    const { best, streak, better } = progress.finishDaily(size, got);
+    if (better) store.set('curve.daily', { day: dayKey(), curve: G.curve });
+    $('res-goal').innerHTML += `<small>${better ? '今日新纪录！' : `今日最佳 ${fmt(best.size)}`} · 已连续挑战 <b>${streak}</b> 天</small>`;
+    modeLine = `每日挑战 · ${dayLabel()}`;
+    brag = `《万物皆可滚·女娲补天》每日挑战 ${dayLabel()}：${'★'.repeat(got)}${'☆'.repeat(3 - got)} 滚到 ${fmt(size)}，称号「${rank}」，已连续 ${streak} 天。今天的题人人都一样，来比比？ ${SITE}`;
+  } else {
+    const best = store.get('best', null);
+    if (!best || size > best.size) store.set('best', { size, rank, at: Date.now() });
+  }
+  $('res-brag').textContent = brag;
+  $('btn-keep').hidden = false;
+  G.result = {
+    size: fmt(size), title: `称号：${rank}`, mode: modeLine, quote: `女娲：${quote}`,
+    lines: [`滚起 ${st.count} 件 · 最大的一件 ${st.biggest ? st.biggest.name : '—'}`, wishes.list.length ? `女娲的心愿 ${'★'.repeat(got)}${'☆'.repeat(wishes.list.length - got)}` : ''].filter(Boolean),
+  };
+  $('results').hidden = false;
+  rig.override = {
+    pos: engine.camera.position.clone(),
+    look: engine.camera.position.clone().addScaledVector(G.finale.H, 100),
+    fov: 62,
+    speed: 0.6,
+  };
+}
+
+/** the parts every results screen has: size, stats, what was rolled up, the 图鉴 */
+function resultsCommon(size) {
+  $('res-size').textContent = fmt(size);
   const st = ball.stats;
   const mins = Math.floor(G.time / 60), secs = Math.floor(G.time % 60);
   const big = st.biggest ? `${st.biggest.name}（${fmt(st.biggest.size)}）` : '—';
@@ -1390,26 +1865,80 @@ function showResults() {
     `<span>最大的一件<b>${big}</b></span><span>最长连滚<b>×${st.bestCombo || 0}</b></span><span>掉落<b>${st.lost}</b>件</span>`;
   const top = Object.entries(st.byType).sort((a, b) => b[1] - a[1]).slice(0, 18);
   $('res-items').innerHTML = top.map(([id, n]) => `<span>${(CATALOG.get(id) || {}).name || id} <b>×${n}</b></span>`).join('');
-  $('res-brag').textContent = bragLine(size, rank, st);
   $('res-tip').hidden = !(G.touchScreen && G.fpsCap !== 30);
-  const got = wishes.finish();
-  $('res-wish').innerHTML =
-    `<div class="rw-head">女娲的心愿 <b>★ ${got}/${wishes.list.length}</b><small>累计 ★ ${wishes.stars}</small></div>` +
-    wishes.list.map(x => `<div class="rw${x.done ? ' ok' : ''}"><i>${x.done ? '★' : '☆'}</i>${x.w.text}${x.done ? '' : `<small>${wishes.progress(x)}</small>`}</div>`).join('');
   dex.save();
   const fresh = [...dex.fresh].map(id => (CATALOG.get(id) || {}).name || id);
   $('res-dex-line').innerHTML = fresh.length
     ? `图鉴新收集 <b>${fresh.length}</b> 种 · 共 <b>${dex.found}</b>/${dex.total}`
     : `这局没有新收集 · 图鉴 <b>${dex.found}</b>/${dex.total}`;
   $('res-dex-new').textContent = fresh.length ? fresh.slice(0, 10).join('、') + (fresh.length > 10 ? ` 等 ${fresh.length} 种` : '') : '';
+  $('res-level').hidden = true;
+  $('res-rivals').hidden = true;
+  $('res-wish').innerHTML = '';
+  $('btn-next').hidden = true;
+  $('btn-share').textContent = '生成战绩图';
   ball.portraitOnly(true);
   $('btn-copy').textContent = '复制战绩';
+  syncTitleCounts();
+}
+
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+/** a 关卡's score as words: 0:52 / 23 只 / 45 cm */
+function fmtScore(L, v) {
+  if (v === null || v === undefined) return '—';
+  return L.score === 'time' ? fmtTime(v) : L.score === 'cats' ? `${v} 只` : fmt(v);
+}
+
+/** the end of a 关卡 or a 对手赛 (no trip up to the sky) */
+function showRoundResults() {
+  G.state = 'results';
+  hud.show(false);
+  input.enabled = true;
+  const R = G.round, size = R.size, st = ball.stats;
+  G.prelaunch = { x: ball.pos.x, z: ball.pos.z, heading: ball.heading, hour: sky.hour };
+  resultsCommon(size);
+  $('res-goal').hidden = true;
+  $('btn-keep').hidden = true;
+  let brag, title, lines;
+  if (G.level) {
+    const L = G.level;
+    const { stars, best, better } = progress.finishLevel(L, R.score);
+    $('res-eyebrow').textContent = `关卡 ${LEVELS.indexOf(L) + 1} · ${L.name}`;
+    $('res-rank').textContent = R.score === null ? '没过关' : stars ? story.LEVEL_DONE[stars - 1] : '差一点点';
+    const scoreLine = L.score === 'time'
+      ? (R.score === null ? `${fmtTime(L.seconds)} 内没滚到` : `用时 ${fmtTime(R.score)}`)
+      : L.score === 'cats' ? `滚起了 ${R.score} 只猫` : `滚到了 ${fmt(R.score)}`;
+    $('res-level').innerHTML =
+      `<div class="stars">${'★'.repeat(stars)}<i>${'★'.repeat(3 - stars)}</i></div><p>${scoreLine}</p>` +
+      `<small>${better && best.score !== null ? '新纪录！' : `最佳：${fmtScore(L, best.score)}`} · ★ ${fmtScore(L, L.stars[0])} · ★★ ${fmtScore(L, L.stars[1])} · ★★★ ${fmtScore(L, L.stars[2])}</small>`;
+    $('res-level').hidden = false;
+    $('res-quote').textContent = `女娲：${stars ? (stars === 3 ? '完美！本宫看着都过瘾。' : '好样的！再来一次，冲三颗星！') : story.LEVEL_FAIL}`;
+    const i = LEVELS.indexOf(L);
+    $('btn-next').hidden = !(i < LEVELS.length - 1 && progress.levelOpen(i + 1));
+    title = `关卡「${L.name}」${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`;
+    lines = [scoreLine, `滚起 ${st.count} 件`];
+    brag = `我在《万物皆可滚·女娲补天》关卡「${L.name}」拿了 ${'★'.repeat(stars) || '0 颗星'}：${scoreLine}。${SITE}`;
+  } else {
+    const list = R.standings;
+    const place = list.findIndex(e => e.me) + 1;
+    const { stars } = progress.finishRivals(place);
+    $('res-eyebrow').textContent = '对手赛 · 3 分钟';
+    $('res-rank').textContent = place === 1 ? '第一名！' : `第 ${place} 名`;
+    $('res-rivals').innerHTML = list.map((e, k) => `<li class="${e.me ? 'me' : ''}${e.alive ? '' : ' out'}"><i>${k + 1}</i><span>${e.name}</span><b>${e.alive ? fmt(e.S) : '被滚走了'}</b></li>`).join('');
+    $('res-rivals').hidden = false;
+    const ate = G.rivalsEaten;
+    $('res-quote').textContent = `女娲：${place === 1 ? (ate.length ? `连「${ate[0]}」都被你滚进来了，这城里你最能滚！` : '第一！别家的五色石都不如你的。') : '别灰心，先抢地盘，再抢对手！'}`;
+    title = place === 1 ? '对手赛 第一名' : `对手赛 第 ${place} 名`;
+    lines = [`滚起 ${st.count} 件${ate.length ? ` · 滚走了对手 ${ate.join('、')}` : ''}`, `对手赛 ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`];
+    brag = `我在《万物皆可滚·女娲补天》对手赛拿了第 ${place} 名，滚到 ${fmt(size)}${ate.length ? `，还把「${ate.join('」「')}」整个滚了进来` : ''}！${SITE}`;
+    rivals.stop();
+  }
+  $('res-brag').textContent = brag;
+  G.result = { size: fmt(size), title, mode: $('res-eyebrow').textContent, quote: $('res-quote').textContent, lines };
   $('results').hidden = false;
-  const best = store.get('best', null);
-  if (!best || size > best.size) store.set('best', { size, rank, at: Date.now() });
   rig.override = {
     pos: engine.camera.position.clone(),
-    look: engine.camera.position.clone().addScaledVector(G.finale.H, 100),
+    look: ball.group.position.clone().add(new THREE.Vector3(0, ball.S * 8 + 40, 0)),
     fov: 62,
     speed: 0.6,
   };
@@ -1437,6 +1966,8 @@ function keepRolling() {
   ball.portraitOnly(false);
   const p = G.prelaunch;
   G.mode = 'free';
+  G.rules = MODES.free;
+  G.level = null;
   G.state = 'play';
   G.finale = null;
   input.enabled = true;
@@ -1504,13 +2035,23 @@ function autopilot(dt) {
     const prev = ap.target;
     ap.target = null;
     let best = Infinity;
-    for (const R of [S * 6, S * 20, S * 60]) {
+    // (广场舞清场: once big enough, straight for the nearest dancer)
+    if (G.dancers && G.dancers.size && S > 1.95) {
+      let bd = Infinity;
+      for (const o of G.dancers) {
+        const d = Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z);
+        if (o.state === 0 && d < bd) { bd = d; ap.target = o; }
+      }
+    }
+    for (const R of ap.target ? [] : [S * 6, S * 20, S * 60]) {
       world.grid.query(ball.pos.x, ball.pos.z, R, ap.cands, S / 90);
       for (const o of ap.cands) {
-        if (o.state !== 0 || o.size > limit || o.y > S || ap.skip.has(o)) continue;
-        // value-for-distance, like a player eyeing the biggest thing they can take
+        if (o.state !== 0 || o.size > limit || o.y > S || ap.skip.has(o) || (ball.canPick && !ball.canPick(o))) continue;
+        // value-for-distance, like a player eyeing the biggest thing they can take (in a 关卡, its
+        // targets are worth a lot more)
         const d = Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z);
-        const score = (d + S * 1.5) / Math.pow(o.size / S, 1.5);
+        const aim = (G.dancers && G.dancers.has(o)) || (G.level && G.level.score === 'cats' && o.spec.id.startsWith('cat_')) ? 40 : 1;
+        const score = (d + S * 1.5) / Math.pow(o.size / S, 1.5) / aim;
         if (score < best) { best = score; ap.target = o; }
       }
       if (ap.target) break;
@@ -1574,7 +2115,12 @@ window.__wanwu = {
   get wishes() { return wishes; },
   get glints() { return glints.list.map(o => [o.spec.id, +o.size.toFixed(3), +Math.hypot(o.x - ball.pos.x, o.z - ball.pos.z).toFixed(2)]); },
   GROW,
-  start: mode => startGame(mode || 'timed'),
+  start: (mode, level) => startGame(mode || 'timed', level),
+  get rivals() { return rivals; },
+  get progress() { return progress; },
+  get shards() { return shards; },
+  openShare,
+  step: dt => step(dt),
   skipIntro() { dialog.clear(); beginPlay(); },
   autopilot(on = true) { G.autopilot = on; },
   /** fast-forward the game with the autopilot, no rendering; returns [seconds, size] samples */

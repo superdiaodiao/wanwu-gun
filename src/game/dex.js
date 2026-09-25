@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { fmt } from './hud.js';
 import { PLACES } from './minimap.js';
+import { BLURBS } from './blurbs.js';
 
 export const DEX_CATS = [
   ['food', '吃的'], ['daily', '日用'], ['toy', '玩具'], ['street', '街边'], ['person', '人'], ['animal', '动物'],
@@ -155,8 +156,9 @@ export class Dex {
     $('dex-name').textContent = found ? e.name : '？？？';
     const need = `球要 <b>${fmt(e.need)}</b> 以上才滚得起`;
     const where = `常见于 <b>${e.where}</b>`;
+    const said = found && BLURBS[e.id] ? `<p class="dex-said">女娲：${BLURBS[e.id]}</p>` : '';
     $('dex-info').innerHTML = found
-      ? `<span>${CAT_NAME[e.cat]} · 个头约 <b>${fmt(e.size)}</b></span><span>滚起过 <b>${this.counts[e.id]}</b> 次</span><span>${need}</span><span>${where}</span>`
+      ? `${said}<span>${CAT_NAME[e.cat]} · 个头约 <b>${fmt(e.size)}</b></span><span>滚起过 <b>${this.counts[e.id]}</b> 次</span><span>${need}</span><span>${where}</span>`
       : `<span>还没滚到过</span><span>${where}</span><span>${need}</span>`;
     $('dex-card').hidden = false;
     this.cardT = 0;

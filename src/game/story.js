@@ -131,3 +131,30 @@ export const ENDINGS = [
 export function ending(size) {
   return ENDINGS.find(e => size < e[0]);
 }
+
+// ---- the other ways to play (modes.js) -------------------------------------------------------------
+export const INTRO_DAILY = '每日挑战！今天的三个心愿，人人都一样。四分钟，看你滚多大——明天还有新的。';
+export const INTRO_RIVALS = '对手赛！城里还有三颗别人家的五色石在滚。三分钟，谁最大谁赢——比你小的，直接滚进来！';
+/** the last stretch of a timed round */
+export const hurryLine = left => (left >= 55 ? HURRY : `最后 ${Math.round(left)} 秒！冲啊！`);
+export const LEVEL_DONE = ['过关！', '就是这样！', '漂亮！'];
+export const LEVEL_FAIL = '差一点……再来一次！';
+
+// 对手赛: said as it happens (the rivals' names go in)
+export const ATE_RIVAL = name => `把「${name}」整个滚进来了！`;
+export const RIVAL_ATE = (by, name) => `「${by}」把「${name}」滚走了`;
+export const RIVAL_FIRST = '比你小的对手头上是金色的名字——追上去，直接滚进来！';
+
+// poke 女娲 while she talks
+export const POKES = [
+  '戳本宫干嘛？快去滚！',
+  '本宫的发髻很贵的，别乱摸。',
+  '再戳，本宫就把你捏回泥巴。',
+  '嗯？有事启奏，没事滚滚。',
+  '哈哈，痒……别闹。',
+  '本宫在补天，很忙的。',
+];
+
+// 五色石碎片 (shards.js)
+export const SHARD_FIRST = '咦？五色石碎片！这是本宫当年炼石头掉的。一共十块，都藏在城里。';
+export const SHARD_ALL = '十块五色石碎片全找齐了！本宫赏你一颗「五色神石」——去球皮里换上！';

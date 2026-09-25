@@ -6,6 +6,8 @@
 <!--BODY-->
 <canvas id="game"></canvas>
 <div id="vignette"></div>
+<div id="speed-lines" aria-hidden="true"></div>
+<div id="countdown" hidden aria-live="polite"></div>
 
 <div id="hud" hidden>
   <div id="hud-size">
@@ -20,6 +22,8 @@
   </div>
   <div id="hud-combo" hidden><span class="lbl">连滚</span><b id="combo-n">3</b><small id="combo-bonus">长大 +6%</small></div>
   <div id="hud-time" hidden><span class="label">天黑前</span><span id="time-text">8:00</span></div>
+  <ol id="rank-board" hidden aria-label="名次"></ol>
+  <div id="rival-tags" aria-hidden="true"></div>
   <button id="btn-patch" hidden>去补天 <b>›</b></button>
   <div id="food-arrow" hidden aria-hidden="true"><i class="ping"></i><i class="dir"></i><span>能滚的在这边</span></div>
   <div id="food-mark" hidden aria-hidden="true"><b>能滚</b></div>
@@ -32,7 +36,7 @@
       <div id="last-size"></div>
     </div>
   </div>
-  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span><span id="hud-wish-note"></span></div>
+  <div id="hud-count" role="button" aria-label="已滚起的件数和女娲的心愿">已滚起 <b id="count-num">0</b> 件<span class="wish-lbl">心愿</span><span id="hud-wish"></span><span id="hud-lvl" hidden></span><span id="hud-wish-note"></span></div>
   <button id="minimap-btn" aria-label="小地图（点开看全图）"><canvas id="minimap"></canvas></button>
   <div id="edge-warn" hidden aria-hidden="true"><i>!</i></div>
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
@@ -60,9 +64,18 @@
     <p class="pitch">天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。</p>
     <div class="actions">
       <button id="btn-timed" class="btn primary"><b>开始补天</b><small>限时 6 分钟</small></button>
-      <button id="btn-free" class="btn ghost"><b>自由滚</b><small>不限时 · 随时补天</small></button>
+      <button id="btn-daily" class="btn daily"><b>每日挑战</b><small id="daily-sub">4 分钟 · 今天人人同一题</small></button>
     </div>
-    <button id="btn-dex" class="chip dex-chip">图鉴 <b id="dex-num">0/0</b></button>
+    <div class="modes">
+      <button id="btn-levels" class="btn mode"><b>关卡</b><small id="levels-sub">5 关</small></button>
+      <button id="btn-rivals" class="btn mode"><b>对手赛</b><small>3 分钟 · 比谁大</small></button>
+      <button id="btn-free" class="btn mode"><b>自由滚</b><small>不限时</small></button>
+    </div>
+    <div class="title-chips">
+      <button id="btn-dex" class="chip dex-chip">图鉴 <b id="dex-num">0/0</b></button>
+      <button id="btn-skins" class="chip">球皮 <b id="star-num">★ 0</b></button>
+      <button id="btn-shards" class="chip">五色石碎片 <b id="shard-num">0/10</b></button>
+    </div>
     <div class="settings">
       <label for="sel-quality">画质</label>
       <select id="sel-quality"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select>
@@ -110,9 +123,11 @@
   <div class="results-stack">
   <div id="res-ball" aria-hidden="true"></div>
   <div class="panel results">
-    <div class="eyebrow">补天石 · 最终尺寸</div>
+    <div id="res-eyebrow" class="eyebrow">补天石 · 最终尺寸</div>
     <div id="res-size" class="res-size">0 m</div>
     <div id="res-rank" class="res-rank"></div>
+    <div id="res-level" class="res-level" hidden></div>
+    <ol id="res-rivals" class="res-rivals" hidden></ol>
     <div id="res-goal" class="res-goal"></div>
     <p id="res-quote" class="res-quote"></p>
     <div id="res-stats" class="res-stats"></div>
@@ -121,13 +136,41 @@
     <div class="res-dex"><span id="res-dex-line"></span><button id="res-dex-open" class="chip">看图鉴</button></div>
     <div id="res-dex-new" class="res-dex-new"></div>
     <p id="res-tip" class="res-tip" hidden>手机发烫的话，回开始页勾上「省电」，会凉快很多。</p>
-    <div class="brag"><p id="res-brag"></p><button id="btn-copy" class="chip">复制战绩</button></div>
+    <div class="brag"><p id="res-brag"></p><div class="brag-btns"><button id="btn-copy" class="chip">复制战绩</button><button id="btn-share" class="chip share-chip">生成战绩图</button></div></div>
     <div class="actions">
+      <button id="btn-next" class="btn primary" hidden><b>下一关</b></button>
       <button id="btn-again" class="btn primary"><b>再滚一次</b></button>
       <button id="btn-keep" class="btn ghost"><b>继续自由滚</b></button>
       <button id="btn-title" class="btn ghost"><b>回到标题</b></button>
     </div>
   </div>
+  </div>
+</div>
+
+<div id="levels" class="screen" hidden>
+  <div class="panel list-panel">
+    <div class="dex-head"><h2>关卡</h2><span id="levels-stars" class="head-count"></span><button id="levels-close" class="chip">关闭</button></div>
+    <p class="panel-how">每关有自己的规矩，拿到 ★ 就开下一关。</p>
+    <ol id="level-list" class="level-list"></ol>
+  </div>
+</div>
+
+<div id="skins" class="screen" hidden>
+  <div class="panel list-panel">
+    <div class="dex-head"><h2>球皮</h2><span id="skins-stars" class="head-count"></span><button id="skins-close" class="chip">关闭</button></div>
+    <p class="panel-how">星星这么来：心愿达成一个 ★；每个关卡最多 ★★★；对手赛拿第一 ★★★。</p>
+    <div id="skin-grid" class="skin-grid"></div>
+    <h3 class="shard-h">五色石碎片 <b id="shards-count"></b></h3>
+    <p class="panel-how">女娲当年炼石头掉的，一共十块，藏在城里各处。靠近了会闪光；有的要球够大才够得着。</p>
+    <ol id="shard-list" class="shard-list"></ol>
+  </div>
+</div>
+
+<div id="share" class="screen" hidden>
+  <div class="panel share-panel">
+    <img id="share-img" alt="战绩图">
+    <p class="panel-how">长按图片保存，发给朋友 · 电脑上右键「图片另存为」</p>
+    <div class="actions"><a id="share-dl" class="btn ghost" download="万物皆可滚-战绩.png"><b>下载图片</b></a><button id="share-close" class="btn primary"><b>好的</b></button></div>
   </div>
 </div>
 

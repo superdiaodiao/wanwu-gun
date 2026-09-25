@@ -147,7 +147,8 @@ export class Maps {
   }
 
   /** every frame while playing: ball position, camera yaw, horizontal field of view (rad) */
-  update(dt, ball, yaw, hfov) {
+  /** others: the 对手赛 balls, [{ x, z, S, prey }] (prey: small enough to roll up) */
+  update(dt, ball, yaw, hfov, others = null) {
     this.record(dt, ball);
     const m = this.mini;
     if (!m) return;
@@ -197,6 +198,26 @@ export class Maps {
     c.fill();
     // the ball, and which way it rolls
     const u = px / 110;
+    // the other balls: gold if they can be rolled up, red if not; pinned to the rim when off the map
+    if (others) {
+      const cs = Math.cos(-yaw), sn = Math.sin(-yaw), rim = h - 6 * u;
+      for (const o of others) {
+        const dx = (o.x - bx) * k, dz = (o.z - bz) * k;
+        let sx = dx * cs - dz * sn, sy = dx * sn + dz * cs;
+        const d = Math.hypot(sx, sy), out = d > rim;
+        if (out) {
+          sx *= rim / d;
+          sy *= rim / d;
+        }
+        c.beginPath();
+        c.arc(h + sx, h + sy, out ? 3.4 * u : Math.min(h * 0.25, Math.max(3.4 * u, (o.S / 2) * k)), 0, Math.PI * 2);
+        c.fillStyle = o.prey ? '#f2c14e' : '#ff6f61';
+        c.fill();
+        c.lineWidth = 1.4 * u;
+        c.strokeStyle = 'rgba(31, 27, 36, 0.9)';
+        c.stroke();
+      }
+    }
     // (a ball bigger than the map shows would cover it all: past a third of it, just a big dot)
     const br = Math.min(h * 0.3, Math.max(4 * u, (S / 2) * k));
     const a = ball.heading - yaw;
