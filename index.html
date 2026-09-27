@@ -566,6 +566,8 @@ kbd {
 .map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
 .map-legend .lg-gold { background: #f7c94f; }
 .map-legend .lg-red { background: #e23e32; }
+.map-legend .lg-target { background: #ff8a2a; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(31, 27, 36, 0.7); }
+.map-legend em { font-style: normal; }
 .map-legend .lg-trail { width: 16px; height: 3px; border-radius: 2px; background: #f7c94f; box-shadow: 0 0 0 1.5px rgba(31, 27, 36, 0.7); }
 @media (min-width: 760px) and (min-aspect-ratio: 1/1) {
   .pause-panel { width: min(100%, 800px); grid-template-columns: auto 250px; align-items: center; gap: 16px 24px; }
@@ -1057,7 +1059,7 @@ kbd {
         <button id="map-all" class="chip" aria-pressed="true">全图</button>
         <button id="map-near" class="chip" aria-pressed="false">附近</button>
       </div>
-      <div class="map-legend"><span><i class="lg-gold"></i>能滚起</span><span id="lg-red"><i class="lg-red"></i>还太大</span><span><i class="lg-trail"></i>滚过的路</span></div>
+      <div class="map-legend"><span><i class="lg-gold"></i>能滚起</span><span id="lg-red"><i class="lg-red"></i>还太大</span><span id="lg-target" hidden><i class="lg-target"></i><em></em></span><span><i class="lg-trail"></i>滚过的路</span></div>
     </div>
     <div class="pause-side">
       <button id="btn-resume" class="btn primary"><b>继续滚</b></button>
@@ -1151,7 +1153,7 @@ kbd {
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.744f54e6.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.d1c5cb33.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {

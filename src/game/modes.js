@@ -22,7 +22,7 @@ export const LEVELS = [
   },
   {
     id: 'cats', name: '猫咪大集合', text: '3 分钟，滚起尽量多的猫', seconds: 180, score: 'cats', stars: [5, 10, 16],
-    intro: '本宫想撸猫了。三分钟，能滚几只滚几只！',
+    intro: '本宫想撸猫了。三分钟，能滚几只滚几只！小地图上橙色的就是猫，边上的橙色箭头指着最近的几只。',
   },
   {
     id: 'food', name: '吃货专场', text: '只有吃的能滚起来，看能长多大', seconds: 150, only: 'food', score: 'size', stars: [0.8, 1.3, 2],

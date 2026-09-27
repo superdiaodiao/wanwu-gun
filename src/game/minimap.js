@@ -18,6 +18,7 @@ const GREEN = 'rgba(44, 78, 44, 0.8)'; // trees, hills, mountains
 const RED = 'rgba(226, 62, 50, 0.9)';
 const GOLD = '#f7c94f';
 const PAPER = '#f6efe0';
+const TARGET = '#ff8a2a'; // a 关卡's targets (cats, dancers)
 
 /** place names for the big map: [name, x, z, shown from / up to this many metres each way] (north is −Z) */
 export const PLACES = [
@@ -148,7 +149,8 @@ export class Maps {
 
   /** every frame while playing: ball position, camera yaw, horizontal field of view (rad) */
   /** others: the 对手赛 balls, [{ x, z, S, prey }] (prey: small enough to roll up) */
-  update(dt, ball, yaw, hfov, others = null) {
+  /** targets: a 关卡's targets still to get (the cats, the dancers), live every frame */
+  update(dt, ball, yaw, hfov, others = null, targets = null) {
     this.record(dt, ball);
     const m = this.mini;
     if (!m) return;
@@ -218,6 +220,9 @@ export class Maps {
         c.stroke();
       }
     }
+    // a 关卡's targets: orange, filled once they can be rolled up, a ring while still too big; the
+    // nearest few off the map are pinned to the rim, so there's always a way to go
+    if (targets && targets.length) this.targets(c, targets, ball, yaw, h, k, u);
     // (a ball bigger than the map shows would cover it all: past a third of it, just a big dot)
     const br = Math.min(h * 0.3, Math.max(4 * u, (S / 2) * k));
     const a = ball.heading - yaw;
@@ -256,6 +261,48 @@ export class Maps {
     c.fillText('北', nx, ny + 0.5 * u);
   }
 
+  targets(c, list, ball, yaw, h, k, u) {
+    const bx = ball.pos.x, bz = ball.pos.z, limit = ball.pickLimit();
+    const cs = Math.cos(-yaw), sn = Math.sin(-yaw), rim = h - 6 * u;
+    const off = [];
+    c.lineWidth = 1.3 * u;
+    c.strokeStyle = 'rgba(31, 27, 36, 0.9)';
+    for (const o of list) {
+      const dx = (o.x - bx) * k, dz = (o.z - bz) * k;
+      const sx = dx * cs - dz * sn, sy = dx * sn + dz * cs, d = Math.hypot(sx, sy);
+      if (d > rim) { off.push({ o, sx, sy, d }); continue; }
+      c.beginPath();
+      c.arc(h + sx, h + sy, 3.2 * u, 0, Math.PI * 2);
+      c.fillStyle = o.size <= limit ? TARGET : 'rgba(255, 255, 255, 0.55)';
+      c.fill();
+      c.stroke();
+      if (o.size > limit) {
+        c.beginPath();
+        c.arc(h + sx, h + sy, 1.6 * u, 0, Math.PI * 2);
+        c.fillStyle = TARGET;
+        c.fill();
+      }
+    }
+    off.sort((a, b) => a.d - b.d);
+    for (let i = 0; i < Math.min(3, off.length); i++) {
+      const { sx, sy, d } = off[i], ux = sx / d, uy = sy / d;
+      const px = h + ux * rim, py = h + uy * rim;
+      c.save();
+      c.translate(px, py);
+      c.rotate(Math.atan2(uy, ux));
+      c.beginPath();
+      c.moveTo(4.6 * u, 0);
+      c.lineTo(-2.6 * u, 3.6 * u);
+      c.lineTo(-2.6 * u, -3.6 * u);
+      c.closePath();
+      c.fillStyle = TARGET;
+      c.globalAlpha = i === 0 ? 1 : 0.7;
+      c.fill();
+      c.stroke();
+      c.restore();
+    }
+  }
+
   // ---- the way rolled so far ----------------------------------------------------------------
 
   record(dt, ball) {
@@ -276,7 +323,7 @@ export class Maps {
   // ---- the big map (pause screen) -------------------------------------------------------------
 
   /** whole: the whole town; otherwise the neighbourhood of the ball */
-  drawBig(canvas, ball, whole) {
+  drawBig(canvas, ball, whole, targets = null) {
     const ctx = canvas.getContext('2d');
     const css = canvas.clientWidth;
     if (!ctx || !css) return;
@@ -303,6 +350,18 @@ export class Maps {
       ctx.strokeStyle = GOLD;
       ctx.lineWidth = 2 * u;
       ctx.stroke();
+    }
+    // a 关卡's targets still to get
+    if (targets) {
+      ctx.fillStyle = TARGET;
+      ctx.strokeStyle = 'rgba(31, 27, 36, 0.9)';
+      ctx.lineWidth = (whole ? 0.9 : 1.3) * u;
+      for (const o of targets) {
+        ctx.beginPath();
+        ctx.arc(X(o.x), Z(o.z), (whole ? 2.4 : 3.6) * u, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
     // place names
     ctx.textAlign = 'center';

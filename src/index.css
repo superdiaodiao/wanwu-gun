@@ -557,6 +557,8 @@ kbd {
 .map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
 .map-legend .lg-gold { background: #f7c94f; }
 .map-legend .lg-red { background: #e23e32; }
+.map-legend .lg-target { background: #ff8a2a; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(31, 27, 36, 0.7); }
+.map-legend em { font-style: normal; }
 .map-legend .lg-trail { width: 16px; height: 3px; border-radius: 2px; background: #f7c94f; box-shadow: 0 0 0 1.5px rgba(31, 27, 36, 0.7); }
 @media (min-width: 760px) and (min-aspect-ratio: 1/1) {
   .pause-panel { width: min(100%, 800px); grid-template-columns: auto 250px; align-items: center; gap: 16px 24px; }

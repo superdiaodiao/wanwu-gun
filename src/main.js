@@ -44,7 +44,7 @@ const G = {
   finale: null, toastCd: 0, tickSec: -1, hurry: false, cullT: 0, patched: false, prelaunch: null,
   hinted: new Set(), hintCd: 0, idleT: 0, sizes: [], sizeT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
   gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0, mapWhole: true, redHinted: false, soundT: 0,
-  rules: MODES.timed, level: null, cd: 0, bumps: 0, catN: 0, curve: [], curveT: 0, splitAt: 60, result: null,
+  rules: MODES.timed, level: null, cd: 0, bumps: 0, catN: 0, targets: null, curve: [], curveT: 0, splitAt: 60, result: null,
 };
 let engine, sky, ground, world, layout, movers, ball, player, rig, input, fx, hud, dialog, lastPreview, nuwaPreview, material, maps, dex, wishes;
 let progress, shards, rivals;
@@ -306,6 +306,8 @@ function resetGame(mode, levelId = null) {
   G.catN = 0;
   G.cats = new Set();
   G.dancers = G.level && G.level.goal && G.level.goal.dancers ? new Set(layout.groups.dance ? layout.groups.dance.dancers : []) : null;
+  // the level's targets, shown on the minimap: every cat in town, or the dancers
+  G.targets = G.level && G.level.score === 'cats' ? world.objects.filter(o => o.spec.id.startsWith('cat_')) : G.dancers;
   G.curve = [];
   G.curveT = 0;
   G.splitAt = 60;
@@ -760,8 +762,11 @@ function syncSoundButton() {
 
 function drawPauseMap() {
   if (G.state !== 'pause') return;
-  maps.drawBig($('bigmap'), ball, G.mapWhole);
+  maps.drawBig($('bigmap'), ball, G.mapWhole, G.targets && levelTargets());
   $('lg-red').hidden = G.mapWhole;
+  const lgT = $('lg-target');
+  lgT.hidden = !G.targets;
+  if (G.targets) lgT.lastElementChild.textContent = G.dancers ? '跳舞的大妈' : '没滚的猫';
 }
 
 function togglePause(force) {
@@ -1062,6 +1067,13 @@ function levelWants(o) {
   if (G.dancers && G.dancers.has(o)) return AUNTIE_MARK;
   return null;
 }
+// what's still to get, for the minimap (a cat already counted doesn't count again)
+const _targets = [];
+function levelTargets() {
+  _targets.length = 0;
+  for (const o of G.targets) if (o.state === 0 && !G.cats.has(o)) _targets.push(o);
+  return _targets;
+}
 const _wm = new THREE.Vector3();
 function wishMarks(dt) {
   if ((wishNear.t -= dt) <= 0) {
@@ -1069,7 +1081,8 @@ function wishMarks(dt) {
     const list = wishNear.list, found = wishNear.found;
     list.length = found.length = 0;
     if (wishes.list.some(x => !x.done) || G.level) {
-      const S = ball.S, limit = ball.pickLimit(), R = Math.max(1.5, S * 8);
+      // (a 关卡's targets are few and far between: look further for them)
+      const S = ball.S, limit = ball.pickLimit(), R = G.targets ? Math.max(12, S * 20) : Math.max(1.5, S * 8);
       for (const o of world.grid.query(ball.pos.x, ball.pos.z, R, wishNear.cands, S / 60)) {
         // (not what's too small to be drawn any more, see world.cullTiny)
         if (o.state !== 0 || o.size > limit || G.t < o.noPickUntil || o.spec.maxDim <= S / 220) continue;
@@ -1407,7 +1420,7 @@ function step(dt) {
       G.comboShown = 0;
     }
     const cam = engine.camera;
-    maps.update(dt, ball, rig.yaw, 2 * Math.atan(Math.tan((cam.fov * Math.PI) / 360) * cam.aspect), rivals.active ? rivals.dots(ball) : null);
+    maps.update(dt, ball, rig.yaw, 2 * Math.atan(Math.tan((cam.fov * Math.PI) / 360) * cam.aspect), rivals.active ? rivals.dots(ball) : null, G.targets && levelTargets());
     // the first time something striped red comes up, say what the colours mean
     if (!G.redHinted && G.hi && G.hi.red > 0 && G.time > 3 && G.toastCd <= 0) {
       G.redHinted = true;
