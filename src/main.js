@@ -28,6 +28,7 @@ import { SKINS, skinById, skinOpen, skinNeed } from './game/skins.js';
 import { Shards, SHARDS } from './game/shards.js';
 import { Rivals } from './game/rivals.js';
 import { shareCard } from './game/share.js';
+import { track, trackVisit, trackStart, span, sizeBucket, fpsBucket } from './game/track.js';
 import { audio } from './audio/audio.js';
 
 const START_SIZE = 0.06;
@@ -140,6 +141,7 @@ async function boot() {
   makeGiant();
   makeBallCam();
   setupUI();
+  trackVisit(store, dayKey());
   resetGame('timed');
   enterTitle();
   // compile shaders before the first visible frame
@@ -256,6 +258,19 @@ function renderBallPortrait(r, t) {
 
 // ---- game setup ------------------------------------------------------------------------------
 
+// ---- playtest statistics (track.js) ------------------------------------------------------------
+const modeKey = () => (G.level ? `level:${G.level.id}` : G.mode);
+function trackEnd() {
+  const m = modeKey();
+  track('end', `${m} · ${span(G.time)}`, G.time);
+  track('size', `${m} · ${sizeBucket(ball.S)}`);
+  if (perf.fps) track('fps', `${G.touchScreen ? 'touch' : 'desk'} · ${fpsBucket(perf.fps)}`);
+}
+/** a game left from the pause menu (home / restart) */
+function trackQuit(how) {
+  if (G.state === 'pause') track('quit', `${how} · ${modeKey()} · ${span(G.time)}`);
+}
+
 // ---- ways to play (modes.js): the rules of this game are the mode's, and a 关卡's own on top ----
 function resetGame(mode, levelId = null) {
   G.mode = mode;
@@ -315,6 +330,7 @@ function resetGame(mode, levelId = null) {
   G.outro = 0;
   G.preyHinted = false;
   G.rivalsEaten = [];
+  G.left = false;
   $('hud-count').classList.toggle('no-wish', !G.rules.wishes);
   syncLevelHud();
   dex.newGame();
@@ -381,14 +397,17 @@ async function startGame(mode, levelId = null) {
   applyAudioPrefs();
   audio.ui('start');
   resetGame(mode, levelId);
-  if (G.rules.wishes) wishes.start(mode, mode === 'daily' ? dayRandom() : null);
+  trackStart(modeKey());
+  if (G.rules.wishes) wishes.start(mode, mode === 'daily' ? dayRandom() : null, !!G.rules.short);
   else wishes.clear();
   syncWishHud();
   for (const id of ['title-screen', 'levels', 'skins', 'results']) $(id).hidden = true;
   if (G.rules.rivals) rivals.start(G.rules.rivals, START_SIZE);
   G.state = 'intro';
   audio.music('title', { fade: 1 });
-  dialog.say(introLines(mode), { blocking: true, onDone: beginPlay });
+  const lines = introLines(mode);
+  G.intro = { n: lines.length, skipped: false };
+  dialog.say(lines, { blocking: true, onDone: beginPlay });
   if (giant) {
     giant.userData.target = 1;
     giant.userData.dir.set(0.42, 0.5, -0.78).normalize();
@@ -409,11 +428,14 @@ function introLines(mode) {
   if (mode === 'daily') return [story.INTRO_DAILY];
   if (mode === 'rivals') return [story.INTRO_RIVALS];
   if (mode === 'level') return [G.level.intro];
-  const last = mode === 'timed' ? story.INTRO_TIMED : story.INTRO_FREE;
+  const last = mode === 'quick' ? story.INTRO_QUICK : mode === 'timed' ? story.INTRO_TIMED : story.INTRO_FREE;
   return seen ? [last] : [...story.INTRO, last];
 }
 
 function beginPlay() {
+  // (only the long story the first time is worth counting)
+  if (G.intro && G.intro.n > 1 && !G.intro.skipped) track('intro', '听完');
+  G.intro = null;
   G.state = 'play';
   // (a game that ended in the sky switched the controls off)
   input.enabled = true;
@@ -587,7 +609,17 @@ function applyAudioPrefs() {
 }
 
 function setupUI() {
+  $('btn-quick').addEventListener('click', () => startGame('quick'));
   $('btn-timed').addEventListener('click', () => startGame('timed'));
+  dialog.onSkip = left => {
+    if (!G.intro) return;
+    G.intro.skipped = true;
+    if (G.intro.n > 1) track('intro', `跳过 ${G.intro.n - left}/${G.intro.n}`);
+  };
+  // what else people look at on the title and results screens
+  for (const id of ['btn-levels', 'btn-skins', 'btn-shards', 'btn-dex', 'btn-share', 'btn-copy', 'btn-again', 'btn-title', 'btn-keep', 'btn-next']) {
+    $(id).addEventListener('click', () => track('click', id.slice(4)));
+  }
   $('btn-daily').addEventListener('click', () => startGame('daily'));
   $('btn-rivals').addEventListener('click', () => startGame('rivals'));
   $('btn-levels').addEventListener('click', openLevels);
@@ -699,8 +731,8 @@ function setupUI() {
     if (!G.touchScreen) hud.showKeys();
     togglePause(false);
   });
-  $('btn-restart').addEventListener('click', () => { $('pause').hidden = true; startGame(G.mode, G.level && G.level.id); });
-  $('btn-home').addEventListener('click', () => { $('pause').hidden = true; audio.music(null); resetGame('timed'); enterTitle(); });
+  $('btn-restart').addEventListener('click', () => { trackQuit('restart'); $('pause').hidden = true; startGame(G.mode, G.level && G.level.id); });
+  $('btn-home').addEventListener('click', () => { trackQuit('home'); $('pause').hidden = true; audio.music(null); resetGame('timed'); enterTitle(); });
   $('btn-finish').addEventListener('click', () => { togglePause(false); startFinale(); });
   $('btn-patch').addEventListener('click', () => { if (G.state === 'play') startFinale(); });
   $('btn-again').addEventListener('click', () => { $('results').hidden = true; startGame(G.mode, G.level && G.level.id); });
@@ -726,8 +758,7 @@ function setupUI() {
   input.onKey = code => {
     if (G.state === 'intro' && (code === 'Space' || code === 'Enter')) dialog.advance();
     if (G.state === 'intro' && code === 'Escape') {
-      dialog.clear();
-      beginPlay();
+      if (!dialog.skip()) beginPlay();
       return;
     }
     if (code === 'Escape' || code === 'KeyP') {
@@ -738,6 +769,10 @@ function setupUI() {
   };
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
+      if (!G.left && ['intro', 'play', 'pause', 'finale'].includes(G.state)) {
+        G.left = true;
+        track('leave', `${G.state} · ${modeKey()} · ${span(G.time)}`);
+      }
       if (G.state === 'play') togglePause(true);
       audio.suspend();
     } else if (G.state !== 'pause') audio.resume();
@@ -1683,7 +1718,7 @@ function ghostSplits(dt) {
   hud.toast(`第 ${Math.round(G.time / 60)} 分钟 · 比最好那局${d >= 0 ? '<em>大</em>' : '小'} ${fmt(Math.abs(d))}`);
 }
 function ghostCurve() {
-  if (G.mode === 'timed') return store.get('curve.timed', null);
+  if (G.mode === 'timed' || G.mode === 'quick') return store.get(`curve.${G.mode}`, null);
   if (G.mode === 'daily') {
     const c = store.get('curve.daily', null);
     return c && c.day === dayKey() ? c.curve : null;
@@ -1834,6 +1869,7 @@ function flash() {
 }
 
 function showResults() {
+  trackEnd();
   G.state = 'results';
   hud.show(false);
   const size = ball.S;
@@ -1858,13 +1894,19 @@ function showResults() {
     wishes.list.map(x => `<div class="rw${x.done ? ' ok' : ''}"><i>${x.done ? '★' : '☆'}</i>${x.w.text}${x.done ? '' : `<small>${wishes.progress(x)}</small>`}</div>`).join('');
   const st = ball.stats;
   let brag = bragLine(size, rank, st);
-  let modeLine = G.mode === 'free' ? '自由滚' : '限时补天 · 6 分钟';
+  let modeLine = G.mode === 'free' ? '自由滚' : G.mode === 'quick' ? '快滚 · 3 分钟' : '限时补天 · 6 分钟';
   // records: the best game (and its size minute by minute, for next time's splits)
-  if (G.mode === 'timed') {
-    const best = store.get('best', null);
+  if (G.mode === 'timed' || G.mode === 'quick') {
+    // (快滚 keeps its own best to beat, and counts towards the best of all as well)
+    const key = G.mode === 'quick' ? 'best.quick' : 'best';
+    const best = store.get(key, null);
+    if (G.mode === 'quick') {
+      const all = store.get('best', null);
+      if (!all || size > all.size) store.set('best', { size, rank, at: Date.now() });
+    }
     if (!best || size > best.size) {
-      store.set('best', { size, rank, at: Date.now() });
-      store.set('curve.timed', G.curve);
+      store.set(key, { size, rank, at: Date.now() });
+      store.set(`curve.${G.mode}`, G.curve);
       if (best) $('res-goal').innerHTML += `<small class="rec">新纪录！上次最好 ${fmt(best.size)}</small>`;
     } else $('res-goal').innerHTML += `<small>个人最佳 ${fmt(best.size)}</small>`;
   } else if (G.mode === 'daily') {
@@ -1929,6 +1971,7 @@ function fmtScore(L, v) {
 
 /** the end of a 关卡 or a 对手赛 (no trip up to the sky) */
 function showRoundResults() {
+  trackEnd();
   G.state = 'results';
   hud.show(false);
   input.enabled = true;

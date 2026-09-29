@@ -1,5 +1,6 @@
 // 女娲's dialog box: typewriter text with gibberish voice blips. Lines are either blocking (the intro:
-// wait for a click) or passing remarks that dismiss themselves while the game keeps running.
+// wait for a click, or 跳过 the rest) or passing remarks that dismiss themselves while the game keeps
+// running.
 import { isTouch } from './input.js';
 
 export class Dialog {
@@ -8,8 +9,15 @@ export class Dialog {
     this.box = document.getElementById('dialog');
     this.text = document.getElementById('dialog-text');
     this.next = document.getElementById('dialog-next');
+    this.skipBtn = document.getElementById('dialog-skip');
     this.queue = [];
     this.cur = null;
+    this.onSkip = null; // (lines left unread) => void
+    this.skipBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    this.skipBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      this.skip();
+    });
     this.box.addEventListener('pointerdown', e => {
       e.stopPropagation();
       this.advance();
@@ -52,6 +60,18 @@ export class Dialog {
     this.text.textContent = '';
     const touch = isTouch();
     this.next.textContent = this.cur.blocking ? (touch ? '点击继续 ▸' : '点击继续 ▸ · Esc 跳过') : '';
+    this.skipBtn.hidden = !(this.cur.blocking && this.queue.some(q => q.blocking));
+  }
+
+  /** past all the blocking lines at once, to what comes after them; false if there were none */
+  skip() {
+    const lines = [this.cur, ...this.queue].filter(q => q && q.blocking);
+    if (!lines.length) return false;
+    const left = lines.length - (this.cur && this.cur.blocking && this.cur.shown >= this.cur.chars.length ? 1 : 0);
+    this.clear();
+    if (this.onSkip) this.onSkip(left);
+    for (const q of lines) if (q.onDone) q.onDone();
+    return true;
   }
 
   advance() {
@@ -88,5 +108,6 @@ export class Dialog {
     this.queue = [];
     this.cur = null;
     this.box.hidden = true;
+    this.skipBtn.hidden = true;
   }
 }

@@ -9,7 +9,7 @@ const CATS = ['cat_orange', 'cat_tabby', 'cat_cow', 'cat_white', 'cat_black', 'c
 
 // ids: any of these counts (n of them); set: one of each; tag: that one thing; combo: a streak this
 // long; size: the ball this big (timed: within the 6 minutes). short: for the progress note on the
-// HUD. said: what 女娲 says when it comes true. long: out of reach in the 4 minutes of the 每日挑战
+// HUD. said: what 女娲 says when it comes true. long: out of reach in the short games (每日挑战, 快滚)
 export const WISHES = [
   { id: 'coins', short: '硬币', tier: 0, text: '滚起 20 枚硬币', ids: ['coin_1yuan', 'coin_5jiao'], n: 20, said: '叮叮当当，本宫收下了。' },
   { id: 'baozi', short: '包子', tier: 0, text: '滚起 5 个包子', ids: ['baozi'], n: 5, said: '包子管饱，补天才有力气。' },
@@ -36,6 +36,7 @@ export const WISHES = [
   { id: 'size500', short: '长大', tier: 2, text: '6 分钟内长到 500 米', size: 500, only: 'timed', said: '这么大一块，窟窿够补了。' },
   { id: 'size1k', short: '长大', tier: 2, text: '长到 1 公里', size: 1000, only: 'free', said: '一公里！天上都装不下你了。' },
   { id: 'size100', short: '长大', tier: 2, text: '4 分钟内长到 100 米', size: 100, only: 'daily', said: '一百米！今天的你格外能滚。' },
+  { id: 'size20', short: '长大', tier: 2, text: '3 分钟内长到 20 米', size: 20, only: 'quick', said: '三分钟二十米，手脚真麻利。' },
 ];
 
 export class Wishes {
@@ -48,11 +49,12 @@ export class Wishes {
     this.counted = false;
   }
 
-  /** rand: the day's own generator for the 每日挑战 (the same three for everyone that day) */
-  start(mode, rand = null) {
+  /** rand: the day's own generator for the 每日挑战 (the same three for everyone that day); short: a
+   *  short game, with no room for the long wishes */
+  start(mode, rand = null, short = false) {
     const last = new Set(rand ? [] : this.store.get('wishLast', []) || []);
     this.list = [0, 1, 2].map(tier => {
-      const pool = WISHES.filter(w => w.tier === tier && (!w.only || w.only === mode) && !(mode === 'daily' && w.long));
+      const pool = WISHES.filter(w => w.tier === tier && (!w.only || w.only === mode) && !(short && w.long));
       const fresh = pool.filter(w => !last.has(w.id));
       const from = fresh.length ? fresh : pool;
       const w = from[Math.floor((rand || Math.random)() * from.length)];
