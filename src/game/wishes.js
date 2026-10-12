@@ -1,4 +1,5 @@
 import { fmt } from './hud.js';
+import { t } from '../i18n/index.js';
 
 // 女娲的心愿: three wishes a game, picked at random (not the last game's again), one from each tier:
 // something for the first minute or two, one for the middle of the game, one for the end. They
@@ -122,9 +123,9 @@ export class Wishes {
   /** e.g. "2/3", "现在 120 m", or '' */
   progress(x) {
     const w = x.w;
-    if (x.done) return '达成';
-    if (w.size) return x.p > 0 ? `现在 ${fmt(x.p)}` : '';
-    if (w.combo) return x.p > 1 ? `最多 ×${x.p}` : '';
+    if (x.done) return t('达成');
+    if (w.size) return x.p > 0 ? t('现在 {size}', { size: fmt(x.p) }) : '';
+    if (w.combo) return x.p > 1 ? t('最多 ×{n}', { n: x.p }) : '';
     const n = this.need(w);
     return n > 1 ? `${x.p}/${n}` : '';
   }

@@ -1,6 +1,8 @@
 // 战绩图: a picture of the finished ball with how it went, to save and send (a long press on a phone).
 // Drawn on a 2D canvas with the page's own fonts; the ball comes in as a transparent picture.
 
+import { t } from '../i18n/index.js';
+
 const W = 720, H = 1080;
 const FIVE = ['#2aa198', '#d8342c', '#f2c14e', '#f4efe2', '#6a58c8'];
 
@@ -27,7 +29,7 @@ export function shareCard(card) {
   x.textBaseline = 'alphabetic';
   x.fillStyle = '#f2c14e';
   x.font = '30px "ZCOOL KuaiLe", "PingFang SC", sans-serif';
-  x.fillText('万物皆可滚 · 女娲补天', W / 2, 74);
+  x.fillText(t('万物皆可滚 · 女娲补天'), W / 2, 74);
   x.fillStyle = '#cfc6b4';
   x.font = '600 24px "PingFang SC", "Noto Sans SC", sans-serif';
   x.fillText(card.mode, W / 2, 114);
@@ -57,13 +59,14 @@ export function shareCard(card) {
   x.fillRect(0, H - 74, W, 74);
   x.fillStyle = '#f6efe0';
   x.font = '600 23px "PingFang SC", "Noto Sans SC", sans-serif';
-  x.fillText(`来挑战：${card.url}`, W / 2, H - 29);
+  if (card.url) x.fillText(t('来挑战：{url}', { url: card.url }), W / 2, H - 29);
   return c;
 }
 
 function wrap(x, text, cx, y, maxW, lh, maxLines) {
   let line = '', n = 0;
-  for (const ch of text) {
+  // (Chinese breaks anywhere, English between words)
+  for (const ch of /[一-鿿]/.test(text) ? text : text.split(/(?<= )/)) {
     if (x.measureText(line + ch).width > maxW && line) {
       x.fillText(n === maxLines - 1 ? line.slice(0, -1) + '…' : line, cx, y);
       if (++n >= maxLines) return;

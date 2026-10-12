@@ -7,12 +7,14 @@ import { fmt } from './hud.js';
 import { PLACES } from './minimap.js';
 import { BLURBS } from './blurbs.js';
 import { variant } from '../core/materials.js';
+import { t, placeName } from '../i18n/index.js';
 
 export const DEX_CATS = [
   ['food', '吃的'], ['daily', '日用'], ['toy', '玩具'], ['street', '街边'], ['person', '人'], ['animal', '动物'],
   ['plant', '花草树木'], ['vehicle', '车'], ['building', '房子'], ['landmark', '地标'], ['nature', '山水'],
 ];
-const CAT_NAME = Object.fromEntries(DEX_CATS);
+// (looked up when needed: the names may be put into English after this module loads)
+const catName = cat => (DEX_CATS.find(c => c[0] === cat) || [])[1] || cat;
 const THUMB = 112; // px, the little pictures (shown at 64 CSS px)
 const BIG = 320; // the card's turning one
 const BG_FOUND = 0x2e2836, BG_MISSING = 0x1c1921;
@@ -97,7 +99,7 @@ export class Dex {
         const i = this.byId.get(e.id);
         const cell = document.createElement('button');
         cell.className = 'dex-cell';
-        cell.innerHTML = '<canvas width="1" height="1"></canvas><span></span><i class="new">新</i>';
+        cell.innerHTML = '<canvas width="1" height="1"></canvas><span></span><i class="new">' + t('新') + '</i>';
         cell.addEventListener('click', () => this.showCard(i));
         grid.appendChild(cell);
         this.cells[i] = { el: cell, canvas: cell.firstChild, name: cell.children[1], drawn: null, visible: false };
@@ -139,8 +141,8 @@ export class Dex {
       const c = this.cells[i], found = this.has(e.id);
       c.el.classList.toggle('missing', !found);
       c.el.classList.toggle('fresh', this.fresh.has(e.id));
-      c.name.textContent = found ? e.name : '？？？';
-      c.el.setAttribute('aria-label', found ? e.name : '还没滚到过');
+      c.name.textContent = found ? e.name : t('？？？');
+      c.el.setAttribute('aria-label', found ? e.name : t('还没滚到过'));
       if (c.visible) this.want(i);
     });
   }
@@ -154,13 +156,13 @@ export class Dex {
   showCard(i) {
     this.card = i;
     const e = this.entries[i], found = this.has(e.id);
-    $('dex-name').textContent = found ? e.name : '？？？';
-    const need = `球要 <b>${fmt(e.need)}</b> 以上才滚得起`;
-    const where = `常见于 <b>${e.where}</b>`;
-    const said = found && BLURBS[e.id] ? `<p class="dex-said">女娲：${BLURBS[e.id]}</p>` : '';
+    $('dex-name').textContent = found ? e.name : t('？？？');
+    const need = t('球要 <b>{size}</b> 以上才滚得起', { size: fmt(e.need) });
+    const where = t('常见于 <b>{place}</b>', { place: e.where });
+    const said = found && BLURBS[e.id] ? `<p class="dex-said">${t('女娲：{line}', { line: BLURBS[e.id] })}</p>` : '';
     $('dex-info').innerHTML = found
-      ? `${said}<span>${CAT_NAME[e.cat]} · 个头约 <b>${fmt(e.size)}</b></span><span>滚起过 <b>${this.counts[e.id]}</b> 次</span><span>${need}</span><span>${where}</span>`
-      : `<span>还没滚到过</span><span>${where}</span><span>${need}</span>`;
+      ? `${said}<span>${t('{cat} · 个头约 <b>{size}</b>', { cat: catName(e.cat), size: fmt(e.size) })}</span><span>${t('滚起过 <b>{n}</b> 次', { n: this.counts[e.id] })}</span><span>${need}</span><span>${where}</span>`
+      : `<span>${t('还没滚到过')}</span><span>${where}</span><span>${need}</span>`;
     $('dex-card').hidden = false;
     this.cardT = 0;
   }
@@ -284,7 +286,7 @@ function entries(world, pickRatio) {
 const AS_WHERE = { 高铁: '高铁沿线', 群山: '城外山边', 幸福里: '幸福里小区' };
 
 function placeOf(x, z) {
-  if (Math.hypot(x, z) > 1100) return '城外山边';
+  if (Math.hypot(x, z) > 1100) return placeName('城外山边');
   let best = null, bd = Infinity;
   for (const [name, px, pz] of PLACES) {
     const d = Math.hypot(x - px, z - pz);
@@ -293,5 +295,5 @@ function placeOf(x, z) {
       best = name;
     }
   }
-  return AS_WHERE[best] || best;
+  return placeName(AS_WHERE[best] || best);
 }

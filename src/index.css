@@ -954,3 +954,23 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .logo span, .toast, #hud-size.bump, #hud-last.pop, #hud-combo.tick b, .gain, #stamp, #edge-warn, #food-arrow .ping, #food-mark b, .wish-mark b, #countdown, #speed-lines, #swipe-hint, #swipe-hint .dot, #stick-hint, #stick-hint .dot { animation: none !important; }
 }
+
+/* English (i18n/): the rounded Latin face reads better than ZCOOL KuaiLe's Latin letters in long
+   lines; the logo keeps its brush-pen look. Wide letter-spacing is for CJK eyebrows only. */
+html[lang="en"] { --display: "Baloo 2", "ZCOOL KuaiLe", ui-rounded, system-ui, sans-serif; }
+html[lang="en"] .logo { font-family: "ZCOOL KuaiLe", "Baloo 2", ui-rounded, sans-serif; }
+html[lang="en"] .eyebrow, html[lang="en"] #res-eyebrow { letter-spacing: 1.5px; }
+
+/* short landscape windows (a game portal's 16:9 frame, 800×450): the title fits without the pitch,
+   and the results keep their buttons in reach at the bottom while the rest scrolls */
+@media (max-height: 560px) and (orientation: landscape) {
+  .title-card .pitch { display: none; }
+  .logo { font-size: clamp(48px, 15vh, 96px); }
+  #res-ball { width: 84px; height: 84px; }
+  .res-size { font-size: 46px; }
+  .panel.results > .actions {
+    position: sticky; bottom: -16px; z-index: 1;
+    margin: 0 -24px -24px; padding: 10px 12px 16px; border-radius: 0 0 24px 24px;
+    background: linear-gradient(rgba(24, 21, 30, 0), rgba(24, 21, 30, 0.96) 30%);
+  }
+}

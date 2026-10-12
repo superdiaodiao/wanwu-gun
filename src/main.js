@@ -22,7 +22,9 @@ import { Maps } from './game/minimap.js';
 import { Dex } from './game/dex.js';
 import { Wishes } from './game/wishes.js';
 import { Dialog } from './game/dialog.js';
-import * as story from './game/story.js';
+import * as storyZh from './game/story.js';
+import { EN, LANG, t, setLang, translateDom } from './i18n/index.js';
+import { applyContent, localStory } from './i18n/apply.js';
 import { MODES, LEVELS, levelById, Progress, dayKey, dayLabel, dayRandom } from './game/modes.js';
 import { SKINS, skinById, skinOpen, skinNeed } from './game/skins.js';
 import { Shards, SHARDS } from './game/shards.js';
@@ -31,8 +33,20 @@ import { shareCard } from './game/share.js';
 import { track, trackVisit, trackStart, span, sizeBucket, fpsBucket } from './game/track.js';
 import { audio } from './audio/audio.js';
 
+
+// English over the Chinese, before anything reads the tables (i18n/)
+applyContent();
+const story = localStory(storyZh);
+// counted things in English: 'Rolled up {n} thing{s}'; places: '{n} place' with 1st, 2nd…; lists
+const pl = (zh, n, vars) => t(zh, { n, s: n === 1 ? '' : 's', ...vars });
+const ord = n => (EN ? n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th') : n);
+const SEP = EN ? ', ' : '、';
+const GO = t('滚！');
 const START_SIZE = 0.06;
-const SITE = 'superdiaodiao.github.io/wanwu-gun';
+// the game's own address, for shared results; on a game portal (CrazyGames) the game mustn't send
+// players elsewhere, so shared results go without it
+const PLATFORM = typeof __PLATFORM__ !== 'undefined' ? __PLATFORM__ : 'site';
+const SITE = PLATFORM === 'site' ? 'superdiaodiao.github.io/wanwu-gun' : '';
 const $ = id => document.getElementById(id);
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 const store = {
@@ -72,7 +86,7 @@ async function boot() {
     return;
   }
   const T = { t0: performance.now() };
-  setLoading('女娲正在捏泥人……');
+  setLoading(t('女娲正在捏泥人……'));
   // give the web fonts a brief head start; whatever is late gets repainted into the atlas later
   const fontsDone = loadFonts(12000);
   await Promise.race([fontsDone, new Promise(r => setTimeout(r, 600))]);
@@ -88,7 +102,7 @@ async function boot() {
   sky = new Sky(engine.scene);
   ground = new Ground(engine.scene);
   world = new World(engine.scene);
-  setLoading('正在盖幸福里小区……');
+  setLoading(t('正在盖幸福里小区……'));
   await nextFrame();
   T.pre = performance.now();
   layout = buildLayout(world);
@@ -97,7 +111,7 @@ async function boot() {
   T.layout = performance.now();
   ground.build(layout.zones);
   T.ground = performance.now();
-  setLoading('正在把瓜子撒满一地……');
+  setLoading(t('正在把瓜子撒满一地……'));
   await nextFrame();
   world.finalize();
   T.finalize = performance.now();
@@ -140,6 +154,16 @@ async function boot() {
   }
   makeGiant();
   makeBallCam();
+  if (EN) {
+    document.title = t('万物皆可滚');
+    const desc = document.querySelector('meta[name="description"]');
+    if (desc) desc.content = t(desc.content);
+    $('share-dl').download = t('万物皆可滚-战绩.png');
+    $('share-img').alt = t($('share-img').alt);
+  }
+  translateDom();
+  // a game portal: the game stands on its own there (CrazyGames: nothing pointing at other games)
+  if (PLATFORM !== 'site') $('fine-tribute').remove();
   setupUI();
   trackVisit(store, dayKey());
   resetGame('timed');
@@ -346,12 +370,12 @@ function syncLevelHud() {
   el.hidden = !L && !G.rules.goal;
   if (el.hidden) return;
   let html = '';
-  if (!L) html = `目标 <b>${fmt(G.rules.goal)}</b>`;
-  else if (L.score === 'cats') html = `猫 <b>${G.catN}</b> 只`;
-  else if (L.bumps) html = `撞了 <b>${G.bumps}</b>/${L.bumps}`;
-  else if (G.dancers) html = `大妈还剩 <b>${G.dancers.size}</b>`;
-  else if (L.goal && L.goal.size) html = `目标 <b>${fmt(L.goal.size)}</b>`;
-  else if (L.only === 'food') html = '只吃<b>吃的</b>';
+  if (!L) html = t('目标 <b>{size}</b>', { size: fmt(G.rules.goal) });
+  else if (L.score === 'cats') html = t('猫 <b>{n}</b> 只', { n: G.catN });
+  else if (L.bumps) html = t('撞了 <b>{n}</b>/{max}', { n: G.bumps, max: L.bumps });
+  else if (G.dancers) html = t('大妈还剩 <b>{n}</b>', { n: G.dancers.size });
+  else if (L.goal && L.goal.size) html = t('目标 <b>{size}</b>', { size: fmt(L.goal.size) });
+  else if (L.only === 'food') html = t('只吃<b>吃的</b>');
   if (html !== G.lvlShown) el.innerHTML = G.lvlShown = html;
 }
 
@@ -376,7 +400,7 @@ function enterTitle() {
   const bl = $('best-line');
   if (best && best.size) {
     bl.hidden = false;
-    bl.textContent = `最佳纪录：${fmt(best.size)} · ${best.rank || ''}` + (wishes.stars ? ` · 心愿 ★ ${wishes.stars}` : '');
+    bl.textContent = t('最佳纪录：{size} · {rank}', { size: fmt(best.size), rank: story.ending(best.size)[1] }) + (wishes.stars ? t(' · 心愿 ★ {n}', { n: wishes.stars }) : '');
   } else bl.hidden = true;
   titleShot(0);
   rig.pos.copy(rig.override.pos);
@@ -472,7 +496,7 @@ function showWishes(secs) {
   $('wish-list').innerHTML = wishes.list
     .map(x => {
       const hint = wishes.hint(x), p = wishes.progress(x);
-      return `<li class="${x.done ? 'done' : ''}"><i>${x.done ? '★' : '☆'}</i><span>${x.w.text}${hint ? `<small>在${hint}</small>` : ''}</span><b>${p}</b></li>`;
+      return `<li class="${x.done ? 'done' : ''}"><i>${x.done ? '★' : '☆'}</i><span>${x.w.text}${hint ? `<small>${t('在{place}', { place: hint })}</small>` : ''}</span><b>${p}</b></li>`;
     })
     .join('');
   $('wish-card').hidden = false;
@@ -489,7 +513,7 @@ function wishProgress(x) {
 function wishDone(x) {
   syncWishHud();
   $('hud-wish-note').textContent = '';
-  hud.toast(`★ 心愿达成：${x.w.text}`);
+  hud.toast(t('★ 心愿达成：{wish}', { wish: x.w.text }));
   audio.comboChime(3);
 }
 
@@ -502,9 +526,9 @@ function syncDexButton() {
 const trialDone = () => store.get('trialDone', false) || !!store.get('best', null) || !!store.get('best.quick', null);
 function syncTitleCounts() {
   const first = !trialDone();
-  $('btn-quick').innerHTML = first ? '<b>开始滚</b><small>先试滚 2 分半 · 滚到 10 米</small>' : '<b>开始补天</b><small>快滚 3 分钟</small>';
+  $('btn-quick').innerHTML = first ? t('<b>开始滚</b><small>先试滚 2 分半 · 滚到 10 米</small>') : t('<b>开始补天</b><small>快滚 3 分钟</small>');
   const d = progress.daily, streak = progress.streak;
-  $('daily-sub').textContent = `${dayLabel()} · 4 分钟` + (d ? ` · 今日最佳 ${fmt(d.size)}` : ' · 人人同一题') + (streak > 1 ? ` · 连续 ${streak} 天` : '');
+  $('daily-sub').textContent = t('{day} · 4 分钟', { day: dayLabel() }) + (d ? t(' · 今日最佳 {size}', { size: fmt(d.size) }) : t(' · 人人同一题')) + (streak > 1 ? t(' · 连续 {n} 天', { n: streak }) : '');
   $('levels-sub').textContent = `★ ${progress.levelStars}/${LEVELS.length * 3}`;
   $('star-num').textContent = `★ ${totalStars()}`;
   $('shard-num').textContent = `${shards.count}/${shards.total}`;
@@ -515,7 +539,7 @@ function openLevels() {
   $('levels-stars').textContent = `★ ${progress.levelStars}/${LEVELS.length * 3}`;
   $('level-list').innerHTML = LEVELS.map((L, i) => {
     const b = progress.levelBest(L.id), open = progress.levelOpen(i), n = b ? b.stars : 0;
-    const best = !open ? '上一关拿到 ★ 才能玩' : b && b.score !== null ? `最佳 ${fmtScore(L, b.score)}` : b ? '还没过关' : '还没玩过';
+    const best = !open ? t('上一关拿到 ★ 才能玩') : b && b.score !== null ? t('最佳 {score}', { score: fmtScore(L, b.score) }) : b ? t('还没过关') : t('还没玩过');
     const need = `★ ${fmtScore(L, L.stars[0])} · ★★ ${fmtScore(L, L.stars[1])} · ★★★ ${fmtScore(L, L.stars[2])}`;
     return `<li><button data-i="${i}"${open ? '' : ' disabled'}><span class="ln">${i + 1}. ${L.name}</span><span class="ls">${'★'.repeat(n)}<i>${'★'.repeat(3 - n)}</i></span>` +
       `<span class="lt">${L.text}</span><span class="lb">${best} · ${need}</span></button></li>`;
@@ -530,7 +554,7 @@ function openSkins() {
   const grid = $('skin-grid');
   grid.innerHTML = SKINS.map(k => {
     const open = skinOpen(k, stars, shards.count);
-    const note = k === cur ? '使用中' : open ? '点一下换上' : k.shards ? `碎片 ${shards.count}/${k.shards}` : `★ ${stars}/${k.need} 解锁`;
+    const note = k === cur ? t('使用中') : open ? t('点一下换上') : k.shards ? t('碎片 {n}/{max}', { n: shards.count, max: k.shards }) : t('★ {n}/{max} 解锁', { n: stars, max: k.need });
     return `<button class="skin-card${k === cur ? ' on' : ''}${open ? '' : ' locked'}" data-id="${k.id}" title="${open ? '' : skinNeed(k)}"><canvas width="1" height="1"></canvas><b>${k.name}</b><small>${note}</small></button>`;
   }).join('');
   // their pictures, drawn the way the 图鉴 draws its things
@@ -544,7 +568,7 @@ function openSkins() {
     dex.draw({ spec: { geometry: skinGeo.get(k.id), center: { x: 0, y: 0, z: 0 } }, tint: null }, b.firstChild, 112, -0.5, true);
   });
   $('shards-count').textContent = `${shards.count}/${shards.total}`;
-  $('shard-list').innerHTML = shards.hints().map(h => `<li class="${h.found ? 'found' : ''}">${h.found ? h.hint : '？？？'}</li>`).join('');
+  $('shard-list').innerHTML = shards.hints().map(h => `<li class="${h.found ? 'found' : ''}">${h.found ? h.hint : t('？？？')}</li>`).join('');
   $('skins').hidden = false;
 }
 
@@ -620,6 +644,12 @@ function setupUI() {
   // the very first game is the short 试滚; after that this is 快滚
   $('btn-quick').addEventListener('click', () => startGame(trialDone() ? 'quick' : 'trial'));
   $('btn-timed').addEventListener('click', () => startGame('timed'));
+  // 中文 / EN: the page starts again in the other one
+  const lang = $('btn-lang');
+  lang.textContent = EN ? '中文' : 'EN';
+  lang.lang = EN ? 'zh-CN' : 'en';
+  lang.setAttribute('aria-label', EN ? '切换到中文' : 'Switch to English');
+  lang.addEventListener('click', () => setLang(EN ? 'zh' : 'en'));
   dialog.onSkip = left => {
     if (!G.intro) return;
     G.intro.skipped = true;
@@ -749,14 +779,14 @@ function setupUI() {
   $('btn-keep').addEventListener('click', keepRolling);
   $('btn-copy').addEventListener('click', () => {
     const text = $('res-brag').textContent;
-    const done = () => ($('btn-copy').textContent = '已复制');
+    const done = () => ($('btn-copy').textContent = t('已复制'));
     const fallback = () => {
       const r = document.createRange();
       r.selectNodeContents($('res-brag'));
       const sel = getSelection();
       sel.removeAllRanges();
       sel.addRange(r);
-      $('btn-copy').textContent = '已选中，按 Ctrl/⌘+C';
+      $('btn-copy').textContent = t('已选中，按 Ctrl/⌘+C');
     };
     try {
       navigator.clipboard.writeText(text).then(done, fallback);
@@ -802,7 +832,7 @@ function syncSoundButton() {
   const off = !audio.running || audio.muted;
   const b = $('btn-sound');
   b.classList.toggle('off', off);
-  b.setAttribute('aria-label', off ? '打开声音' : '静音');
+  b.setAttribute('aria-label', off ? t('打开声音') : t('静音'));
 }
 
 function drawPauseMap() {
@@ -811,7 +841,7 @@ function drawPauseMap() {
   $('lg-red').hidden = G.mapWhole;
   const lgT = $('lg-target');
   lgT.hidden = !G.targets;
-  if (G.targets) lgT.lastElementChild.textContent = G.dancers ? '跳舞的大妈' : '没滚的猫';
+  if (G.targets) lgT.lastElementChild.textContent = G.dancers ? t('跳舞的大妈') : t('没滚的猫');
 }
 
 function togglePause(force) {
@@ -895,7 +925,7 @@ function adaptResolution(raw) {
   if (k <= 0.61 && avg > cap / 40 && G.time > 20 && !G.fpsHinted && (engine.quality !== 'low' || G.fpsCap !== 30)) {
     if (++perf.slow >= 3) {
       G.fpsHinted = true;
-      hud.toast('画面有点卡？回开始页把画质调低、勾上「省电」，会顺一些');
+      hud.toast(t('画面有点卡？回开始页把画质调低、勾上「省电」，会顺一些'));
     }
   } else perf.slow = 0;
   if (avg > cap / 45 && !perf.lock && k > 0.61) {
@@ -1007,7 +1037,7 @@ function touchHints(dt, raw) {
     store.set('swipeLearned', true);
     if (!sw.hidden) {
       sw.hidden = true;
-      hud.toast('就是这样！边滚边滑，镜头跟着转');
+      hud.toast(t('就是这样！边滚边滑，镜头跟着转'));
     }
     return;
   }
@@ -1092,7 +1122,7 @@ function foodPointer(dt) {
     el.classList.toggle('bare', mark);
     if (!food.said && !dialog.active) {
       food.said = true;
-      dialog.say('附近都滚不动了？跟着金色箭头走，那边还有能滚的！');
+      dialog.say(t('附近都滚不动了？跟着金色箭头走，那边还有能滚的！'));
     }
   }
   if (el.hidden === show) el.hidden = !show;
@@ -1105,7 +1135,7 @@ function foodPointer(dt) {
 // HUD's stars when one shows up (once in a while for each wish).
 const wishNear = { t: 0, list: [], wish: null, cands: [], found: [], said: new Map() };
 // a 关卡's own targets get the stars too: the cats, the dancing aunties
-const CAT_MARK = { label: '★ 猫' }, AUNTIE_MARK = { label: '★ 大妈' };
+const CAT_MARK = { label: t('★ 猫') }, AUNTIE_MARK = { label: t('★ 大妈') };
 function levelWants(o) {
   if (!G.level) return null;
   if (G.level.score === 'cats' && o.spec.id.startsWith('cat_')) return CAT_MARK;
@@ -1137,7 +1167,7 @@ function wishMarks(dt) {
       found.sort((a, b) => a.d - b.d);
       for (let i = 0; i < Math.min(3, found.length); i++) list.push(found[i].o);
       wishNear.wish = found.length ? found[0].x : null;
-      const label = (wishNear.wish && wishNear.wish.label) || '★ 心愿';
+      const label = (wishNear.wish && wishNear.wish.label) || t('★ 心愿');
       const first = $('wish-marks').firstChild.firstChild;
       if (first.textContent !== label) first.textContent = label;
     }
@@ -1162,7 +1192,7 @@ function wishMarks(dt) {
       const x = wishNear.wish, last = wishNear.said.get(x.w.id);
       if (last === undefined || G.time - last > 25) {
         wishNear.said.set(x.w.id, G.time);
-        $('hud-wish-note').textContent = `附近有${x.w.short}`;
+        $('hud-wish-note').textContent = t('附近有{thing}', { thing: x.w.short });
         G.wishNoteT = 3;
       }
     }
@@ -1257,7 +1287,7 @@ function obstacleTag(h, v) {
       el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       if (tagFor !== o) {
         tagFor = o;
-        $('warn-need').textContent = `要 ${fmt(o.size / PICK_RATIO)}`;
+        $('warn-need').textContent = t('要 {size}', { size: fmt(o.size / PICK_RATIO) });
       }
       show = true;
     }
@@ -1367,7 +1397,7 @@ function step(dt) {
     checkMilestones();
     if (G.rules.finale && ball.S >= story.SKY_GOAL && $('btn-patch').hidden) {
       // (timed: finishing before the clock runs out is the player's call)
-      $('btn-patch').firstChild.textContent = G.mode === 'free' ? '去补天 ' : '提前补天 ';
+      $('btn-patch').firstChild.textContent = (G.mode === 'free' ? t('去补天') : t('提前补天')) + ' ';
       $('btn-patch').classList.toggle('timed', G.mode !== 'free');
       // (timed: make it plain that 50 m is enough — no need to sit out the clock)
       $('btn-patch').classList.toggle('urge', G.mode !== 'free');
@@ -1473,7 +1503,7 @@ function step(dt) {
     if (!G.redHinted && G.hi && G.hi.red > 0 && G.time > 3 && G.toastCd <= 0) {
       G.redHinted = true;
       G.toastCd = 3;
-      hud.toast('<em>红纹</em>的还太大，先绕开 · <em>金边</em>的能滚起');
+      hud.toast(t('<em>红纹</em>的还太大，先绕开 · <em>金边</em>的能滚起'));
     }
     G.soundT -= dt;
     if (G.soundT <= 0) {
@@ -1539,7 +1569,7 @@ function handleEvents() {
         if (G.level && G.level.bumps && G.state === 'play' && !(G.cd > 0.2)) {
           G.bumps++;
           syncLevelHud();
-          if (G.bumps < G.level.bumps) hud.toast(`撞了一下！还能撞 <em>${G.level.bumps - G.bumps}</em> 下`);
+          if (G.bumps < G.level.bumps) hud.toast(t('撞了一下！还能撞 <em>{n}</em> 下', { n: G.level.bumps - G.bumps }));
           break;
         }
         // teach the rule once per kind of thing: how big you need to be
@@ -1547,14 +1577,14 @@ function handleEvents() {
         if (o && G.hintCd <= 0 && !G.hinted.has(o.spec.id) && o.size < ball.S * 12 && o.spec.name) {
           G.hinted.add(o.spec.id);
           G.hintCd = 5;
-          hud.toast(`<em>${o.spec.name}</em> 还滚不动（要 ${fmt(o.size / PICK_RATIO)}）`);
+          hud.toast(t('<em>{name}</em> 还滚不动（要 {size}）', { name: o.spec.name, size: fmt(o.size / PICK_RATIO) }));
         }
         break;
       }
       case 'knock':
         audio.knock(e.count);
         if (G.toastCd <= 0) {
-          hud.toast(ball.dashT > -0.3 ? `冲太猛撞上了，掉了 <em>${e.count}</em> 件` : `被撞掉了 <em>${e.count}</em> 件`);
+          hud.toast(ball.dashT > -0.3 ? t('冲太猛撞上了，掉了 <em>{n}</em> 件', { n: e.count }) : t('被撞掉了 <em>{n}</em> 件', { n: e.count }));
           G.toastCd = 1;
         }
         break;
@@ -1586,7 +1616,7 @@ function checkMilestones() {
     const [size, goalLine] = story.MILESTONES[reached];
     const line = size !== story.SKY_GOAL ? goalLine : G.mode === 'free' ? story.GOAL_FREE : G.rules.finale ? story.GOAL_TIMED : goalLine;
     const names = newlyEdible();
-    hud.stamp(fmt(size), names.length ? `现在能滚起：${names.join('、')}` : '');
+    hud.stamp(fmt(size), names.length ? t('现在能滚起：{list}', { list: names.join(SEP) }) : '');
     audio.milestone(Math.min(8, reached + 1));
     dialog.interrupt(line);
     hud.bump();
@@ -1628,9 +1658,9 @@ function cdHint(on) {
   G.cdHintT = 0;
   const el = $('cd-hint'), sh = $('stick-hint');
   el.hidden = !on;
-  if (on) el.textContent = G.touchScreen ? '「滚」字一出来往上一推，冲得最快；之后松手球也会自己滚' : '「滚」字一出来，按住 W（或 ↑）往前滚';
+  if (on) el.textContent = G.touchScreen ? t('「滚」字一出来往上一推，冲得最快；之后松手球也会自己滚') : t('「滚」字一出来，按住 W（或 ↑）往前滚');
   sh.classList.toggle('cd', on && G.touchScreen);
-  sh.lastElementChild.textContent = on && G.touchScreen ? '按住这里往上推' : '拇指拖着拐弯 · 松手接着滚 · 按住不动停下';
+  sh.lastElementChild.textContent = on && G.touchScreen ? t('按住这里往上推') : t('拇指拖着拐弯 · 松手接着滚 · 按住不动停下');
 }
 
 /** 3 · 2 · 1 · 滚！ — pushing off right as 滚 comes up (not before) gives a flying start */
@@ -1638,16 +1668,16 @@ function countdown(dt, raw, inp) {
   const el = $('countdown');
   const before = G.cd;
   G.cd -= dt;
-  const label = G.cd > 0.2 ? String(Math.ceil(G.cd - 0.2)) : G.cd > -0.5 ? '滚！' : '';
+  const label = G.cd > 0.2 ? String(Math.ceil(G.cd - 0.2)) : G.cd > -0.5 ? GO : '';
   if (label !== G.cdShown) {
     G.cdShown = label;
     el.hidden = !label;
     if (label) {
       el.textContent = label;
-      el.className = label === '滚！' ? 'go' : '';
+      el.className = label === GO ? 'go' : '';
       void el.offsetWidth;
       el.classList.add('tick');
-      if (label === '滚！') audio.milestone(1);
+      if (label === GO) audio.milestone(1);
       else audio.tick(+label);
     }
   }
@@ -1663,9 +1693,9 @@ function countdown(dt, raw, inp) {
     ball.vel.set(f.x * v, 0, f.z * v);
     audio.dash();
     speedLines();
-    hud.toast('<em>完美起步！</em>', 'big');
+    hud.toast(t('<em>完美起步！</em>'), 'big');
   }
-  if (G.cdGo === 'early' && before > 0.2 && G.cd <= 0.2) hud.toast('抢跑了～下次等「滚」字出来再推');
+  if (G.cdGo === 'early' && before > 0.2 && G.cd <= 0.2) hud.toast(t('抢跑了～下次等「滚」字出来再推'));
   if (!pushing && G.cdGo === 'early' && G.cd > 0.35) G.cdGo = null;
 }
 
@@ -1703,19 +1733,19 @@ function endRound(why) {
   dialog.clear();
   if (G.rules.rivals) {
     const place = G.round.standings.findIndex(e => e.me) + 1;
-    hud.stamp(place === 1 ? '第一名' : `第 ${place} 名`, '');
+    hud.stamp(place === 1 ? t('第一名') : t('第 {n} 名', { n: ord(place) }), '');
     audio.milestone(place === 1 ? 6 : 2);
   } else if (why === 'bumps') {
-    hud.stamp('撞满了', `撞了 ${G.bumps} 下，这局就到这儿`);
+    hud.stamp(t('撞满了'), t('撞了 {n} 下，这局就到这儿', { n: G.bumps }));
     audio.timeUp();
   } else if (why === 'time' && L.score === 'time') {
-    hud.stamp('时间到', story.LEVEL_FAIL);
+    hud.stamp(t('时间到'), story.LEVEL_FAIL);
     audio.timeUp();
   } else if (G.mode === 'trial') {
-    hud.stamp(why === 'goal' ? fmt(G.rules.goal) : '时间到', why === 'goal' ? '试滚成功！' : '');
+    hud.stamp(why === 'goal' ? fmt(G.rules.goal) : t('时间到'), why === 'goal' ? t('试滚成功！') : '');
     audio.milestone(why === 'goal' ? 5 : 2);
   } else {
-    hud.stamp(why === 'goal' ? '过关' : '时间到', '');
+    hud.stamp(why === 'goal' ? t('过关') : t('时间到'), '');
     audio.milestone(why === 'goal' ? 5 : 2);
   }
 }
@@ -1732,7 +1762,7 @@ function ghostSplits(dt) {
   const then = best && best[Math.round(G.time / 5)];
   if (!then) return;
   const d = ball.S - then;
-  hud.toast(`第 ${Math.round(G.time / 60)} 分钟 · 比最好那局${d >= 0 ? '<em>大</em>' : '小'} ${fmt(Math.abs(d))}`);
+  hud.toast(t(d >= 0 ? '第 {m} 分钟 · 比最好那局<em>大</em> {d}' : '第 {m} 分钟 · 比最好那局小 {d}', { m: Math.round(G.time / 60), d: fmt(Math.abs(d)) }));
 }
 function ghostCurve() {
   if (G.mode === 'timed' || G.mode === 'quick') return store.get(`curve.${G.mode}`, null);
@@ -1771,7 +1801,7 @@ function rivalEvents(evs) {
 // 五色石碎片: one more found
 function shardFound(i, o) {
   const n = shards.count;
-  hud.toast(`<em>五色石碎片</em> ${n}/${shards.total}！`, 'big');
+  hud.toast(t('<em>五色石碎片</em> {n}/{max}！', { n, max: shards.total }), 'big');
   audio.milestone(3);
   fx.firework(o.centerX(), o.y + o.h + ball.S * 0.6, o.centerZ(), Math.max(ball.S, o.size * 2));
   if (n === shards.total) dialog.interrupt(story.SHARD_ALL);
@@ -1892,26 +1922,26 @@ function showResults() {
   const size = ball.S;
   const [, rank, quote] = story.ending(size);
   resultsCommon(size);
-  $('res-eyebrow').textContent = G.mode === 'daily' ? `每日挑战 · ${dayLabel()}` : '补天石 · 最终尺寸';
-  $('res-rank').textContent = `称号：${rank}`;
-  $('res-quote').textContent = `女娲：${quote}`;
+  $('res-eyebrow').textContent = G.mode === 'daily' ? t('每日挑战 · {day}', { day: dayLabel() }) : t('补天石 · 最终尺寸');
+  $('res-rank').textContent = t('称号：{rank}', { rank });
+  $('res-quote').textContent = t('女娲：{line}', { line: quote });
   const short = story.SKY_GOAL - size;
   $('res-goal').className = 'res-goal' + (short > 0 ? ' short' : '');
   $('res-goal').innerHTML = short > 0
-    ? `补天要 <b>${story.SKY_GOAL} m</b>，还差 <b>${fmt(short)}</b>——窟窿还剩一块`
-    : `<b>补天成功！</b>窟窿补上了`;
+    ? t('补天要 <b>{goal} m</b>，还差 <b>{short}</b>——窟窿还剩一块', { goal: story.SKY_GOAL, short: fmt(short) })
+    : t('<b>补天成功！</b>窟窿补上了');
   // what the next title would have taken: something to beat next time
   const nextRank = story.ENDINGS.find(e => size < e[0]);
   const after = story.ENDINGS[story.ENDINGS.indexOf(nextRank) + 1];
-  if (short <= 0 && after) $('res-goal').innerHTML += `<small>再大 <b>${fmt(nextRank[0] - size)}</b> 就是「${after[1]}」</small>`;
+  if (short <= 0 && after) $('res-goal').innerHTML += `<small>${t('再大 <b>{d}</b> 就是「{rank}」', { d: fmt(nextRank[0] - size), rank: after[1] })}</small>`;
   $('res-goal').hidden = false;
   const got = wishes.finish();
   $('res-wish').innerHTML =
-    `<div class="rw-head">女娲的心愿 <b>★ ${got}/${wishes.list.length}</b><small>累计 ★ ${wishes.stars}</small></div>` +
+    `<div class="rw-head">${t('女娲的心愿 <b>★ {got}/{n}</b><small>累计 ★ {total}</small>', { got, n: wishes.list.length, total: wishes.stars })}</div>` +
     wishes.list.map(x => `<div class="rw${x.done ? ' ok' : ''}"><i>${x.done ? '★' : '☆'}</i>${x.w.text}${x.done ? '' : `<small>${wishes.progress(x)}</small>`}</div>`).join('');
   const st = ball.stats;
   let brag = bragLine(size, rank, st);
-  let modeLine = G.mode === 'free' ? '自由滚' : G.mode === 'quick' ? '快滚 · 3 分钟' : '限时补天 · 6 分钟';
+  let modeLine = G.mode === 'free' ? t('自由滚') : G.mode === 'quick' ? t('快滚 · 3 分钟') : t('限时补天 · 6 分钟');
   // records: the best game (and its size minute by minute, for next time's splits)
   if (G.mode === 'timed' || G.mode === 'quick') {
     // (快滚 keeps its own best to beat, and counts towards the best of all as well)
@@ -1924,23 +1954,23 @@ function showResults() {
     if (!best || size > best.size) {
       store.set(key, { size, rank, at: Date.now() });
       store.set(`curve.${G.mode}`, G.curve);
-      if (best) $('res-goal').innerHTML += `<small class="rec">新纪录！上次最好 ${fmt(best.size)}</small>`;
-    } else $('res-goal').innerHTML += `<small>个人最佳 ${fmt(best.size)}</small>`;
+      if (best) $('res-goal').innerHTML += `<small class="rec">${t('新纪录！上次最好 {size}', { size: fmt(best.size) })}</small>`;
+    } else $('res-goal').innerHTML += `<small>${t('个人最佳 {size}', { size: fmt(best.size) })}</small>`;
   } else if (G.mode === 'daily') {
     const { best, streak, better } = progress.finishDaily(size, got);
     if (better) store.set('curve.daily', { day: dayKey(), curve: G.curve });
-    $('res-goal').innerHTML += `<small>${better ? '今日新纪录！' : `今日最佳 ${fmt(best.size)}`} · 已连续挑战 <b>${streak}</b> 天</small>`;
-    modeLine = `每日挑战 · ${dayLabel()}`;
-    brag = `《万物皆可滚·女娲补天》每日挑战 ${dayLabel()}：${'★'.repeat(got)}${'☆'.repeat(3 - got)} 滚到 ${fmt(size)}，称号「${rank}」，已连续 ${streak} 天。今天的题人人都一样，来比比？ ${SITE}`;
+    $('res-goal').innerHTML += `<small>${better ? t('今日新纪录！') : t('今日最佳 {size}', { size: fmt(best.size) })}${t(' · 已连续挑战 <b>{n}</b> 天', { n: streak })}</small>`;
+    modeLine = t('每日挑战 · {day}', { day: dayLabel() });
+    brag = t('《万物皆可滚·女娲补天》每日挑战 {day}：{stars} 滚到 {size}，称号「{rank}」，已连续 {n} 天。今天的题人人都一样，来比比？ {url}', { day: dayLabel(), stars: '★'.repeat(got) + '☆'.repeat(3 - got), size: fmt(size), rank, n: streak, url: SITE });
   } else {
     const best = store.get('best', null);
     if (!best || size > best.size) store.set('best', { size, rank, at: Date.now() });
   }
-  $('res-brag').textContent = brag;
+  $('res-brag').textContent = brag.trim();
   $('btn-keep').hidden = false;
   G.result = {
-    size: fmt(size), title: `称号：${rank}`, mode: modeLine, quote: `女娲：${quote}`,
-    lines: [`滚起 ${st.count} 件 · 最大的一件 ${st.biggest ? st.biggest.name : '—'}`, wishes.list.length ? `女娲的心愿 ${'★'.repeat(got)}${'☆'.repeat(wishes.list.length - got)}` : ''].filter(Boolean),
+    size: fmt(size), title: t('称号：{rank}', { rank }), mode: modeLine, quote: t('女娲：{line}', { line: quote }),
+    lines: [pl('滚起 {n} 件 · 最大的一件 {big}', st.count, { big: st.biggest ? st.biggest.name : '—' }), wishes.list.length ? t('女娲的心愿 {stars}', { stars: '★'.repeat(got) + '☆'.repeat(wishes.list.length - got) }) : ''].filter(Boolean),
   };
   $('results').hidden = false;
   rig.override = {
@@ -1956,29 +1986,29 @@ function resultsCommon(size) {
   $('res-size').textContent = fmt(size);
   const st = ball.stats;
   const mins = Math.floor(G.time / 60), secs = Math.floor(G.time % 60);
-  const big = st.biggest ? `${st.biggest.name}（${fmt(st.biggest.size)}）` : '—';
+  const big = st.biggest ? t('{name}（{size}）', { name: st.biggest.name, size: fmt(st.biggest.size) }) : '—';
   $('res-stats').innerHTML =
-    `<span>滚起<b>${st.count}</b>件</span><span>用时<b>${mins}:${String(secs).padStart(2, '0')}</b></span>` +
-    `<span>最大的一件<b>${big}</b></span><span>最长连滚<b>×${st.bestCombo || 0}</b></span><span>掉落<b>${st.lost}</b>件</span>`;
+    t('<span>滚起<b>{n}</b>件</span>', { n: st.count }) + t('<span>用时<b>{time}</b></span>', { time: `${mins}:${String(secs).padStart(2, '0')}` }) +
+    t('<span>最大的一件<b>{big}</b></span>', { big }) + t('<span>最长连滚<b>×{n}</b></span>', { n: st.bestCombo || 0 }) + t('<span>掉落<b>{n}</b>件</span>', { n: st.lost });
   const top = Object.entries(st.byType).sort((a, b) => b[1] - a[1]).slice(0, 18);
   $('res-items').innerHTML = top.map(([id, n]) => `<span>${(CATALOG.get(id) || {}).name || id} <b>×${n}</b></span>`).join('');
   $('res-tip').hidden = !(G.touchScreen && G.fpsCap !== 30);
   dex.save();
   const fresh = [...dex.fresh].map(id => (CATALOG.get(id) || {}).name || id);
   $('res-dex-line').innerHTML = fresh.length
-    ? `图鉴新收集 <b>${fresh.length}</b> 种 · 共 <b>${dex.found}</b>/${dex.total}`
-    : `这局没有新收集 · 图鉴 <b>${dex.found}</b>/${dex.total}`;
-  $('res-dex-new').textContent = fresh.length ? fresh.slice(0, 10).join('、') + (fresh.length > 10 ? ` 等 ${fresh.length} 种` : '') : '';
+    ? t('图鉴新收集 <b>{n}</b> 种 · 共 <b>{found}</b>/{total}', { n: fresh.length, found: dex.found, total: dex.total })
+    : t('这局没有新收集 · 图鉴 <b>{found}</b>/{total}', { found: dex.found, total: dex.total });
+  $('res-dex-new').textContent = fresh.length ? fresh.slice(0, 10).join(SEP) + (fresh.length > 10 ? t(' 等 {n} 种', { n: fresh.length }) : '') : '';
   $('res-level').hidden = true;
   $('res-rivals').hidden = true;
   $('res-wish').innerHTML = '';
   $('btn-next').hidden = true;
-  $('btn-next').firstChild.textContent = '下一关';
-  $('btn-again').firstChild.textContent = '再滚一次';
+  $('btn-next').firstChild.textContent = t('下一关');
+  $('btn-again').firstChild.textContent = t('再滚一次');
   $('btn-again').classList.replace('ghost', 'primary');
-  $('btn-share').textContent = '生成战绩图';
+  $('btn-share').textContent = t('生成战绩图');
   ball.portraitOnly(true);
-  $('btn-copy').textContent = '复制战绩';
+  $('btn-copy').textContent = t('复制战绩');
   syncTitleCounts();
 }
 
@@ -1986,7 +2016,7 @@ const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStar
 /** a 关卡's score as words: 0:52 / 23 只 / 45 cm */
 function fmtScore(L, v) {
   if (v === null || v === undefined) return '—';
-  return L.score === 'time' ? fmtTime(v) : L.score === 'cats' ? `${v} 只` : fmt(v);
+  return L.score === 'time' ? fmtTime(v) : L.score === 'cats' ? t('{n} 只', { n: v }) : fmt(v);
 }
 
 /** the end of a 关卡 or a 对手赛 (no trip up to the sky) */
@@ -2004,52 +2034,57 @@ function showRoundResults() {
   if (G.level) {
     const L = G.level;
     const { stars, best, better } = progress.finishLevel(L, R.score);
-    $('res-eyebrow').textContent = `关卡 ${LEVELS.indexOf(L) + 1} · ${L.name}`;
-    $('res-rank').textContent = R.score === null ? '没过关' : stars ? story.LEVEL_DONE[stars - 1] : '差一点点';
+    $('res-eyebrow').textContent = t('关卡 {i} · {name}', { i: LEVELS.indexOf(L) + 1, name: L.name });
+    $('res-rank').textContent = R.score === null ? t('没过关') : stars ? story.LEVEL_DONE[stars - 1] : t('差一点点');
     const scoreLine = L.score === 'time'
-      ? (R.score === null ? `${fmtTime(L.seconds)} 内没滚到` : `用时 ${fmtTime(R.score)}`)
-      : L.score === 'cats' ? `滚起了 ${R.score} 只猫` : `滚到了 ${fmt(R.score)}`;
+      ? (R.score === null ? t('{time} 内没滚到', { time: fmtTime(L.seconds) }) : t('用时 {time}', { time: fmtTime(R.score) }))
+      : L.score === 'cats' ? pl('滚起了 {n} 只猫', R.score) : t('滚到了 {size}', { size: fmt(R.score) });
     $('res-level').innerHTML =
       `<div class="stars">${'★'.repeat(stars)}<i>${'★'.repeat(3 - stars)}</i></div><p>${scoreLine}</p>` +
-      `<small>${better && best.score !== null ? '新纪录！' : `最佳：${fmtScore(L, best.score)}`} · ★ ${fmtScore(L, L.stars[0])} · ★★ ${fmtScore(L, L.stars[1])} · ★★★ ${fmtScore(L, L.stars[2])}</small>`;
+      `<small>${better && best.score !== null ? t('新纪录！') : t('最佳：{score}', { score: fmtScore(L, best.score) })} · ★ ${fmtScore(L, L.stars[0])} · ★★ ${fmtScore(L, L.stars[1])} · ★★★ ${fmtScore(L, L.stars[2])}</small>`;
     $('res-level').hidden = false;
-    $('res-quote').textContent = `女娲：${stars ? (stars === 3 ? '完美！本宫看着都过瘾。' : '好样的！再来一次，冲三颗星！') : story.LEVEL_FAIL}`;
+    $('res-quote').textContent = t('女娲：{line}', { line: stars ? (stars === 3 ? t('完美！本宫看着都过瘾。') : t('好样的！再来一次，冲三颗星！')) : story.LEVEL_FAIL });
     const i = LEVELS.indexOf(L);
     $('btn-next').hidden = !(i < LEVELS.length - 1 && progress.levelOpen(i + 1));
-    title = `关卡「${L.name}」${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`;
-    lines = [scoreLine, `滚起 ${st.count} 件`];
-    brag = `我在《万物皆可滚·女娲补天》关卡「${L.name}」拿了 ${'★'.repeat(stars) || '0 颗星'}：${scoreLine}。${SITE}`;
+    title = t('关卡「{name}」{stars}', { name: L.name, stars: '★'.repeat(stars) + '☆'.repeat(3 - stars) });
+    lines = [scoreLine, pl('滚起 {n} 件', st.count)];
+    brag = t('我在《万物皆可滚·女娲补天》关卡「{name}」拿了 {stars}：{score}。{url}', { name: L.name, stars: '★'.repeat(stars) || t('0 颗星'), score: scoreLine, url: SITE });
   } else if (G.mode === 'trial') {
     // the first game: once it's over (made it or not) 限时补天 takes over the big button
     const ok = R.why === 'goal';
     store.set('trialDone', true);
-    $('res-eyebrow').textContent = '试滚 · 2 分半';
-    $('res-rank').textContent = ok ? '试滚成功！' : '差一点点';
-    const scoreLine = ok ? `${fmtTime(G.time)} 滚到 ${fmt(G.rules.goal)}` : `滚到了 ${fmt(size)}（目标 ${fmt(G.rules.goal)}）`;
-    $('res-quote').textContent = `女娲：${ok ? story.TRIAL_DONE : story.TRIAL_SHORT}`;
+    $('res-eyebrow').textContent = t('试滚 · 2 分半');
+    $('res-rank').textContent = ok ? t('试滚成功！') : t('差一点点');
+    const scoreLine = ok ? t('{time} 滚到 {goal}', { time: fmtTime(G.time), goal: fmt(G.rules.goal) }) : t('滚到了 {size}（目标 {goal}）', { size: fmt(size), goal: fmt(G.rules.goal) });
+    $('res-quote').textContent = t('女娲：{line}', { line: ok ? story.TRIAL_DONE : story.TRIAL_SHORT });
     $('btn-next').hidden = false;
-    $('btn-next').firstChild.textContent = '开始补天 · 3 分钟';
-    $('btn-again').firstChild.textContent = '再试滚一次';
+    $('btn-next').firstChild.textContent = t('开始补天 · 3 分钟');
+    $('btn-again').firstChild.textContent = t('再试滚一次');
     $('btn-again').classList.replace('primary', 'ghost');
-    title = ok ? '试滚成功' : '试滚';
-    lines = [scoreLine, `滚起 ${st.count} 件`];
-    brag = `我在《万物皆可滚·女娲补天》里${ok ? `${fmtTime(G.time)} 就` : ''}把五色石滚到了 ${fmt(size)}！${SITE}`;
+    title = ok ? t('试滚成功') : t('试滚');
+    lines = [scoreLine, pl('滚起 {n} 件', st.count)];
+    brag = ok
+      ? t('我在《万物皆可滚·女娲补天》里{time} 就把五色石滚到了 {size}！{url}', { time: fmtTime(G.time), size: fmt(size), url: SITE })
+      : t('我在《万物皆可滚·女娲补天》里把五色石滚到了 {size}！{url}', { size: fmt(size), url: SITE });
   } else {
     const list = R.standings;
     const place = list.findIndex(e => e.me) + 1;
     const { stars } = progress.finishRivals(place);
-    $('res-eyebrow').textContent = '对手赛 · 3 分钟';
-    $('res-rank').textContent = place === 1 ? '第一名！' : `第 ${place} 名`;
-    $('res-rivals').innerHTML = list.map((e, k) => `<li class="${e.me ? 'me' : ''}${e.alive ? '' : ' out'}"><i>${k + 1}</i><span>${e.name}</span><b>${e.alive ? fmt(e.S) : '被滚走了'}</b></li>`).join('');
+    $('res-eyebrow').textContent = t('对手赛 · 3 分钟');
+    $('res-rank').textContent = place === 1 ? t('第一名！') : t('第 {n} 名', { n: ord(place) });
+    $('res-rivals').innerHTML = list.map((e, k) => `<li class="${e.me ? 'me' : ''}${e.alive ? '' : ' out'}"><i>${k + 1}</i><span>${e.name}</span><b>${e.alive ? fmt(e.S) : t('被滚走了')}</b></li>`).join('');
     $('res-rivals').hidden = false;
     const ate = G.rivalsEaten;
-    $('res-quote').textContent = `女娲：${place === 1 ? (ate.length ? `连「${ate[0]}」都被你滚进来了，这城里你最能滚！` : '第一！别家的五色石都不如你的。') : '别灰心，先抢地盘，再抢对手！'}`;
-    title = place === 1 ? '对手赛 第一名' : `对手赛 第 ${place} 名`;
-    lines = [`滚起 ${st.count} 件${ate.length ? ` · 滚走了对手 ${ate.join('、')}` : ''}`, `对手赛 ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`];
-    brag = `我在《万物皆可滚·女娲补天》对手赛拿了第 ${place} 名，滚到 ${fmt(size)}${ate.length ? `，还把「${ate.join('」「')}」整个滚了进来` : ''}！${SITE}`;
+    $('res-quote').textContent = t('女娲：{line}', { line: place === 1 ? (ate.length ? t('连「{name}」都被你滚进来了，这城里你最能滚！', { name: ate[0] }) : t('第一！别家的五色石都不如你的。')) : t('别灰心，先抢地盘，再抢对手！') });
+    title = place === 1 ? t('对手赛 第一名') : t('对手赛 第 {n} 名', { n: ord(place) });
+    lines = [pl('滚起 {n} 件', st.count) + (ate.length ? t(' · 滚走了对手 {names}', { names: ate.join(SEP) }) : ''), t('对手赛 {stars}', { stars: '★'.repeat(stars) + '☆'.repeat(3 - stars) })];
+    brag = t('我在《万物皆可滚·女娲补天》对手赛拿了第 {n} 名，滚到 {size}{ate}！{url}', {
+      n: ord(place), size: fmt(size), url: SITE,
+      ate: ate.length ? t('，还把「{names}」整个滚了进来', { names: ate.join(EN ? '”, “' : '」「') }) : '',
+    });
     rivals.stop();
   }
-  $('res-brag').textContent = brag;
+  $('res-brag').textContent = brag.trim();
   G.result = { size: fmt(size), title, mode: $('res-eyebrow').textContent, quote: $('res-quote').textContent, lines };
   $('results').hidden = false;
   rig.override = {
@@ -2068,13 +2103,13 @@ function bragLine(size, rank, st) {
   const cats = Object.keys(st.byType).filter(k => k.startsWith('cat_')).reduce((a, k) => a + st.byType[k], 0);
   const cars = st.byCat.vehicle || 0;
   const blds = (st.byCat.building || 0) + (st.byCat.landmark || 0);
-  if (aunties) parts.push(`${aunties} 位大妈`);
-  if (uncles) parts.push(`${uncles} 位大爷`);
-  if (cats) parts.push(`${cats} 只猫`);
-  if (cars) parts.push(`${cars} 辆车`);
-  if (blds) parts.push(`${blds} 栋楼`);
-  const extra = parts.length ? `，其中有${parts.join('、')}` : '';
-  return `我在《万物皆可滚·女娲补天》里把五色石滚到了 ${fmt(size)}，称号「${rank}」！一共滚起 ${st.count} 件东西${extra}。`;
+  if (aunties) parts.push(pl('{n} 位大妈', aunties));
+  if (uncles) parts.push(pl('{n} 位大爷', uncles));
+  if (cats) parts.push(pl('{n} 只猫', cats));
+  if (cars) parts.push(pl('{n} 辆车', cars));
+  if (blds) parts.push(pl('{n} 栋楼', blds));
+  const extra = parts.length ? t('，其中有{list}', { list: parts.join(SEP) }) : '';
+  return pl('我在《万物皆可滚·女娲补天》里把五色石滚到了 {size}，称号「{rank}」！一共滚起 {n} 件东西{extra}。', st.count, { size: fmt(size), rank, extra });
 }
 
 function keepRolling() {
@@ -2298,5 +2333,5 @@ window.__wanwu = {
 
 boot().catch(e => {
   console.error(e);
-  setLoading('出错了：' + (e && e.message ? e.message : e));
+  setLoading(t('出错了：{msg}', { msg: e && e.message ? e.message : e }));
 });

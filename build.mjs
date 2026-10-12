@@ -2,6 +2,8 @@
 //
 //   node build.mjs game [--dev] [--watch]         -> dist/index.html (+ dist/index.artifact.html and dist/site/
 //                                                    when not --dev: see assembleSite)
+//   node build.mjs crazygames                     -> dist/crazygames/index.html + dist/crazygames.zip, the
+//                                                    upload for CrazyGames (no links to the site, no stats)
 //   node build.mjs gallery [--only=small,street]  -> dist/gallery.html  (or dist/gallery-<only>.html)
 //   node build.mjs audio                          -> dist/audio-test.html
 //
@@ -10,6 +12,7 @@
 //   <!--BODY--> ... <!--/BODY-->   (markup)
 // and src/<name>.css (optional) is inlined as a <style> block.
 import * as esbuild from 'esbuild';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -95,6 +98,16 @@ function assembleSite(tplName, js) {
   console.log(`[build] dist/site/index.html + ${file} (${kb(`dist/site/${file}`)} KB; gzipped for COS in dist/cos/, ${kb(`dist/cos/${file}`)} KB)`);
 }
 
+function assembleCrazyGames() {
+  fs.rmSync('dist/crazygames', { recursive: true, force: true });
+  fs.mkdirSync('dist/crazygames');
+  fs.renameSync('dist/crazygames.html', 'dist/crazygames/index.html');
+  fs.rmSync('dist/crazygames.zip', { force: true });
+  execFileSync('zip', ['-q', '-9', '../crazygames.zip', 'index.html'], { cwd: 'dist/crazygames' });
+  const kb = f => (fs.statSync(f).size / 1024).toFixed(0);
+  console.log(`[build] dist/crazygames/index.html ${kb('dist/crazygames/index.html')} KB → dist/crazygames.zip ${kb('dist/crazygames.zip')} KB`);
+}
+
 // While the audio module is still being written, resolve it to a silent stand-in so the game builds.
 const audioFallback = {
   name: 'audio-fallback',
@@ -138,13 +151,18 @@ const base = {
   legalComments: 'none',
   charset: 'utf8',
   logLevel: 'warning',
-  define: { __DEV__: dev ? 'true' : 'false', __GLYPHS__: JSON.stringify(collectGlyphs()) },
+  define: { __DEV__: dev ? 'true' : 'false', __GLYPHS__: JSON.stringify(collectGlyphs()), __PLATFORM__: '"site"' },
 };
 
 let opts, tplName, outName, artifact = false;
 if (target === 'game') {
   opts = { ...base, entryPoints: ['src/main.js'] };
   tplName = 'index'; outName = 'index'; artifact = !dev;
+} else if (target === 'crazygames') {
+  // __PLATFORM__ 'crazygames': the game says nothing about the site (no URL in shared results) and
+  // sends no statistics; the zip holds just index.html, the whole game in one file
+  opts = { ...base, define: { ...base.define, __PLATFORM__: '"crazygames"' }, entryPoints: ['src/main.js'] };
+  tplName = 'index'; outName = 'crazygames';
 } else if (target === 'gallery') {
   const parts = only ? only.split(',').map(k => `./src/catalog/${k.trim()}.js`) : ['./src/catalog/index.js'];
   const contents = parts.map(p => `import '${p}';`).join('\n') + `\nimport './src/gallery.js';\n`;
@@ -177,6 +195,7 @@ if (watch) {
     const r = await esbuild.build(opts);
     assemble(tplName, r.outputFiles[0].text, outName, artifact);
     if (target === 'game' && !dev) assembleSite(tplName, r.outputFiles[0].text);
+    if (target === 'crazygames') assembleCrazyGames();
   } catch (e) {
     process.exit(1);
   }

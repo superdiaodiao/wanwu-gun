@@ -5,6 +5,8 @@
 // own, and 对手赛 against three other balls. Stars come from wishes that came true, the best result
 // of each 关卡 and the best place in 对手赛; they unlock the ball's skins (skins.js).
 
+import { EN } from '../i18n/index.js';
+
 export const MODES = {
   trial: { name: '试滚', seconds: 150, goal: 10, grow: 2, wishes: false, countdown: true, ghost: false, finale: false },
   quick: { name: '快滚', seconds: 180, wishes: true, countdown: true, ghost: true, finale: true, short: true },
@@ -55,7 +57,8 @@ export function levelStars(level, score) {
 export function dayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-export function dayLabel(d = new Date()) { return `${d.getMonth() + 1}月${d.getDate()}日`; }
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function dayLabel(d = new Date()) { return EN ? `${MONTHS[d.getMonth()]} ${d.getDate()}` : `${d.getMonth() + 1}月${d.getDate()}日`; }
 const prevDay = key => {
   const [y, m, d] = key.split('-').map(Number);
   return dayKey(new Date(y, m - 1, d - 1));

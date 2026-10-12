@@ -2,6 +2,7 @@
 // wait for a click, or 跳过 the rest) or passing remarks that dismiss themselves while the game keeps
 // running.
 import { isTouch } from './input.js';
+import { t } from '../i18n/index.js';
 
 export class Dialog {
   constructor(audio) {
@@ -59,7 +60,7 @@ export class Dialog {
     this.cur.wait = 0;
     this.text.textContent = '';
     const touch = isTouch();
-    this.next.textContent = this.cur.blocking ? (touch ? '点击继续 ▸' : '点击继续 ▸ · Esc 跳过') : '';
+    this.next.textContent = this.cur.blocking ? (touch ? t('点击继续 ▸') : t('点击继续 ▸ · Esc 跳过')) : '';
     this.skipBtn.hidden = !(this.cur.blocking && this.queue.some(q => q.blocking));
   }
 

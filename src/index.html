@@ -43,7 +43,7 @@
   <div id="warn-tag" hidden aria-hidden="true"><b>滚不动</b><span id="warn-need"></span></div>
   <div id="hud-keys"><kbd>W</kbd> 前进 <kbd>A</kbd><kbd>D</kbd> 转弯 <kbd>S</kbd> 掉头 · 拖动鼠标转镜头 <kbd>空格</kbd> 冲刺 <kbd>C</kbd> 镜头 <kbd>Esc</kbd> 暂停·地图</div>
   <button id="btn-sound" class="icon-btn" aria-label="声音开关"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9.5h3.2L12 5.2v13.6l-4.8-4.3H4z" fill="currentColor"/><g class="waves" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/></g><path class="slash" d="M15.5 9l6 6m0-6l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
-  <button id="btn-pause" class="icon-btn" aria-label="暂停"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="12" y="3" width="4" height="14" rx="1.2" fill="currentColor"/></svg></button>
+  <button id="btn-pause" class="icon-btn" aria-label="暂停游戏"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="12" y="3" width="4" height="14" rx="1.2" fill="currentColor"/></svg></button>
 </div>
 
 <div id="toast-stack" aria-live="polite"></div>
@@ -62,8 +62,8 @@
 <div id="title-screen" class="screen">
   <div class="title-card">
     <div class="eyebrow">女娲补天 · 块魂同人</div>
-    <h1 class="logo"><span>万</span><span>物</span><span>皆</span><span>可</span><span>滚</span></h1>
-    <p class="pitch">天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。</p>
+    <h1 class="logo" data-i18n><span>万</span><span>物</span><span>皆</span><span>可</span><span>滚</span></h1>
+    <p class="pitch" data-i18n>天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。</p>
     <div class="actions">
       <button id="btn-quick" class="btn primary"><b>开始补天</b><small>快滚 3 分钟</small></button>
       <button id="btn-daily" class="btn daily"><b>每日挑战</b><small id="daily-sub">4 分钟 · 今天人人同一题</small></button>
@@ -85,12 +85,13 @@
       <label class="check"><input type="checkbox" id="chk-music" checked> 音乐</label>
       <label class="check"><input type="checkbox" id="chk-sfx" checked> 音效</label>
       <label class="check" title="每秒画 30 帧而不是 60 帧：手机不容易发烫，更省电"><input type="checkbox" id="chk-save"> 省电</label>
+      <button id="btn-lang" class="chip lang-chip" type="button">EN</button>
     </div>
     <div class="keys-help">
-      <span><kbd>W</kbd> 前进 <kbd>A</kbd><kbd>D</kbd> 转弯 <kbd>S</kbd> 掉头</span><span><kbd>空格</kbd> 冲刺</span><span>拖动鼠标转镜头 · 手机：球自己往前滚，一根拇指拖着拐弯，往下拉掉头，按住不动停下</span><span><b class="k-gold">金边</b>的能滚起，<b class="k-red">红纹</b>的还太大、先绕开；平时撞一下不掉东西，冲刺撞上才会掉</span>
+      <span><kbd>W</kbd> 前进 <kbd>A</kbd><kbd>D</kbd> 转弯 <kbd>S</kbd> 掉头</span><span><kbd>空格</kbd> 冲刺</span><span>拖动鼠标转镜头 · 手机：球自己往前滚，一根拇指拖着拐弯，往下拉掉头，按住不动停下</span><span data-i18n><b class="k-gold">金边</b>的能滚起，<b class="k-red">红纹</b>的还太大、先绕开；平时撞一下不掉东西，冲刺撞上才会掉</span>
     </div>
     <div id="best-line" class="best" hidden></div>
-    <div class="fine">非官方同人作品，致敬《块魂》。所有模型、贴图、音乐均为程序实时生成。</div>
+    <div class="fine"><span id="fine-tribute">非官方同人作品，致敬《块魂》。</span>所有模型、贴图、音乐均为程序实时生成。</div>
   </div>
 </div>
 
