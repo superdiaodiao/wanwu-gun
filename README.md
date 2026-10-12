@@ -86,3 +86,7 @@ npm run gallery       # 模型图鉴：dist/gallery.html（?filter=cat 只看某
 ## 说明
 
 非官方同人作品，致敬《块魂》（塊魂 / Katamari Damacy），不包含原作的任何素材。整个项目由 Claude Code（Claude Opus 5.5）根据一句话需求完成设计、编码与测试。
+
+## 版权
+
+© 2026 superdiaodiao，保留所有权利。欢迎在 <https://superdiaodiao.github.io/wanwu-gun/> 免费游玩；未经书面许可，不得复制、改编、换皮后发布或上架到任何平台，也不得用于商业用途。详见 [LICENSE](LICENSE)（打包在内的 three.js 按 MIT 许可证使用）。

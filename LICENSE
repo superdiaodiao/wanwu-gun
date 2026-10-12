@@ -1,0 +1,52 @@
+万物皆可滚 · 女娲补天
+Copyright (c) 2026 superdiaodiao. 保留所有权利 / All rights reserved.
+
+本仓库中的源代码、构建出的游戏文件（index.html、wanwu.*.js 等）以及游戏中的
+全部内容（玩法设计、关卡、文字、模型、图案、音乐与音效），版权均归作者所有。
+
+允许：
+  - 在官方地址 https://superdiaodiao.github.io/wanwu-gun/ 免费游玩；
+  - 在 GitHub 上查看本仓库，以及 GitHub 服务条款允许的查看与 fork。
+
+未经作者书面许可，不得：
+  - 复制、修改、改编、换皮或翻译本游戏或其代码，并以任何形式发布、分发或上架
+    （包括但不限于网站、小游戏平台、应用商店、小程序 / 小游戏）；
+  - 将本游戏或其代码、内容的全部或部分用于任何商业用途（包括接入广告、内购、
+    付费下载或推广引流）；
+  - 移除或篡改本版权声明。
+
+如需授权或合作，请在 GitHub 上联系作者：https://github.com/superdiaodiao
+
+第三方组件：游戏打包了 three.js（https://threejs.org），其版权归 three.js 作者，
+按 MIT 许可证使用，该组件不受上述限制：
+
+  The MIT License
+  Copyright © 2010-2026 three.js authors
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
+
+----------------------------------------------------------------------------
+
+English summary: Copyright (c) 2026 superdiaodiao. All rights reserved. You may
+play the game at https://superdiaodiao.github.io/wanwu-gun/ and view this
+repository on GitHub. Without the author's written permission you may not copy,
+modify, adapt, reskin or translate the game or its code and publish, distribute
+or list it anywhere, nor use any part of it commercially. three.js, bundled in
+the game, is used under the MIT License above and is not subject to these
+restrictions.
