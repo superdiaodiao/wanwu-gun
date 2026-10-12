@@ -177,8 +177,9 @@ export class Input {
     const impulse = this.turnImpulse;
     this.turnImpulse = 0;
     this.pressed.clear();
-    if (!this.enabled) return { fwd: false, back: false, keyTurn: 0, padTurn: 0, stick: null, turnImpulse: 0, dash: false };
-    return { fwd, back, keyTurn, padTurn, stick, turnImpulse: impulse, dash };
+    if (!this.enabled) return { fwd: false, back: false, keyTurn: 0, padTurn: 0, stick: null, held: false, turnImpulse: 0, dash: false };
+    // held: a thumb is on the stick (even if it hasn't moved it)
+    return { fwd, back, keyTurn, padTurn, stick, held: this.joy.id !== null, turnImpulse: impulse, dash };
   }
 }
 
@@ -207,9 +208,14 @@ const angDiff = (from, to) => {
  * Pointing back towards the camera is a turn-around: the ball heads the way the stick points, fixed
  * in the world while it stays back there (the view swinging round would otherwise drag the
  * direction with it), and `quick` tells the camera to swing round fast.
+ *
+ * On a touch screen (`cruise`) the game plays with one thumb: let go of the stick and the ball rolls
+ * on the way it goes, the view swinging round behind it; a thumb resting on the stick without
+ * pushing stops it. Running into something too big (`stall()`) stops it too, until the next push.
  */
 const HOLD = 10 * (Math.PI / 180); // stick within this of straight up: keep the course
 const KEY_TURN = [1.2, 2.2]; // rad/s: a tap, held (after ~0.35 s)
+const CRUISE = 0.85; // how hard the ball rolls on by itself (a full push is 1)
 /** stick angle → heading offset: a fraction of it near straight up, all of it at 90° and beyond */
 function ease(a) {
   const q = Math.PI / 2, x = Math.abs(a);
@@ -220,6 +226,14 @@ export class Driver {
   constructor() {
     this.lock = null; // world heading held during a turn-around
     this.keyHeld = 0; // how long A / D have been held
+    this.cruise = false; // roll on with no thumb on the stick (touch screens)
+    this.stalled = false; // ran into something: wait for a push before rolling on
+  }
+
+  /** ran into something too big, about head-on (strength 0..1): stop rolling on by itself, unless
+   *  a thumb is steering */
+  stall(raw, strength) {
+    if (this.cruise && strength >= 0.45 && !(raw && raw.stick)) this.stalled = true;
   }
 
   update(raw, camYaw, heading, dt, rolling = true) {
@@ -239,8 +253,14 @@ export class Driver {
     const out = { dir: null, m: 0, quick: false, hold: false, turnImpulse: turn, dash: raw.dash };
     if (a === null) {
       this.lock = null;
+      if (this.cruise && !raw.held && !this.stalled) {
+        out.dir = heading + turn;
+        out.m = CRUISE;
+        out.hold = true;
+      }
       return out;
     }
+    this.stalled = false;
     // into the back zone past ~130°, out of it only below ~115° (no flicker at the edge)
     if (Math.abs(a) > (this.lock === null ? 2.28 : 2.0)) {
       if (this.lock === null) this.lock = camYaw + a;

@@ -4,9 +4,10 @@
 // about who is playing is sent; 百度统计 counts visitors itself.
 //
 // BAIDU_ID is the site's id from 百度统计 (the part after hm.js? in the code it gives you). Left
-// empty, nothing is loaded or sent. Only pages served over http(s) from somewhere other than this
-// computer report, and ?notrack switches it off (for playing yourself). ?trackdebug logs every
-// event to the console.
+// empty, nothing is loaded or sent. Only the game at its own address (HOME) reports: not this
+// computer, and not copies of it put up elsewhere (one on another site sent its players' visits
+// here). ?notrack switches it off (for playing yourself); ?trackdebug logs every event to the
+// console.
 //
 // Each event goes out twice: as an event (事件分析, category 'wanwu', which the free plan of 百度统计
 // doesn't show: it needs 分析云) and as a made-up page, /wanwu-gun/e/<action>/<label>, counted in
@@ -26,10 +27,12 @@
 const BAIDU_ID = '051ce4949c1654e14647eaa86d5ce5df';
 const CATEGORY = 'wanwu';
 
+const HOME = { host: 'superdiaodiao.github.io', path: '/wanwu-gun' };
+
 const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 const debug = q.has('trackdebug');
-const local = typeof location === 'undefined' || !/^https?:$/.test(location.protocol) || /^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname);
-const on = !!BAIDU_ID && !local && !q.has('notrack');
+const home = typeof location !== 'undefined' && location.protocol === 'https:' && location.hostname === HOME.host && location.pathname.startsWith(HOME.path);
+const on = !!BAIDU_ID && home && !q.has('notrack');
 let games = 0;
 
 function load() {

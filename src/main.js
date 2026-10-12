@@ -443,6 +443,7 @@ function beginPlay() {
   // (a game that ended in the sky switched the controls off)
   input.enabled = true;
   G.touchScreen = isTouch();
+  driver.cruise = G.touchScreen;
   resetTips();
   // (read them during the countdown: they go when 滚 comes up)
   if (G.rules.wishes) showWishes(G.rules.countdown ? 3 : 6);
@@ -996,8 +997,8 @@ function touchHints(dt, raw) {
   }
   const stickOn = (!tips.stick && tips.stickT > 1) || !!G.cdHint;
   if (sh.hidden === stickOn) sh.hidden = !stickOn;
-  // right thumb
-  if (tips.swipe) {
+  // right thumb (not pressed on anyone: one thumb is enough when the ball rolls on by itself)
+  if (tips.swipe || driver.cruise) {
     if (!sw.hidden) sw.hidden = true;
     return;
   }
@@ -1292,7 +1293,7 @@ function updateView(S) {
 
 const NO_INPUT = { dir: null, m: 0, quick: false, hold: false, turnImpulse: 0, dash: false };
 function step(dt) {
-  const raw = input.poll();
+  const raw = (G.raw = input.poll());
   // (while counting down the ball waits, but the view can still be turned)
   const counting = G.state === 'play' && G.cd > 0.2;
   const inp = G.state === 'play' ? driver.update(raw, rig.yaw, ball.heading, dt, ball.speed() > ball.maxSpeed() * 0.3) : { ...NO_INPUT };
@@ -1531,6 +1532,7 @@ function handleEvents() {
       }
       case 'bump': {
         audio.bump(e.strength);
+        driver.stall(G.raw, e.strength);
         rig.shake(0.035 * e.strength);
         fx.bump(ball.pos.x, ball.centerY, ball.pos.z, ball.S);
         // 小心轻放: every crash counts
@@ -1626,9 +1628,9 @@ function cdHint(on) {
   G.cdHintT = 0;
   const el = $('cd-hint'), sh = $('stick-hint');
   el.hidden = !on;
-  if (on) el.textContent = G.touchScreen ? '「滚」字一出来，左手按住左下角往上推' : '「滚」字一出来，按住 W（或 ↑）往前滚';
+  if (on) el.textContent = G.touchScreen ? '「滚」字一出来往上一推，冲得最快；之后松手球也会自己滚' : '「滚」字一出来，按住 W（或 ↑）往前滚';
   sh.classList.toggle('cd', on && G.touchScreen);
-  sh.lastElementChild.textContent = on && G.touchScreen ? '按住这里往上推' : '左手按住拖 · 往哪推往哪滚';
+  sh.lastElementChild.textContent = on && G.touchScreen ? '按住这里往上推' : '拇指拖着拐弯 · 松手接着滚 · 按住不动停下';
 }
 
 /** 3 · 2 · 1 · 滚！ — pushing off right as 滚 comes up (not before) gives a flying start */
@@ -2234,6 +2236,8 @@ window.__wanwu = {
   get progress() { return progress; },
   get inputEnabled() { return input.enabled; },
   get shards() { return shards; },
+  get driver() { return driver; },
+  get input() { return input; },
   openShare,
   step: dt => step(dt),
   skipIntro() { dialog.clear(); beginPlay(); },
