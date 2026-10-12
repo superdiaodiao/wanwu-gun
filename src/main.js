@@ -1738,7 +1738,7 @@ function endRound(why) {
   } else if (why === 'bumps') {
     hud.stamp(t('撞满了'), t('撞了 {n} 下，这局就到这儿', { n: G.bumps }));
     audio.timeUp();
-  } else if (why === 'time' && L.score === 'time') {
+  } else if (why === 'time' && L && L.score === 'time') {
     hud.stamp(t('时间到'), story.LEVEL_FAIL);
     audio.timeUp();
   } else if (G.mode === 'trial') {
