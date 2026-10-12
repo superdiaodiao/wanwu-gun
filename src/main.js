@@ -294,6 +294,7 @@ function resetGame(mode, levelId = null) {
   movers = new Movers(world, layout);
   const s = layout.start;
   ball.reset(START_SIZE, s.x, s.z, s.heading);
+  ball.rateBoost = G.rules.grow || 1;
   driver = new Driver();
   G.gainAcc = 0;
   G.comboShown = 0;
@@ -342,10 +343,11 @@ function resetGame(mode, levelId = null) {
 /** the level's own count in the HUD pill: 猫 ×3, 撞 2/5, 大妈还剩 20 */
 function syncLevelHud() {
   const el = $('hud-lvl'), L = G.level;
-  el.hidden = !L;
-  if (!L) return;
+  el.hidden = !L && !G.rules.goal;
+  if (el.hidden) return;
   let html = '';
-  if (L.score === 'cats') html = `猫 <b>${G.catN}</b> 只`;
+  if (!L) html = `目标 <b>${fmt(G.rules.goal)}</b>`;
+  else if (L.score === 'cats') html = `猫 <b>${G.catN}</b> 只`;
   else if (L.bumps) html = `撞了 <b>${G.bumps}</b>/${L.bumps}`;
   else if (G.dancers) html = `大妈还剩 <b>${G.dancers.size}</b>`;
   else if (L.goal && L.goal.size) html = `目标 <b>${fmt(L.goal.size)}</b>`;
@@ -428,6 +430,7 @@ function introLines(mode) {
   if (mode === 'daily') return [story.INTRO_DAILY];
   if (mode === 'rivals') return [story.INTRO_RIVALS];
   if (mode === 'level') return [G.level.intro];
+  if (mode === 'trial') return story.INTRO_TRIAL;
   const last = mode === 'quick' ? story.INTRO_QUICK : mode === 'timed' ? story.INTRO_TIMED : story.INTRO_FREE;
   return seen ? [last] : [...story.INTRO, last];
 }
@@ -494,7 +497,11 @@ function syncDexButton() {
 }
 
 /** the counts on the title screen: today's challenge, the levels' stars, all stars, shards */
+// (players from before 试滚 existed already have a best game: they skip it)
+const trialDone = () => store.get('trialDone', false) || !!store.get('best', null) || !!store.get('best.quick', null);
 function syncTitleCounts() {
+  const first = !trialDone();
+  $('btn-quick').innerHTML = first ? '<b>开始滚</b><small>先试滚 2 分半 · 滚到 10 米</small>' : '<b>开始补天</b><small>快滚 3 分钟</small>';
   const d = progress.daily, streak = progress.streak;
   $('daily-sub').textContent = `${dayLabel()} · 4 分钟` + (d ? ` · 今日最佳 ${fmt(d.size)}` : ' · 人人同一题') + (streak > 1 ? ` · 连续 ${streak} 天` : '');
   $('levels-sub').textContent = `★ ${progress.levelStars}/${LEVELS.length * 3}`;
@@ -609,7 +616,8 @@ function applyAudioPrefs() {
 }
 
 function setupUI() {
-  $('btn-quick').addEventListener('click', () => startGame('quick'));
+  // the very first game is the short 试滚; after that this is 快滚
+  $('btn-quick').addEventListener('click', () => startGame(trialDone() ? 'quick' : 'trial'));
   $('btn-timed').addEventListener('click', () => startGame('timed'));
   dialog.onSkip = left => {
     if (!G.intro) return;
@@ -642,6 +650,7 @@ function setupUI() {
   $('btn-share').addEventListener('click', openShare);
   $('share-close').addEventListener('click', () => ($('share').hidden = true));
   $('btn-next').addEventListener('click', () => {
+    if (G.mode === 'trial') return startGame('quick');
     const i = LEVELS.indexOf(G.level);
     if (i >= 0 && LEVELS[i + 1]) startGame('level', LEVELS[i + 1].id);
   });
@@ -1320,6 +1329,7 @@ function step(dt) {
       if (left <= 0) timeUp();
     }
     if (G.level && G.state === 'play') levelGoals();
+    if (G.rules.goal && !G.level && G.state === 'play' && ball.S >= G.rules.goal) endRound('goal');
     if (G.rules.ghost && !counting) ghostSplits(dt);
     // bounds: soft wall far out
     const d = Math.hypot(ball.pos.x, ball.pos.z);
@@ -1358,6 +1368,8 @@ function step(dt) {
       // (timed: finishing before the clock runs out is the player's call)
       $('btn-patch').firstChild.textContent = G.mode === 'free' ? '去补天 ' : '提前补天 ';
       $('btn-patch').classList.toggle('timed', G.mode !== 'free');
+      // (timed: make it plain that 50 m is enough — no need to sit out the clock)
+      $('btn-patch').classList.toggle('urge', G.mode !== 'free');
       $('btn-patch').hidden = false;
     }
     if (G.mode === 'free' && ball.S >= story.SKY_GOAL) {
@@ -1570,7 +1582,7 @@ function checkMilestones() {
   }
   if (reached >= 0) {
     const [size, goalLine] = story.MILESTONES[reached];
-    const line = size === story.SKY_GOAL && G.mode === 'free' ? story.GOAL_FREE : goalLine;
+    const line = size !== story.SKY_GOAL ? goalLine : G.mode === 'free' ? story.GOAL_FREE : G.rules.finale ? story.GOAL_TIMED : goalLine;
     const names = newlyEdible();
     hud.stamp(fmt(size), names.length ? `现在能滚起：${names.join('、')}` : '');
     audio.milestone(Math.min(8, reached + 1));
@@ -1697,6 +1709,9 @@ function endRound(why) {
   } else if (why === 'time' && L.score === 'time') {
     hud.stamp('时间到', story.LEVEL_FAIL);
     audio.timeUp();
+  } else if (G.mode === 'trial') {
+    hud.stamp(why === 'goal' ? fmt(G.rules.goal) : '时间到', why === 'goal' ? '试滚成功！' : '');
+    audio.milestone(why === 'goal' ? 5 : 2);
   } else {
     hud.stamp(why === 'goal' ? '过关' : '时间到', '');
     audio.milestone(why === 'goal' ? 5 : 2);
@@ -1956,6 +1971,9 @@ function resultsCommon(size) {
   $('res-rivals').hidden = true;
   $('res-wish').innerHTML = '';
   $('btn-next').hidden = true;
+  $('btn-next').firstChild.textContent = '下一关';
+  $('btn-again').firstChild.textContent = '再滚一次';
+  $('btn-again').classList.replace('ghost', 'primary');
   $('btn-share').textContent = '生成战绩图';
   ball.portraitOnly(true);
   $('btn-copy').textContent = '复制战绩';
@@ -1999,6 +2017,21 @@ function showRoundResults() {
     title = `关卡「${L.name}」${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`;
     lines = [scoreLine, `滚起 ${st.count} 件`];
     brag = `我在《万物皆可滚·女娲补天》关卡「${L.name}」拿了 ${'★'.repeat(stars) || '0 颗星'}：${scoreLine}。${SITE}`;
+  } else if (G.mode === 'trial') {
+    // the first game: once it's over (made it or not) 限时补天 takes over the big button
+    const ok = R.why === 'goal';
+    store.set('trialDone', true);
+    $('res-eyebrow').textContent = '试滚 · 2 分半';
+    $('res-rank').textContent = ok ? '试滚成功！' : '差一点点';
+    const scoreLine = ok ? `${fmtTime(G.time)} 滚到 ${fmt(G.rules.goal)}` : `滚到了 ${fmt(size)}（目标 ${fmt(G.rules.goal)}）`;
+    $('res-quote').textContent = `女娲：${ok ? story.TRIAL_DONE : story.TRIAL_SHORT}`;
+    $('btn-next').hidden = false;
+    $('btn-next').firstChild.textContent = '开始补天 · 3 分钟';
+    $('btn-again').firstChild.textContent = '再试滚一次';
+    $('btn-again').classList.replace('primary', 'ghost');
+    title = ok ? '试滚成功' : '试滚';
+    lines = [scoreLine, `滚起 ${st.count} 件`];
+    brag = `我在《万物皆可滚·女娲补天》里${ok ? `${fmtTime(G.time)} 就` : ''}把五色石滚到了 ${fmt(size)}！${SITE}`;
   } else {
     const list = R.standings;
     const place = list.findIndex(e => e.me) + 1;

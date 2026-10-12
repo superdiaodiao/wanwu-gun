@@ -11,11 +11,20 @@ export const INTRO = [
 export const SKY_GOAL = 50;
 export const INTRO_TIMED = '天上的窟窿，得一块五十米的补天石才补得上。天黑之前——六分钟——滚到五十米，越大越好。去吧！';
 export const INTRO_QUICK = '天上的窟窿，得一块五十米的补天石才补得上。三分钟，能滚多大滚多大——去吧！';
+// the very first game: the short 试滚 (the rest of the story waits for its results)
+export const INTRO_TRIAL = [
+  '咳咳——小泥人，醒醒！本宫是女娲。天被本宫捅了个窟窿，得滚一块大石头去补。',
+  '先练练手：推着这颗五色石，比它小的一碰就粘上，越滚越大。两分半，滚到十米！',
+];
+export const TRIAL_DONE = '十米！手感不错嘛。真要补天得滚到五十米——下一局来真的，三分钟，能滚多大滚多大！';
+export const TRIAL_SHORT = '差一点点！不急，再来一局就到十米了。';
 export const INTRO_FREE = '不着急，慢慢滚。滚到五十米就够补天了，到时候本宫叫你。';
 export const GOAL_FREE = '五十米！够补天了——想补天就点「去补天」。接着滚到两百米，本宫封你「五色神石」！';
 export const ALL_ROLLED = '城里都被你滚空了……该去补天了！点「去补天」就行。';
 
 // size (m) → 女娲's comment. The HUD goal is always the next entry.
+// (50 m in a timed game: the 「提前补天」 button lights up, see main.js)
+export const GOAL_TIMED = '五十米！够补天了——现在点「提前补天」就能去补，想封更大的称号就接着滚！';
 export const MILESTONES = [
   [0.1, '十厘米！瓜子、硬币都粘上了。继续！'],
   [0.2, '二十厘米！包子和苹果也能滚了。'],

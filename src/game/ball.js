@@ -101,6 +101,7 @@ export class Ball {
     this.S = size;
     this.Sp = size ** GROW.P;
     this.pending = 0;
+    this.rateBoost = 1; // 试滚 grows faster (main.js sets it after a reset)
     this.displayS = size;
     this.expand = 1;
     this.lodK = 12;
@@ -208,7 +209,7 @@ export class Ball {
 
     // absorb pending growth, at most GROW.rate of the diameter per second
     if (this.pending > 0) {
-      const rate = typeof GROW.rate === 'function' ? GROW.rate(this.S) : GROW.rate;
+      const rate = (typeof GROW.rate === 'function' ? GROW.rate(this.S) : GROW.rate) * this.rateBoost;
       const room = ((1 + rate * dt) ** GROW.P - 1) * this.Sp;
       const a = Math.min(this.pending, Math.max(room, this.Sp * 1e-6));
       this.Sp += a;

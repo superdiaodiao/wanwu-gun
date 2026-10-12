@@ -1,10 +1,12 @@
-// Ways to play, and what each keeps from game to game: 快滚 (3 minutes, the first thing on the title
-// screen), the classic 6-minute 限时补天, 自由滚, the
+// Ways to play, and what each keeps from game to game: a short 试滚 for the very first game (2½
+// minutes to 10 m, growing twice as fast), 快滚 (3 minutes, the first thing on the title screen
+// after that), the classic 6-minute 限时补天, 自由滚, the
 // 每日挑战 (the same wishes for everyone on the same day, 4 minutes), five 关卡 with rules of their
 // own, and 对手赛 against three other balls. Stars come from wishes that came true, the best result
 // of each 关卡 and the best place in 对手赛; they unlock the ball's skins (skins.js).
 
 export const MODES = {
+  trial: { name: '试滚', seconds: 150, goal: 10, grow: 2, wishes: false, countdown: true, ghost: false, finale: false },
   quick: { name: '快滚', seconds: 180, wishes: true, countdown: true, ghost: true, finale: true, short: true },
   timed: { name: '限时补天', seconds: 360, wishes: true, countdown: true, ghost: true, finale: true },
   free: { name: '自由滚', seconds: null, wishes: true, countdown: false, ghost: false, finale: true },
