@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 export const ZONES = [
-  'grass', 'field', 'dirt', 'sand', 'concrete', 'plaza', 'brick', 'sidewalk', 'tactile',
+  'grass', 'field', 'dirt', 'sand', 'concrete', 'carpet', 'plaza', 'brick', 'sidewalk', 'tactile',
   'road', 'track', 'stone', 'water', 'marking', 'marking_y',
 ];
 
@@ -76,6 +76,15 @@ const KIND_CODE = {
     col *= 0.95 + 0.1 * mix(0.5, h12(floor(p * 70.0)), vis(fw, 0.014));
     col = mix(col, lin(vec3(0.58, 0.57, 0.55)), gridAA(p, vec2(3.0), 0.015));
     col = mix(col, col * 0.86, smoothstep(0.7, 0.8, vn(p * 0.12)) * 0.6);
+    return col;`,
+  carpet: `
+    // office carpet tiles (50 cm), each laid a little differently, with a fine loop-pile speckle
+    vec2 id = floor(p / 0.5);
+    float r = h12(id);
+    vec3 col = mix(lin(vec3(0.46, 0.49, 0.54)), lin(vec3(0.52, 0.55, 0.60)), r);
+    col *= 0.93 + 0.12 * mix(0.5, h12(floor(p * 90.0)), vis(fw, 0.011));
+    col = mix(col, col * 0.88, gridAA(p, vec2(0.5), 0.01));
+    col *= 0.96 + 0.06 * fbm3(p * 0.3);
     return col;`,
   plaza: `
     vec2 id = floor(p / 1.2);

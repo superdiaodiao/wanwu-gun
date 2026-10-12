@@ -9,15 +9,15 @@ import { D, shade } from '../core/modeler.js';
 import { decal, fitText, FONTS, getUV } from '../core/atlas.js';
 
 // ---- palette ------------------------------------------------------------------------------------
-const EYE = 0x2a1d17;
-const SKIN = 0xf6d0aa, SKIN_OLD = 0xf0c49c, SKIN_TAN = 0xe0a878;
+export const EYE = 0x2a1d17;
+export const SKIN = 0xf6d0aa, SKIN_OLD = 0xf0c49c, SKIN_TAN = 0xe0a878;
 const HAIR_BLACK = 0x2e2624, HAIR_GREY = 0xb9b4ac, HAIR_WHITE = 0xe9e5dc;
-const WHITE = 0xf4f2ec, INK = 0x26262c;
+export const WHITE = 0xf4f2ec, INK = 0x26262c;
 const RED = 0xd8342c, GOLD = 0xf2c14e, ORANGE = 0xf2a14a, TEAL = 0x2aa198;
 const NAVY = 0x2c3e66, LEAF = 0x5cae4f, PINK = 0xf29aa6;
 
 // ---- small math helpers -----------------------------------------------------------------------------
-const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+export const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const v3 = a => (a && a.isVector3 ? a.clone() : V(a[0], a[1], a[2]));
 const UP = V(0, 1, 0);
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -87,7 +87,7 @@ function ik(S, G, a, b, hint) {
   return { E: S.clone().addScaledVector(dir, x).addScaledVector(perp, h), G: S.clone().add(d) };
 }
 
-function paint(m, on, fn) { if (on) m.tint(); fn(); if (on) m.tint(0); }
+export function paint(m, on, fn) { if (on) m.tint(); fn(); if (on) m.tint(0); }
 
 /** Radius of a lathe profile [[r, y], ...] at height y (linear). */
 function profR(prof, y) {
@@ -256,7 +256,7 @@ function sweep(m, pts, o) {
 }
 
 /** Shift everything so the bounding box is centred on x = z = 0 (models with big props). */
-function centreXZ(m) {
+export function centreXZ(m) {
   const P = m.P;
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (let i = 0; i < P.length; i += 3) {
@@ -485,6 +485,7 @@ function dims(o) {
   return P;
 }
 
+// (exported for office_people.js)
 /**
  * Chibi person. Feet on y = 0, facing +Z. Returns { P, hands } (hands in the upper-body frame).
  * o: h, kid, look fields (see LOOK), sit (seat height), lean, nod, turn, armL/armR, legL/legR, extra.
@@ -492,7 +493,7 @@ function dims(o) {
  *    point, hint: elbow direction, hold(m, handPos, forearmDir, side) }.
  *    leg spec: { at: [out, y, z] ankle target (x mirrored) }.
  */
-function person(m, o = {}) {
+export function person(m, o = {}) {
   const P = dims(o);
   const L = Object.assign({}, LOOK, o);
   const hipY = o.sit != null ? o.sit + P.legR * 0.8 : P.hipY * (o.crouch || 1);

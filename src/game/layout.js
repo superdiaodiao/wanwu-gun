@@ -1,5 +1,5 @@
 // The map: 幸福里小区 (start), 幸福路小吃街, 幸福广场 with the square dance, 人民公园 with the pond,
-// 幸福小学, the city beyond, farmland with a high-speed railway, and a ring of mountains.
+// 幸福小学, the open-plan office of 幸福科技 (the other start), the city beyond, farmland with a high-speed railway, and a ring of mountains.
 // North is −Z, east is +X. Everything is seeded, so the town is the same every game.
 import { RNG } from '../core/rng.js';
 import { poly } from './ground.js';
@@ -23,6 +23,8 @@ export function buildLayout(world, seed = 20260923) {
   const L = {
     zones, paths, lanes, blocked,
     start: { x: 0, z: 4, heading: 0 },
+    // where each 开局 begins (start is home's)
+    starts: { home: { x: 0, z: 4, heading: 0 }, office: null },
     groups: { dance: null, taichi: null },
     pond: null,
     ponds: [],
@@ -511,6 +513,141 @@ export function buildLayout(world, seed = 20260923) {
   scatter([['kid', 1]], 16, inRect(-40, -150, 40, -110), { margin: 0.6, o: { moverState: { radius: 18 } } });
   scatter([['basketball', 1], ['shuttlecock', 1], ['book', 1], ['chalk', 2], ['eraser', 2], ['pinwheel', 0.5]], 40, inRect(-66, -165, 66, -92), { margin: 0.1 });
   scatter([['tree_plane', 1]], 10, inRect(-68, -202, 68, -165), { margin: 4, solid: true });
+
+  // =========================================================================================
+  // 5b. 幸福科技 — the ground floor of an office, open to the sky, the 工位 start
+  // =========================================================================================
+  // A walled open-plan floor on carpet between the school and the plaza: rows of desks back
+  // to back, a meeting corner, a pantry, a lobby with the front desk and the gates, and the glass
+  // front opening south onto the ring road (the plaza is just across it). The ball starts in the
+  // aisle with the floor strewn with the clips and capsules that fall off desks; what is on the
+  // desks (0.75 m up) waits until it has grown tall enough to sweep them.
+  {
+    const OX0 = 92, OX1 = 148, OZ0 = -146, OZ1 = -96;
+    const DESK_Y = 0.75;
+    Z('carpet', poly.rect(OX0, OZ0, OX1, OZ1));
+    Z('plaza', poly.rect(108, OZ1, 132, -88)); // forecourt down to the sidewalk
+    // the glass walls: 4 m panels all round, a gap in the south side for the doors
+    const glass = (x0, z0, x1, z1, skip) => {
+      const len = Math.hypot(x1 - x0, z1 - z0), n = Math.round(len / 4);
+      const yaw = Math.atan2(x1 - x0, z1 - z0) - HALF;
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
+        if (skip && skip(x, z)) continue;
+        put('office_glass_wall', x, z, { yaw });
+      }
+    };
+    glass(OX0, OZ0, OX1, OZ0);
+    glass(OX0, OZ0, OX0, OZ1);
+    glass(OX1, OZ0, OX1, OZ1);
+    glass(OX0, OZ1, OX1, OZ1, x => x > 112 && x < 128);
+    block(OX0 - 0.4, OZ0 - 0.4, OX1 + 0.4, OZ0 + 0.4);
+    block(OX0 - 0.4, OZ0 - 0.4, OX0 + 0.4, OZ1 + 0.4);
+    block(OX1 - 0.4, OZ0 - 0.4, OX1 + 0.4, OZ1 + 0.4);
+    block(OX0 - 0.4, OZ1 - 0.4, 112, OZ1 + 0.4);
+    block(128, OZ1 - 0.4, OX1 + 0.4, OZ1 + 0.4);
+    // doors, and the gates just inside (people pass them north–south; the gaps between them are
+    // wide enough for a small ball)
+    for (const x of [115.5, 124.5]) solid('office_glass_door', x, OZ1, { yaw: 0 }, 0.1);
+    for (const x of [116, 118.6, 121.4, 124]) solid('office_turnstile', x, OZ1 - 4, { yaw: HALF }, 0.1);
+    // lobby: front desk, plant wall, the lifts on the east wall
+    solid('office_front_desk', 103, OZ1 - 4.5, { yaw: 0 }, 0.3);
+    solid('office_plant_wall', OX0 + 0.4, OZ1 - 5, { yaw: HALF }, 0.2);
+    for (const z of [OZ1 - 4, OZ1 - 7]) solid('office_elevator', OX1 - 1.1, z, { yaw: -HALF }, 0.2);
+    put('office_pothos', 101, OZ1 - 3.2, { y: 1.15 });
+    // the desks: each row two desks back to back, chairs on the aisle sides
+    const DW = 1.45;
+    const desks = [];
+    // (three columns of seven, four rows: the start is in the middle column's first aisle)
+    const ROWS = [-106, -114, -122, -130];
+    for (const [bx, rows] of [[96.5, ROWS], [113.5, ROWS], [130.5, ROWS]]) {
+      for (const rz of rows) for (let i = 0; i < 7; i++) {
+        const x = bx + i * DW;
+        for (const side of [1, -1]) {
+          const z = rz + side * 0.37;
+          solid('office_desk', x, z, { yaw: side > 0 ? 0 : PI }, 0.05);
+          desks.push({ x, z, side });
+          put('office_chair', x + rng.range(-0.15, 0.15), rz + side * 1.25, { yaw: (side > 0 ? PI : 0) + rng.range(-0.5, 0.5) });
+        }
+      }
+      // partitions closing the ends of each block
+      for (const rz of rows) for (const ex of [bx - 1.6, bx + 6 * DW + 1.6]) put('office_partition', ex, rz, { yaw: HALF });
+    }
+    // what's on the desks: a monitor or a laptop each, and the clutter around the keyboard
+    for (const d of desks) {
+      // (dz: towards the chair; everything faces the chair, like the desk)
+      const yaw = d.side > 0 ? 0 : PI;
+      const at = (dx, dz) => [d.x + dx, d.z + d.side * dz];
+      if (rng.chance(0.8)) {
+        put('office_monitor', ...at(0, -0.17), { y: DESK_Y, yaw });
+        put('office_keyboard', ...at(rng.range(-0.08, 0.08), 0.12), { y: DESK_Y, yaw });
+        put('office_mouse', ...at(0.36, 0.14), { y: DESK_Y, yaw: yaw + rng.range(-0.4, 0.4) });
+      } else put('office_laptop', ...at(rng.range(-0.1, 0.1), 0.05), { y: DESK_Y, yaw: yaw + rng.range(-0.2, 0.2) });
+      const extras = [['office_coffee', 3], ['office_mug', 3], ['office_report', 2], ['office_sticky', 2], ['office_pothos', 1.2],
+        ['office_lamp', 0.8], ['office_snack_box', 1], ['office_stapler', 1.2], ['office_neck_pillow', 0.6], ['tea_cup', 0.8], ['phone', 1], ['milk_tea', 1]];
+      const n = rng.int(1, 3);
+      for (let k = 0; k < n; k++) put(rng.weighted(extras), ...at(rng.pick([-0.52, -0.42, 0.5, 0.58]), rng.range(-0.2, 0.2)), { y: DESK_Y, yaw: rng.angle() });
+    }
+    // meeting corner (north-west) with its whiteboard
+    solid('office_meeting_table', 101, OZ0 + 6, { yaw: 0 }, 0.2);
+    for (let i = 0; i < 4; i++) for (const side of [1, -1]) put('office_chair', 99.2 + i * 1.2, OZ0 + 6 + side * 1.1, { yaw: (side > 0 ? PI : 0) + rng.range(-0.3, 0.3) });
+    for (const dx of [-0.9, 0.6]) put('office_laptop', 101 + dx, OZ0 + 6 + 0.2, { y: 0.75, yaw: PI });
+    put('office_report', 102, OZ0 + 5.7, { y: 0.75, yaw: 0.3 });
+    solid('office_whiteboard', 109, OZ0 + 4.5, { yaw: -HALF }, 0.1);
+    // pantry (north-east): counter with the coffee machine, water, snacks
+    solid('office_pantry', 136, OZ0 + 0.7, { yaw: 0 }, 0.1);
+    put('office_coffee_machine', 135.9, OZ0 + 0.7, { y: 0.88, yaw: 0 });
+    for (const x of [139, 141]) solid('office_vending', x + 1.2, OZ0 + 0.8, { yaw: 0 }, 0.1);
+    solid('office_water', OX1 - 0.6, OZ0 + 4, { yaw: -HALF }, 0.1);
+    solid('office_water', OX0 + 0.6, -112, { yaw: HALF }, 0.1);
+    // printers and cabinets at the aisle ends
+    for (const [x, z] of [[OX0 + 1, -120], [OX1 - 1, -120]]) {
+      solid('office_printer', x, z, { yaw: x < 120 ? HALF : -HALF }, 0.1);
+      solid('office_cabinet', x, z - 1.6, { yaw: x < 120 ? HALF : -HALF }, 0.1);
+      solid('office_cabinet', x, z + 1.6, { yaw: x < 120 ? HALF : -HALF }, 0.1);
+      scatter([['office_report', 2], ['office_paperclip', 3], ['office_binder_clip', 2]], 10, around(x + (x < 120 ? 1.2 : -1.2), z, 0.7), { margin: 0 });
+    }
+    // the floor: whatever falls off desks, thickest in the aisles round the start
+    const OFFICE_TINY = [
+      ['office_paperclip', 8], ['office_binder_clip', 3], ['office_pushpin', 5], ['office_capsule', 6], ['office_usb', 1.5],
+      ['office_sticky', 2.5], ['office_badge', 1], ['office_earbuds', 1], ['coin_1yuan', 1.5], ['candy', 3], ['guazi', 2],
+      ['bottle_cap', 1], ['button', 1], ['eraser', 1], ['key', 0.5],
+    ];
+    const OFFICE_SMALL = [
+      ['office_coffee', 3], ['office_mug', 2], ['office_mouse', 1.5], ['office_stapler', 1.5], ['office_report', 2],
+      ['office_snack_box', 1], ['office_neck_pillow', 1], ['office_pothos', 1], ['milk_tea', 1.5], ['soda_can', 1.5],
+      ['phone', 1], ['tissue', 1], ['takeout_bag', 1], ['parcel_small', 1], ['umbrella', 0.6],
+    ];
+    const S0 = { x: 120, z: -101.5 };
+    L.starts.office = { x: S0.x, z: S0.z - 10, heading: 0 };
+    // (as thick round the start as the home one: something to roll up at every turn)
+    scatter(OFFICE_TINY, 1100, inDisc(S0.x, S0.z - 10, 0.3, 4.5), { margin: 0 });
+    scatter(OFFICE_TINY, 700, inDisc(S0.x, S0.z - 10, 0.35, 7.5), { margin: 0 });
+    scatter(OFFICE_TINY, 900, inRect(OX0 + 1, OZ0 + 1, OX1 - 1, OZ1 - 1), { margin: 0.02 });
+    scatter(OFFICE_SMALL, 160, inRect(OX0 + 1, OZ0 + 1, OX1 - 1, OZ1 - 1), { margin: 0.15 });
+    // and the in-between sizes (30–80 cm) for a ball of a metre or so, which has eaten the floor
+    // bare but can't yet take a chair, a desk or a colleague
+    const OFFICE_MID = [
+      ['parcel_big', 3], ['parcel_small', 2], ['plastic_stool', 2], ['suitcase', 1.5], ['office_water', 1], ['trash_bag', 1.5],
+      ['electric_fan', 1], ['office_coffee_machine', 0.8], ['office_neck_pillow', 1], ['takeout_bag', 2], ['basketball', 0.6],
+      ['rice_cooker', 0.5], ['pothos', 1], ['kettle', 0.6], ['thermos', 1],
+    ];
+    scatter(OFFICE_MID, 150, inRect(OX0 + 1.5, OZ0 + 1.5, OX1 - 1.5, OZ1 - 6), { margin: 0.4 });
+    scatter([['office_paperclip', 1]], 60, around(119, -112, 0.5), { margin: 0 });
+    scatter([['office_capsule', 1]], 30, around(137, OZ0 + 2.2, 0.6), { margin: 0 });
+    // people: colleagues about their business, and the boss on his rounds
+    const WORKERS = [['office_worker_laptop', 3], ['office_worker_coffee', 3], ['office_worker_tired', 2], ['office_worker_headset', 2]];
+    scatter(WORKERS, 14, inRect(OX0 + 3, OZ0 + 3, OX1 - 3, OZ1 - 6), { margin: 0.5, o: { moverState: { radius: 6 } } });
+    put('office_boss', 110, -118, { yaw: 0, moverState: { radius: 9 } });
+    // plants along the walls
+    for (const [x, z] of [[OX0 + 1, -128], [OX0 + 1, -136], [OX1 - 1, -128], [OX1 - 1, -136], [112, OZ0 + 1], [126, OZ0 + 1], [OX0 + 1, OZ0 + 1]]) put('potted_plant', x, z, { yaw: rng.angle() });
+    // outside the door: the takeaway locker, couriers' parcels, bikes
+    solid('office_takeout_locker', 107, -91.5, { yaw: 0 }, 0.2);
+    scatter([['takeout_bag', 3], ['parcel_small', 1]], 12, inRect(104, -93, 112, -89), { margin: 0 });
+    for (let i = 0; i < 8; i++) put('shared_bike', 130 + i * 1.1, -90.5, { yaw: HALF + rng.range(-0.1, 0.1) });
+    // nothing else gets built here (the tower blocks that fill this part of town keep out)
+    block(OX0 - 6, OZ0 - 6, OX1 + 6, -88);
+  }
 
   // =========================================================================================
   // 6. The city: blocks of towers, offices, parks and building sites

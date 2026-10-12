@@ -8,5 +8,8 @@ import './street.js';
 import './vehicles.js';
 import './buildings.js';
 import './nature.js';
+import './office_small.js';
+import './office_furniture.js';
+import './office_people.js';
 import './tweaks.js';
 export { CATALOG } from './registry.js';
