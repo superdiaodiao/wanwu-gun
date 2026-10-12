@@ -98,10 +98,24 @@ function assembleSite(tplName, js) {
   console.log(`[build] dist/site/index.html + ${file} (${kb(`dist/site/${file}`)} KB; gzipped for COS in dist/cos/, ${kb(`dist/cos/${file}`)} KB)`);
 }
 
+/** the page with nothing but ASCII in it: HTML character references in the markup, CSS escapes in
+ *  <style>, \u escapes in the script (esbuild's ascii charset leaves regular expressions alone; a
+ *  \u escape per UTF-16 unit works in strings, regular expressions and names alike) */
+function asciiHtml(html) {
+  const ref = s => s.replace(/[^\x00-\x7f]/gu, c => `&#x${c.codePointAt(0).toString(16)};`);
+  const css = s => s.replace(/[^\x00-\x7f]/gu, c => `\\${c.codePointAt(0).toString(16)} `);
+  const js = s => s.replace(/[^\x00-\x7f]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  const out = html.replace(/(<style>)([\s\S]*?)(<\/style>)|(<script>[\s\S]*?<\/script>)|([^<]+|<)/g, (m, a, body, z, script, rest) =>
+    a ? a + css(body) + z : script ? js(script) : ref(rest));
+  if (/[^\x00-\x7f]/.test(out)) throw new Error('crazygames: non-ASCII left in the page');
+  return out;
+}
+
 function assembleCrazyGames() {
   fs.rmSync('dist/crazygames', { recursive: true, force: true });
   fs.mkdirSync('dist/crazygames');
-  fs.renameSync('dist/crazygames.html', 'dist/crazygames/index.html');
+  fs.writeFileSync('dist/crazygames/index.html', asciiHtml(fs.readFileSync('dist/crazygames.html', 'utf8')));
+  fs.rmSync('dist/crazygames.html');
   fs.rmSync('dist/crazygames.zip', { force: true });
   execFileSync('zip', ['-q', '-9', '../crazygames.zip', 'index.html'], { cwd: 'dist/crazygames' });
   const kb = f => (fs.statSync(f).size / 1024).toFixed(0);
@@ -161,7 +175,9 @@ if (target === 'game') {
 } else if (target === 'crazygames') {
   // __PLATFORM__ 'crazygames': the game says nothing about the site (no URL in shared results) and
   // sends no statistics; the zip holds just index.html, the whole game in one file
-  opts = { ...base, define: { ...base.define, __PLATFORM__: '"crazygames"' }, entryPoints: ['src/main.js'] };
+  // (ASCII only: the portal's server mangled multi-byte characters here and there in the file, so
+  // every non-ASCII character in the script is escaped, and the page's in assembleCrazyGames)
+  opts = { ...base, charset: 'ascii', define: { ...base.define, __PLATFORM__: '"crazygames"' }, entryPoints: ['src/main.js'] };
   tplName = 'index'; outName = 'crazygames';
 } else if (target === 'gallery') {
   const parts = only ? only.split(',').map(k => `./src/catalog/${k.trim()}.js`) : ['./src/catalog/index.js'];
