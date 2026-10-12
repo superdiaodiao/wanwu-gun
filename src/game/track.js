@@ -8,17 +8,20 @@
 // computer report, and ?notrack switches it off (for playing yourself). ?trackdebug logs every
 // event to the console.
 //
-// In 百度统计: 事件分析, category 'wanwu'. The events:
-//   visit     label 新访客 / 第 N 天 (days since the first visit on this device)
-//   start     label the way of playing (quick, timed, daily, rivals, free, level:<id>)
-//   game_n    label 1, 2, 3, 4+: the how-manieth game since the page was opened
-//   intro     label 听完 / 跳过 k/n (k of the n lines read)
-//   end       label mode · how long, value seconds played
-//   size      label mode · how big the ball ended up
-//   quit      label home / restart · mode · how long (left a game from the pause menu)
-//   leave     label state · mode · how long (switched away in the middle of a game)
-//   fps       label touch|desk · frames per second (at the end of a game)
-//   click     label a button on the title or results screen
+// Each event goes out twice: as an event (事件分析, category 'wanwu', which the free plan of 百度统计
+// doesn't show: it needs 分析云) and as a made-up page, /wanwu-gun/e/<action>/<label>, counted in
+// 访问分析 → 受访页面 like any other page (so the page views there are inflated; visitors aren't).
+// The events:
+//   visit     new / same-day / day-N / day-7+ (days since the first visit on this device)
+//   start     the way of playing (quick, timed, daily, rivals, free, level-<id>)
+//   game_n    1, 2, 3, 4+: the how-manieth game since the page was opened
+//   intro     heard / skip-k-of-n (skipped with k of the n lines read)
+//   end       mode/how long (value: seconds played)
+//   size      mode/how big the ball ended up
+//   quit      home|restart/mode/how long (left a game from the pause menu)
+//   leave     state/mode/how long (switched away in the middle of a game)
+//   fps       touch|desk/frames per second (at the end of a game)
+//   click     a button on the title or results screen
 
 const BAIDU_ID = '051ce4949c1654e14647eaa86d5ce5df';
 const CATEGORY = 'wanwu';
@@ -37,13 +40,15 @@ function load() {
   document.head.appendChild(s);
 }
 
-/** one event; label and value are optional */
+/** one event; label ('a/b/c', plain ASCII) and value are optional */
 export function track(action, label, value) {
-  if (debug) console.info('[track]', action, label ?? '', value ?? '');
+  const page = `/wanwu-gun/e/${action}` + (label === undefined ? '' : `/${label}`);
+  if (debug) console.info('[track]', page, value ?? '');
   if (!on) return;
   const e = ['_trackEvent', CATEGORY, action, label === undefined ? '' : String(label)];
   if (value !== undefined) e.push(Math.round(value));
   window._hmt.push(e);
+  window._hmt.push(['_trackPageview', page]);
 }
 
 /** at boot: load 百度统计 and say whether this device has been here before */
@@ -52,11 +57,11 @@ export function trackVisit(store, today) {
   const first = store.get('firstDay', null);
   if (!first) {
     store.set('firstDay', today);
-    track('visit', '新访客');
+    track('visit', 'new');
     return;
   }
   const days = Math.round((Date.parse(today) - Date.parse(first)) / 86400000);
-  track('visit', days <= 0 ? '当天再来' : days >= 7 ? '第 7+ 天' : `第 ${days} 天`);
+  track('visit', days <= 0 ? 'same-day' : days >= 7 ? 'day-7+' : `day-${days}`);
 }
 
 /** a game begins */
@@ -74,9 +79,9 @@ export function span(t) {
 
 /** metres as a coarse bucket */
 export function sizeBucket(m) {
-  return m < 0.5 ? '<50cm' : m < 1 ? '50cm-1m' : m < 5 ? '1-5m' : m < 20 ? '5-20m' : m < 50 ? '20-50m' : m < 200 ? '50-200m' : '200m+';
+  return m < 0.5 ? 'under-50cm' : m < 1 ? '50cm-1m' : m < 5 ? '1-5m' : m < 20 ? '5-20m' : m < 50 ? '20-50m' : m < 200 ? '50-200m' : '200m+';
 }
 
 export function fpsBucket(fps) {
-  return fps < 20 ? '<20' : fps < 30 ? '20-30' : fps < 45 ? '30-45' : '45+';
+  return fps < 20 ? 'under-20' : fps < 30 ? '20-30' : fps < 45 ? '30-45' : '45+';
 }

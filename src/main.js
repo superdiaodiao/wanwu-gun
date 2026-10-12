@@ -259,16 +259,16 @@ function renderBallPortrait(r, t) {
 // ---- game setup ------------------------------------------------------------------------------
 
 // ---- playtest statistics (track.js) ------------------------------------------------------------
-const modeKey = () => (G.level ? `level:${G.level.id}` : G.mode);
+const modeKey = () => (G.level ? `level-${G.level.id}` : G.mode);
 function trackEnd() {
   const m = modeKey();
-  track('end', `${m} · ${span(G.time)}`, G.time);
-  track('size', `${m} · ${sizeBucket(ball.S)}`);
-  if (perf.fps) track('fps', `${G.touchScreen ? 'touch' : 'desk'} · ${fpsBucket(perf.fps)}`);
+  track('end', `${m}/${span(G.time)}`, G.time);
+  track('size', `${m}/${sizeBucket(ball.S)}`);
+  if (perf.fps) track('fps', `${G.touchScreen ? 'touch' : 'desk'}/${fpsBucket(perf.fps)}`);
 }
 /** a game left from the pause menu (home / restart) */
 function trackQuit(how) {
-  if (G.state === 'pause') track('quit', `${how} · ${modeKey()} · ${span(G.time)}`);
+  if (G.state === 'pause') track('quit', `${how}/${modeKey()}/${span(G.time)}`);
 }
 
 // ---- ways to play (modes.js): the rules of this game are the mode's, and a 关卡's own on top ----
@@ -434,7 +434,7 @@ function introLines(mode) {
 
 function beginPlay() {
   // (only the long story the first time is worth counting)
-  if (G.intro && G.intro.n > 1 && !G.intro.skipped) track('intro', '听完');
+  if (G.intro && G.intro.n > 1 && !G.intro.skipped) track('intro', 'heard');
   G.intro = null;
   G.state = 'play';
   // (a game that ended in the sky switched the controls off)
@@ -614,7 +614,7 @@ function setupUI() {
   dialog.onSkip = left => {
     if (!G.intro) return;
     G.intro.skipped = true;
-    if (G.intro.n > 1) track('intro', `跳过 ${G.intro.n - left}/${G.intro.n}`);
+    if (G.intro.n > 1) track('intro', `skip-${G.intro.n - left}-of-${G.intro.n}`);
   };
   // what else people look at on the title and results screens
   for (const id of ['btn-levels', 'btn-skins', 'btn-shards', 'btn-dex', 'btn-share', 'btn-copy', 'btn-again', 'btn-title', 'btn-keep', 'btn-next']) {
@@ -771,7 +771,7 @@ function setupUI() {
     if (document.hidden) {
       if (!G.left && ['intro', 'play', 'pause', 'finale'].includes(G.state)) {
         G.left = true;
-        track('leave', `${G.state} · ${modeKey()} · ${span(G.time)}`);
+        track('leave', `${G.state}/${modeKey()}/${span(G.time)}`);
       }
       if (G.state === 'play') togglePause(true);
       audio.suspend();
