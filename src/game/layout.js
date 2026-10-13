@@ -558,8 +558,9 @@ export function buildLayout(world, seed = 20260923) {
     // the desks: each row two desks back to back, chairs on the aisle sides
     const DW = 1.45;
     const desks = [];
-    // (three columns of seven, four rows: the start is in the middle column's first aisle)
-    const ROWS = [-106, -114, -122, -130];
+    // (three columns of seven, three rows: the start is in the middle column's first aisle; any
+    // more and the 工位 start outgrows the 小区 one by far)
+    const ROWS = [-106, -114, -122];
     for (const [bx, rows] of [[96.5, ROWS], [113.5, ROWS], [130.5, ROWS]]) {
       for (const rz of rows) for (let i = 0; i < 7; i++) {
         const x = bx + i * DW;
@@ -578,14 +579,14 @@ export function buildLayout(world, seed = 20260923) {
       // (dz: towards the chair; everything faces the chair, like the desk)
       const yaw = d.side > 0 ? 0 : PI;
       const at = (dx, dz) => [d.x + dx, d.z + d.side * dz];
-      if (rng.chance(0.8)) {
+      if (rng.chance(0.7)) {
         put('office_monitor', ...at(0, -0.17), { y: DESK_Y, yaw });
         put('office_keyboard', ...at(rng.range(-0.08, 0.08), 0.12), { y: DESK_Y, yaw });
         put('office_mouse', ...at(0.36, 0.14), { y: DESK_Y, yaw: yaw + rng.range(-0.4, 0.4) });
       } else put('office_laptop', ...at(rng.range(-0.1, 0.1), 0.05), { y: DESK_Y, yaw: yaw + rng.range(-0.2, 0.2) });
       const extras = [['office_coffee', 3], ['office_mug', 3], ['office_report', 2], ['office_sticky', 2], ['office_pothos', 1.2],
         ['office_lamp', 0.8], ['office_snack_box', 1], ['office_stapler', 1.2], ['office_neck_pillow', 0.6], ['tea_cup', 0.8], ['phone', 1], ['milk_tea', 1]];
-      const n = rng.int(1, 3);
+      const n = rng.int(0, 2);
       for (let k = 0; k < n; k++) put(rng.weighted(extras), ...at(rng.pick([-0.52, -0.42, 0.5, 0.58]), rng.range(-0.2, 0.2)), { y: DESK_Y, yaw: rng.angle() });
     }
     // meeting corner (north-west) with its whiteboard
@@ -621,10 +622,10 @@ export function buildLayout(world, seed = 20260923) {
     const S0 = { x: 120, z: -101.5 };
     L.starts.office = { x: S0.x, z: S0.z - 10, heading: 0 };
     // (as thick round the start as the home one: something to roll up at every turn)
-    scatter(OFFICE_TINY, 1100, inDisc(S0.x, S0.z - 10, 0.3, 4.5), { margin: 0 });
-    scatter(OFFICE_TINY, 700, inDisc(S0.x, S0.z - 10, 0.35, 7.5), { margin: 0 });
+    scatter(OFFICE_TINY, 900, inDisc(S0.x, S0.z - 10, 0.3, 4.5), { margin: 0 });
+    scatter(OFFICE_TINY, 500, inDisc(S0.x, S0.z - 10, 0.35, 7.5), { margin: 0 });
     scatter(OFFICE_TINY, 900, inRect(OX0 + 1, OZ0 + 1, OX1 - 1, OZ1 - 1), { margin: 0.02 });
-    scatter(OFFICE_SMALL, 160, inRect(OX0 + 1, OZ0 + 1, OX1 - 1, OZ1 - 1), { margin: 0.15 });
+    scatter(OFFICE_SMALL, 100, inRect(OX0 + 1, OZ0 + 1, OX1 - 1, OZ1 - 1), { margin: 0.15 });
     // and the in-between sizes (30–80 cm) for a ball of a metre or so, which has eaten the floor
     // bare but can't yet take a chair, a desk or a colleague
     const OFFICE_MID = [
@@ -632,7 +633,7 @@ export function buildLayout(world, seed = 20260923) {
       ['electric_fan', 1], ['office_coffee_machine', 0.8], ['office_neck_pillow', 1], ['takeout_bag', 2], ['basketball', 0.6],
       ['rice_cooker', 0.5], ['pothos', 1], ['kettle', 0.6], ['thermos', 1],
     ];
-    scatter(OFFICE_MID, 150, inRect(OX0 + 1.5, OZ0 + 1.5, OX1 - 1.5, OZ1 - 6), { margin: 0.4 });
+    scatter(OFFICE_MID, 80, inRect(OX0 + 1.5, OZ0 + 1.5, OX1 - 1.5, OZ1 - 6), { margin: 0.4 });
     scatter([['office_paperclip', 1]], 60, around(119, -112, 0.5), { margin: 0 });
     scatter([['office_capsule', 1]], 30, around(137, OZ0 + 2.2, 0.6), { margin: 0 });
     // people: colleagues about their business, and the boss on his rounds

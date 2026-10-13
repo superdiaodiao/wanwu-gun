@@ -501,6 +501,10 @@ kbd {
 .logo span:nth-child(5) { color: #a88be0; animation-delay: 0.45s; transform: rotate(-4deg); }
 @keyframes roll-in { from { transform: translateY(-40px) rotate(-200deg) scale(0.3); opacity: 0; } }
 .pitch { margin: 0; max-width: 34em; font-size: 16px; line-height: 1.7; color: var(--paper); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7); text-wrap: balance; }
+.start-pick { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 10px; font-size: 13px; opacity: 0.92; }
+.start-pick span { margin-right: 4px; }
+.start-pick .chip { background: rgba(31, 27, 36, 0.6); }
+.start-pick .chip[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--ink); font-weight: 700; }
 .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .btn {
   display: grid; justify-items: center; gap: 2px;
