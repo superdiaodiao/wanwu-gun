@@ -16,6 +16,12 @@ export const INTRO_TRIAL = [
   '咳咳——小泥人，醒醒！本宫是女娲。天被本宫捅了个窟窿，得滚一块大石头去补。',
   '先练练手：推着这颗五色石，比它小的一碰就粘上，越滚越大。两分半，滚到十米！',
 ];
+// the 工位 start (幸福科技's open-plan floor): 女娲 finds you still at work
+export const OFFICE_HELLO = '咳咳——醒醒！本宫是女娲。……都几点了，你怎么还在加班？';
+export const INTRO_TRIAL_OFFICE = [
+  '咳咳——醒醒！本宫是女娲。天被本宫捅了个窟窿……你还在改方案？',
+  '别改了，推着这颗五色石从工位滚出去。比它小的一碰就粘上，越滚越大。两分半，滚到十米！',
+];
 export const TRIAL_DONE = '十米！手感不错嘛。真要补天得滚到五十米——下一局来真的，三分钟，能滚多大滚多大！';
 export const TRIAL_SHORT = '差一点点！不急，再来一局就到十米了。';
 export const INTRO_FREE = '不着急，慢慢滚。滚到五十米就够补天了，到时候本宫叫你。';
@@ -107,6 +113,25 @@ export const QUIPS = {
   mountain_karst: '桂林山水甲天下，现在归你了。',
   cloud: '云都滚进来了？好，补天正好用得上。',
   turbine_rotor: '风车：转啊转……转进去了。',
+  // 幸福科技 (工位开局)
+  office_boss: '老板：年轻人要有冲劲！——不是这么个冲法！',
+  office_report: '周报滚走了，这周的工作就算闭环了。',
+  office_monitor: '终版 v8 也滚了……v9 只能从头写了。',
+  office_mug: '不想上班？那就跟本宫上天。',
+  office_capsule: '打工人的五色石，本宫收下了。',
+  office_badge: '工牌滚走了，明天怕是进不了闸机。',
+  office_whiteboard: '抓手、对齐、闭环、赋能……全滚进来，这下真闭环了。',
+  office_chair: '椅子滚走了，今天只能站着开会。',
+  office_coffee: '「续命」被滚走了，这下午可怎么熬。',
+  office_snack_box: '摸鱼补给站，连锅端了。',
+  office_worker_tired: '加班同事：这是……终于可以下班了吗？',
+  office_printer: '打印机：卡纸了，请找行政。',
+  office_water: '饮水机：咕咚。摸鱼的理由又少了一个。',
+  office_turnstile: '闸机：滴——今日已打卡。',
+  office_glass_wall: '玻璃幕墙也滚了，整层楼都看见天上的窟窿了。',
+  office_worker_laptop: '同事：等等，我还在线上开会！',
+  office_elevator: '电梯：叮——上行，直达天庭。',
+  office_coffee_machine: '咖啡机：全公司的命，都在我这儿呢。',
 };
 
 // said when nothing has been rolled up for a while, by size

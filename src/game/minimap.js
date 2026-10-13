@@ -12,7 +12,7 @@ import { t as tr, placeName } from '../i18n/index.js';
 const COLORS = {
   base: '#6f9b52', grass: '#79a758', field: '#b4ab60', dirt: '#a48a66', sand: '#dccb9b', concrete: '#c4c0b7',
   plaza: '#d9cfbf', brick: '#ad6e5f', sidewalk: '#ccc4b6', road: '#595c63', track: '#b3604c', stone: '#9b9992',
-  water: '#4f9db6',
+  water: '#4f9db6', carpet: '#8a909a',
 };
 const INK = 'rgba(40, 35, 48, 0.78)';
 const GREEN = 'rgba(44, 78, 44, 0.8)'; // trees, hills, mountains
@@ -24,7 +24,7 @@ const TARGET = '#ff8a2a'; // a 关卡's targets (cats, dancers)
 /** place names for the big map: [name, x, z, shown from / up to this many metres each way] (north is −Z) */
 export const PLACES = [
   ['幸福里小区', 0, -14, 0, 500], ['小吃街', 0, 47, 0, 160], ['幸福广场', 136, -14, 0, 500], ['人民公园', -165, -44, 0, 500],
-  ['幸福小学', 0, -150, 0, 500], ['幸福里', 0, -95, 500, 1e9], ['城区', 390, 330, 250, 1e9], ['城区', -420, -330, 250, 1e9],
+  ['幸福小学', 0, -150, 0, 500], ['幸福科技', 120, -122, 0, 300], ['幸福里', 0, -95, 500, 1e9], ['城区', 390, 330, 250, 1e9], ['城区', -420, -330, 250, 1e9],
   ['高铁', 420, -760, 250, 1e9], ['农田', 640, 620, 250, 1e9], ['农田', -690, 470, 250, 1e9], ['群山', -860, -880, 250, 1e9],
 ];
 

@@ -12,6 +12,16 @@ const CATS = ['cat_orange', 'cat_tabby', 'cat_cow', 'cat_white', 'cat_black', 'c
 // long; size: the ball this big (timed: within the 6 minutes). short: for the progress note on the
 // HUD. said: what 女娲 says when it comes true. long: out of reach in the short games (每日挑战, 快滚)
 export const WISHES = [
+  // the 工位 start (start: 'office'): its early and middle wishes come only from these, and the 小区
+  // start never gets them
+  { id: 'clips', short: '回形针', tier: 0, start: 'office', text: '滚起 10 个回形针', ids: ['office_paperclip'], n: 10, said: '别夹了，补天用得上。' },
+  { id: 'capsules', short: '胶囊', tier: 0, start: 'office', text: '滚起 8 颗咖啡胶囊', ids: ['office_capsule'], n: 8, said: '五颜六色的胶囊，跟五色石也差不多，本宫准了。' },
+  { id: 'reports', short: '周报', tier: 0, start: 'office', text: '滚起 3 份周报', ids: ['office_report'], n: 3, said: '本周工作：补天。已提交。' },
+  { id: 'deskset', short: '工位', tier: 0, start: 'office', text: '凑齐键盘、鼠标和显示器', set: ['office_keyboard', 'office_mouse', 'office_monitor'], said: '工位齐了，到天上也能办公。' },
+  { id: 'boss', short: '老板', tier: 1, start: 'office', text: '把老板滚走', ids: ['office_boss'], n: 1, said: '各位，今天提前下班。' },
+  { id: 'colleagues', short: '同事', tier: 1, start: 'office', text: '滚起 5 位同事', ids: ['office_worker_laptop', 'office_worker_coffee', 'office_worker_tired', 'office_worker_headset'], n: 5, said: '全员团建，地点：天上。' },
+  { id: 'chairs', short: '椅子', tier: 1, start: 'office', text: '滚起 6 把人体工学椅', ids: ['office_chair'], n: 6, said: '人体工学，天上坐着也舒服。' },
+  { id: 'water', short: '饮水机', tier: 1, start: 'office', text: '把饮水机滚走', ids: ['office_water'], n: 1, said: '茶水间八卦中心，关门了。' },
   { id: 'coins', short: '硬币', tier: 0, text: '滚起 20 枚硬币', ids: ['coin_1yuan', 'coin_5jiao'], n: 20, said: '叮叮当当，本宫收下了。' },
   { id: 'baozi', short: '包子', tier: 0, text: '滚起 5 个包子', ids: ['baozi'], n: 5, said: '包子管饱，补天才有力气。' },
   { id: 'ducks', short: '小黄鸭', tier: 0, text: '滚起 3 只小黄鸭', ids: ['rubber_duck'], n: 3, said: '小黄鸭……本宫也想要一只。' },
@@ -51,11 +61,14 @@ export class Wishes {
   }
 
   /** rand: the day's own generator for the 每日挑战 (the same three for everyone that day); short: a
-   *  short game, with no room for the long wishes */
-  start(mode, rand = null, short = false) {
+   *  short game, with no room for the long wishes; where: the start (layout.starts) */
+  start(mode, rand = null, short = false, where = 'home') {
     const last = new Set(rand ? [] : this.store.get('wishLast', []) || []);
     this.list = [0, 1, 2].map(tier => {
-      const pool = WISHES.filter(w => w.tier === tier && (!w.only || w.only === mode) && !(short && w.long));
+      let pool = WISHES.filter(w => w.tier === tier && (!w.only || w.only === mode) && !(short && w.long));
+      // (the 工位 start's own wishes where it has some for this tier; never at home)
+      const own = pool.filter(w => w.start === where);
+      pool = own.length ? own : pool.filter(w => !w.start);
       const fresh = pool.filter(w => !last.has(w.id));
       const from = fresh.length ? fresh : pool;
       const w = from[Math.floor((rand || Math.random)() * from.length)];

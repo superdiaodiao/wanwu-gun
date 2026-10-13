@@ -55,7 +55,7 @@ const store = {
 };
 
 const G = {
-  state: 'loading', mode: 'timed', time: 0, t: 0, milestone: 0, events: [],
+  state: 'loading', mode: 'timed', where: 'home', time: 0, t: 0, milestone: 0, events: [],
   finale: null, toastCd: 0, tickSec: -1, hurry: false, cullT: 0, patched: false, prelaunch: null,
   hinted: new Set(), hintCd: 0, idleT: 0, sizes: [], sizeT: 0, nudgeCd: 20, info: { calls: 0, tris: 0 }, drawn: 0, atlasStale: false,
   gainAcc: 0, gainT: 0, comboShown: 0, unlockLimit: 0, mapWhole: true, redHinted: false, soundT: 0,
@@ -283,7 +283,7 @@ function renderBallPortrait(r, t) {
 // ---- game setup ------------------------------------------------------------------------------
 
 // ---- playtest statistics (track.js) ------------------------------------------------------------
-const modeKey = () => (G.level ? `level-${G.level.id}` : G.mode);
+const modeKey = () => (G.level ? `level-${G.level.id}` : G.where === 'office' ? `${G.mode}-office` : G.mode);
 function trackEnd() {
   const m = modeKey();
   track('end', `${m}/${span(G.time)}`, G.time);
@@ -295,9 +295,19 @@ function trackQuit(how) {
   if (G.state === 'pause') track('quit', `${how}/${modeKey()}/${span(G.time)}`);
 }
 
+// ---- where to start (从哪儿滚起): the 小区 or the 工位 (幸福科技's office floor, layout.js). The
+// 每日挑战, 关卡 and 对手赛 always start at home, so everyone plays the same game there.
+const START_MODES = ['trial', 'quick', 'timed', 'free'];
+const startPick = () => (store.get('startAt', 'home') === 'office' ? 'office' : 'home');
+const startOf = mode => (START_MODES.includes(mode) ? startPick() : 'home');
+function syncStartPick() {
+  for (const b of document.querySelectorAll('#start-pick [data-start]')) b.setAttribute('aria-pressed', String(b.dataset.start === startPick()));
+}
+
 // ---- ways to play (modes.js): the rules of this game are the mode's, and a 关卡's own on top ----
 function resetGame(mode, levelId = null) {
   G.mode = mode;
+  G.where = startOf(mode);
   G.level = mode === 'level' ? levelById(levelId) : null;
   G.rules = { ...MODES[mode], ...(G.level || {}) };
   G.time = 0;
@@ -316,7 +326,7 @@ function resetGame(mode, levelId = null) {
   // 吃货专场: only food can be rolled up (smaller other things are rolled over)
   ball.canPick = G.rules.only ? o => o.spec.cat === G.rules.only : null;
   movers = new Movers(world, layout);
-  const s = layout.start;
+  const s = layout.starts[G.where] || layout.start;
   ball.reset(START_SIZE, s.x, s.z, s.heading);
   ball.rateBoost = G.rules.grow || 1;
   driver = new Driver();
@@ -424,7 +434,7 @@ async function startGame(mode, levelId = null) {
   audio.ui('start');
   resetGame(mode, levelId);
   trackStart(modeKey());
-  if (G.rules.wishes) wishes.start(mode, mode === 'daily' ? dayRandom() : null, !!G.rules.short);
+  if (G.rules.wishes) wishes.start(mode, mode === 'daily' ? dayRandom() : null, !!G.rules.short, G.where);
   else wishes.clear();
   syncWishHud();
   for (const id of ['title-screen', 'levels', 'skins', 'results']) $(id).hidden = true;
@@ -438,10 +448,11 @@ async function startGame(mode, levelId = null) {
     giant.userData.target = 1;
     giant.userData.dir.set(0.42, 0.5, -0.78).normalize();
   }
-  // look at the broken sky while 女娲 talks
+  // look at the broken sky while 女娲 talks (from just behind the start)
+  const s = layout.starts[G.where] || layout.start;
   rig.override = {
-    pos: new THREE.Vector3(0, 1.6, 12),
-    look: new THREE.Vector3(0, 42, -50),
+    pos: new THREE.Vector3(s.x, 1.6, s.z + 8),
+    look: new THREE.Vector3(s.x, 42, s.z - 54),
     fov: 62,
     speed: 0.8,
   };
@@ -454,8 +465,11 @@ function introLines(mode) {
   if (mode === 'daily') return [story.INTRO_DAILY];
   if (mode === 'rivals') return [story.INTRO_RIVALS];
   if (mode === 'level') return [G.level.intro];
-  if (mode === 'trial') return story.INTRO_TRIAL;
+  const office = G.where === 'office';
+  if (mode === 'trial') return office ? story.INTRO_TRIAL_OFFICE : story.INTRO_TRIAL;
   const last = mode === 'quick' ? story.INTRO_QUICK : mode === 'timed' ? story.INTRO_TIMED : story.INTRO_FREE;
+  // (at the office she finds you still at work: that line stands in for her first one)
+  if (office) return seen ? [story.OFFICE_HELLO, last] : [story.OFFICE_HELLO, ...story.INTRO.slice(1), last];
   return seen ? [last] : [...story.INTRO, last];
 }
 
@@ -525,6 +539,7 @@ function syncDexButton() {
 // (players from before 试滚 existed already have a best game: they skip it)
 const trialDone = () => store.get('trialDone', false) || !!store.get('best', null) || !!store.get('best.quick', null);
 function syncTitleCounts() {
+  syncStartPick();
   const first = !trialDone();
   $('btn-quick').innerHTML = first ? t('<b>开始滚</b><small>先试滚 2 分半 · 滚到 10 米</small>') : t('<b>开始补天</b><small>快滚 3 分钟</small>');
   const d = progress.daily, streak = progress.streak;
@@ -643,6 +658,13 @@ function applyAudioPrefs() {
 function setupUI() {
   // the very first game is the short 试滚; after that this is 快滚
   $('btn-quick').addEventListener('click', () => startGame(trialDone() ? 'quick' : 'trial'));
+  for (const b of document.querySelectorAll('#start-pick [data-start]')) {
+    b.addEventListener('click', () => {
+      store.set('startAt', b.dataset.start);
+      syncStartPick();
+      audio.ui('click');
+    });
+  }
   $('btn-timed').addEventListener('click', () => startGame('timed'));
   // 中文 / EN: the page starts again in the other one
   const lang = $('btn-lang');
