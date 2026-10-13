@@ -892,6 +892,8 @@ function togglePause(force) {
 let oddFrame = false;
 function loop() {
   requestAnimationFrame(loop);
+  // (a recording drives the frames itself: tools/record.mjs through __wanwu.frame)
+  if (G.recording) return;
   if (dex && dex.isOpen) {
     // the 图鉴 covers the screen: the game isn't drawn, just the 图鉴's pictures
     const now = performance.now() / 1000;
@@ -2297,6 +2299,8 @@ window.__wanwu = {
   get input() { return input; },
   openShare,
   step: dt => step(dt),
+  /** one whole frame (update + draw), for recording video frame by frame (tools/record.mjs) */
+  frame(dt = 1 / 30) { G.recording = true; G.t += dt; step(dt); render(dt); },
   skipIntro() { dialog.clear(); beginPlay(); },
   autopilot(on = true) { G.autopilot = on; },
   /** fast-forward the game with the autopilot, no rendering; returns [seconds, size] samples */
