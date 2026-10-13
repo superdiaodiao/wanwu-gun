@@ -1,11 +1,17 @@
 # CrazyGames listing
 
-Upload: `dist/crazygames.zip` (from `node build.mjs crazygames`), one `index.html` at the root.
+Submitted for Basic Launch on 2026-10-13 (developer portal: Roll It All, HTML5).
+
+Upload: `dist/crazygames/index.html` (from `node build.mjs crazygames`), dragged into the portal by
+hand (files set from scripts are refused). The portal re-serializes the HTML, so the build keeps
+every non-ASCII character escaped (see build.mjs).
 Covers: `cover-1920x1080.png` (16:9), `cover-800x1200.png` (2:3), `cover-800x800.png` (1:1).
+Preview videos (required, ≤20 s, no sound, real time): `node tools/record.mjs` at 1920×1080 and
+1080×1620, 18 s each, starting on the cover's shot on the square with the autopilot rolling.
 
 ## Title
 
-Roll It All: Nüwa Patches the Sky
+Roll It All (must match the title in the game)
 
 ## Description
 
@@ -29,12 +35,12 @@ drag the mouse to look around · P pause
 Mobile: the ball rolls by itself; drag one thumb to steer, pull down to turn back, hold still to
 stop. Tap Dash to dash.
 
-## Tags (suggestions)
+## Category and tags
 
-3D, Casual, Collecting, Physics, Relaxing, Arcade, Chinese mythology
+Category: Arcade. Tags (max 5, from their list): Grow, Collect, Ball, Physics, Relaxing.
 
 ## Settings to pick in the portal
 
 - Orientation on mobile: both (portrait and landscape work)
-- Progress saving: local (the game keeps progress in the browser)
+- Progress saving: "Yes, using LocalStorage (Automatic Progress Save)"
 - Not made for kids under 13 (CrazyGames is PEGI 12)
