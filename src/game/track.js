@@ -5,8 +5,7 @@
 //
 // BAIDU_ID is the site's id from 百度统计 (the part after hm.js? in the code it gives you). Left
 // empty, nothing is loaded or sent. Only the game at its own address (HOME) reports: not this
-// computer, and not copies of it put up elsewhere (one on another site sent its players' visits
-// here). ?notrack switches it off (for playing yourself); ?trackdebug logs every event to the
+// computer, and of a copy put up elsewhere only where it is (trackCopy). ?notrack switches it off (for playing yourself); ?trackdebug logs every event to the
 // console.
 //
 // Each event goes out twice: as an event (事件分析, category 'wanwu', which the free plan of 百度统计
@@ -23,6 +22,7 @@
 //   leave     state/mode/how long (switched away in the middle of a game)
 //   fps       touch|desk/frames per second (at the end of a game)
 //   click     a button on the title or results screen
+//   copy      <host>: a copy of the game on someone else's site (sent from there, guard.js)
 
 const BAIDU_ID = '051ce4949c1654e14647eaa86d5ce5df';
 const CATEGORY = 'wanwu';
@@ -65,6 +65,21 @@ export function trackVisit(store, today) {
   }
   const days = Math.round((Date.parse(today) - Date.parse(first)) / 86400000);
   track('visit', days <= 0 ? 'same-day' : days >= 7 ? 'day-7+' : `day-${days}`);
+}
+
+/**
+ * A copy running on someone else's site (guard.js): one page in 百度统计, /wanwu-gun/e/copy/<host>,
+ * and nothing else (not the copy's own page, nor anything its players do), so the real numbers stay
+ * clean and every new copy shows up in 受访页面 on its first day.
+ */
+export function trackCopy(host) {
+  if (!BAIDU_ID || q.has('notrack')) return;
+  const page = `/wanwu-gun/e/copy/${String(host).replace(/[^a-z0-9.-]/gi, '_')}`;
+  if (debug) console.info('[track]', page);
+  window._hmt = window._hmt || [];
+  window._hmt.push(['_setAutoPageview', false]);
+  window._hmt.push(['_trackPageview', page]);
+  load();
 }
 
 /** a game begins */

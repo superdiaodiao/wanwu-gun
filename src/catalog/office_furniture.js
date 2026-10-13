@@ -156,6 +156,8 @@ decalS('of_wb', 512, 320, 0.6, (ctx, w, h) => {
   for (let i = 0; i < 3; i++) scribble(ctx, 340, 228 + i * 22, 140 - i * 30, K, 11 + i, 2.5);
   fitText(ctx, 'OKR', 30 + 30, 296, 60, 26, FONTS.sans, B);
   scribble(ctx, 100, 296, 120, B, 21, 2.5);
+  // the author's signature, small in the corner (copies carry it too)
+  fitText(ctx, '— superdiaodiao', 432, 300, 150, 18, FONTS.round, K);
 });
 
 decalS('of_vend_front', 160, 240, 0.75, (ctx, w, h) => {

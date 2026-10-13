@@ -19,6 +19,9 @@ export const UI = {
   '<span>万</span><span>物</span><span>皆</span><span>可</span><span>滚</span>': '<span>Roll&nbsp;</span><span>It&nbsp;</span><span>All</span>',
   '天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。':
     'The sky has a hole in it. Push the Five‑Color Stone, start with a sunflower seed, then cats, aunties, buses, tower blocks, whole mountains: roll it all up to patch the sky.',
+  '这是一份未经授权的拷贝': 'This is an unauthorised copy',
+  '《万物皆可滚·女娲补天》的作者没有在这里发布过这个游戏。正版免费，一直在更新：': "The author of Roll It All never published the game here. The real one is free and keeps getting updates:",
+  '去玩正版': 'Play the real one',
   '从哪儿滚起': 'Start from',
   '小区': 'Home',
   '工位': 'The office',

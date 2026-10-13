@@ -1823,6 +1823,8 @@ decal('st_billboard', 512, 256, (ctx, w, h) => {
   outlined(ctx, '今天你滚了吗？', 370, 160, 240, 34, FONTS.round, '#1f5fb4', '#ffffff', 6);
   ctx.fillStyle = '#e8302a'; rrect(ctx, 276, 196, 190, 36, 18); ctx.fill();
   fitText(ctx, '女娲补天 · 全民开滚', 371, 214, 170, 22, FONTS.sans, '#ffffff');
+  // the author's signature, small in the corner (copies carry it too)
+  fitText(ctx, '© superdiaodiao', w - 70, h - 12, 124, 14, FONTS.sans, 'rgba(42, 29, 23, 0.7)');
 });
 
 def('billboard', {

@@ -30,7 +30,8 @@ import { SKINS, skinById, skinOpen, skinNeed } from './game/skins.js';
 import { Shards, SHARDS } from './game/shards.js';
 import { Rivals } from './game/rivals.js';
 import { shareCard } from './game/share.js';
-import { track, trackVisit, trackStart, span, sizeBucket, fpsBucket } from './game/track.js';
+import { track, trackVisit, trackStart, trackCopy, span, sizeBucket, fpsBucket } from './game/track.js';
+import { strayHost, stopCopy } from './game/guard.js';
 import { audio } from './audio/audio.js';
 
 
@@ -78,6 +79,13 @@ function pickQuality() {
 }
 
 async function boot() {
+  // a copy on someone else's site doesn't start (guard.js)
+  const stray = strayHost();
+  if (stray) {
+    trackCopy(stray);
+    stopCopy();
+    return;
+  }
   const probe = document.createElement('canvas').getContext('webgl2');
   if (!probe) {
     $('loading').hidden = true;
@@ -428,7 +436,24 @@ function titleShot(t) {
   };
 }
 
+// asked again when a game starts, written another way than guard.js (a copy with that taken out
+// still stops): this host must end in the home one's labels (the site's: be it)
+function ownHost() {
+  if (typeof location === 'undefined' || (PLATFORM !== 'site' && PLATFORM !== 'crazygames') || location.protocol === 'file:') return true;
+  const h = location.hostname.toLowerCase();
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(h)) return true;
+  const want = String.fromCharCode(...(PLATFORM === 'site'
+    ? [115, 117, 112, 101, 114, 100, 105, 97, 111, 100, 105, 97, 111, 46, 103, 105, 116, 104, 117, 98, 46, 105, 111]
+    : [99, 114, 97, 122, 121, 103, 97, 109, 101, 115, 46, 99, 111, 109]));
+  const labels = h.split('.'), w = want.split('.');
+  return labels.slice(-w.length).join('.') === want && (PLATFORM !== 'site' || labels.length === w.length);
+}
+
 async function startGame(mode, levelId = null) {
+  if (!ownHost()) {
+    stopCopy();
+    return;
+  }
   try { await audio.init(); } catch (e) { console.warn('[audio] init failed', e); }
   applyAudioPrefs();
   audio.ui('start');
@@ -1837,6 +1862,10 @@ function shardFound(i, o) {
 
 function startFinale() {
   if (G.state === 'finale') return;
+  if (strayHost()) {
+    stopCopy();
+    return;
+  }
   G.state = 'finale';
   input.enabled = false;
   showTouch(false);
