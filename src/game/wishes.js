@@ -12,6 +12,16 @@ const CATS = ['cat_orange', 'cat_tabby', 'cat_cow', 'cat_white', 'cat_black', 'c
 // long; size: the ball this big (timed: within the 6 minutes). short: for the progress note on the
 // HUD. said: what 女娲 says when it comes true. long: out of reach in the short games (每日挑战, 快滚)
 export const WISHES = [
+  // the 教室 start (start: 'school')
+  { id: 'chalk', short: '粉笔头', tier: 0, start: 'school', text: '滚起 10 个粉笔头', ids: ['school_chalk_stub'], n: 10, said: '老师扔得准，本宫收得齐。' },
+  { id: 'stationery', short: '文具', tier: 0, start: 'school', text: '凑齐铅笔、橡皮和直尺', set: ['school_pencil', 'eraser', 'school_ruler'], said: '文具齐了，补天考试可以开始了。' },
+  { id: 'failed', short: '试卷', tier: 0, start: 'school', text: '滚起 3 张不及格的试卷', ids: ['school_test_paper'], n: 3, said: '五十九？本宫给你凑个整，天也一起补上。' },
+  { id: 'homework', short: '作业本', tier: 0, start: 'school', text: '收走 5 本作业本', ids: ['school_homework'], n: 5, said: '作业收齐了，本宫就是天上的课代表。' },
+  { id: 'teacher', short: '班主任', tier: 1, start: 'school', text: '把班主任滚走', ids: ['school_teacher'], n: 1, said: '……走了吗？真走了吗？' },
+  { id: 'classmates', short: '同学', tier: 1, start: 'school', text: '滚起 5 位同学', ids: ['school_student_sleepy', 'school_student_hand', 'school_student_copying'], n: 5, said: '春游！目的地：天上。' },
+  { id: 'podium', short: '讲台', tier: 1, start: 'school', text: '把讲台滚走', ids: ['school_podium'], n: 1, said: '没了讲台，这堂课就下课吧。' },
+  { id: 'dean', short: '教导主任', tier: 1, start: 'school', text: '把教导主任滚走', ids: ['school_dean'], n: 1, said: '再也没人问「哪个班的」了。' },
+  { id: 'schoolbldg', short: '教学楼', tier: 2, start: 'school', text: '把教学楼滚上来', ids: ['school'], n: 1, long: true, said: '整栋教学楼都滚走了，放假！' },
   // the 工位 start (start: 'office'): its early and middle wishes come only from these, and the 小区
   // start never gets them
   { id: 'clips', short: '回形针', tier: 0, start: 'office', text: '滚起 10 个回形针', ids: ['office_paperclip'], n: 10, said: '别夹了，补天用得上。' },
@@ -66,9 +76,10 @@ export class Wishes {
     const last = new Set(rand ? [] : this.store.get('wishLast', []) || []);
     this.list = [0, 1, 2].map(tier => {
       let pool = WISHES.filter(w => w.tier === tier && (!w.only || w.only === mode) && !(short && w.long));
-      // (the 工位 start's own wishes where it has some for this tier; never at home)
+      // (a start's own early and middle wishes replace the usual ones; its late ones join them; no
+      // start gets another's)
       const own = pool.filter(w => w.start === where);
-      pool = own.length ? own : pool.filter(w => !w.start);
+      pool = own.length && tier < 2 ? own : pool.filter(w => !w.start || w.start === where);
       const fresh = pool.filter(w => !last.has(w.id));
       const from = fresh.length ? fresh : pool;
       const w = from[Math.floor((rand || Math.random)() * from.length)];

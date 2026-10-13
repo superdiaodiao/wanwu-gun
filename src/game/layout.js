@@ -1,5 +1,5 @@
 // The map: 幸福里小区 (start), 幸福路小吃街, 幸福广场 with the square dance, 人民公园 with the pond,
-// 幸福小学, the open-plan office of 幸福科技 (the other start), the city beyond, farmland with a high-speed railway, and a ring of mountains.
+// 幸福小学 with its two classrooms, the open-plan office of 幸福科技 (the other starts), the city beyond, farmland with a high-speed railway, and a ring of mountains.
 // North is −Z, east is +X. Everything is seeded, so the town is the same every game.
 import { RNG } from '../core/rng.js';
 import { poly } from './ground.js';
@@ -24,7 +24,7 @@ export function buildLayout(world, seed = 20260923) {
     zones, paths, lanes, blocked,
     start: { x: 0, z: 4, heading: 0 },
     // where each 开局 begins (start is home's)
-    starts: { home: { x: 0, z: 4, heading: 0 }, office: null },
+    starts: { home: { x: 0, z: 4, heading: 0 }, office: null, school: null },
     groups: { dance: null, taichi: null },
     pond: null,
     ponds: [],
@@ -507,6 +507,102 @@ export function buildLayout(world, seed = 20260923) {
   ZS('track', poly.ellipseRing(0, -130, 44, 24, 52, 32, 72));
   Z('grass', poly.ellipse(0, -130, 44, 24, 60));
   solid('school', 0, -182, { yaw: 0 }, 1);
+  // ---- 5a. the two classrooms west of the track: the 教室 start ---------------------------------
+  // Roofless, side by side along the west edge of the school yard: the blackboard on the west wall,
+  // desks in pairs facing it, the back blackboard (黑板报) and the lockers on the side walls, and on
+  // the east wall a front and a back door onto the corridor, with the track just beyond. The ball
+  // starts in an aisle of the first room among the chalk stubs and notes on the floor; what's on the
+  // desks (0.75 m up) waits until it is tall enough. The homeroom teacher walks the corridor.
+  {
+    const RX0 = -69, RX1 = -56; // west (blackboard) and east (corridor) walls
+    const ROOMS = [[-154, -140], [-136, -122]]; // z: north wall, south wall of each
+    const DESK_Y = 0.75;
+    Z('concrete', poly.rect(RX0 - 1, -156, -51, -120));
+    const wallRow = (x0, z0, x1, z1, pick) => {
+      const len = Math.hypot(x1 - x0, z1 - z0), n = Math.round(len / 4);
+      const yaw = Math.atan2(x1 - x0, z1 - z0) - HALF;
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
+        const id = pick ? pick(i, n) : 'school_wall';
+        if (id) put(id, x, z, { yaw });
+      }
+      block(Math.min(x0, x1) - 0.3, Math.min(z0, z1) - 0.3, Math.max(x0, x1) + 0.3, Math.max(z0, z1) + 0.3);
+    };
+    const SCHOOL_TINY = [
+      ['school_chalk_stub', 8], ['school_note', 3], ['school_pencil', 3], ['school_correction_tape', 2], ['school_sharpener', 2],
+      ['chalk', 3], ['eraser', 3], ['marble', 2], ['candy', 2], ['button', 1], ['bottle_cap', 1], ['coin_5jiao', 1], ['school_ruler', 1.5],
+    ];
+    const DESK_TOP = [
+      ['school_textbooks', 1.2], ['school_test_paper', 2.5], ['school_homework', 2.5], ['school_pencil_case', 2], ['school_bottle', 1.5],
+      ['school_mistakes_book', 1], ['school_pencil', 2], ['school_ruler', 1], ['school_compass', 0.6], ['school_note', 1], ['book', 1.5],
+    ];
+    const SCHOOL_MID = [
+      ['school_bag', 4], ['school_bottle', 1.5], ['school_jump_rope', 1.5], ['school_board_eraser', 2], ['school_globe', 0.8],
+      ['school_set_square', 0.8], ['school_homework', 1.5], ['school_spicy_strip', 1.5], ['basketball', 1], ['football', 1],
+      ['shuttlecock', 1], ['ice_pop', 1], ['soda_can', 1], ['plastic_stool', 0.6],
+    ];
+    ROOMS.forEach(([zn, zs], r) => {
+      const zc = (zn + zs) / 2;
+      // walls: plain on the west, north and south; on the east a door at each end, windows between
+      wallRow(RX0, zn, RX0, zs);
+      wallRow(RX0, zn, RX1, zn);
+      wallRow(RX0, zs, RX1, zs);
+      // (the doors leave their doorways open: the block covers only the windows between them)
+      const doors = [zn + 2, zs - 2];
+      for (const z of doors) put('school_door', RX1, z, { yaw: HALF });
+      put('school_window_wall', RX1, zc, { yaw: HALF });
+      block(RX1 - 0.3, zc - 2, RX1 + 0.3, zc + 2);
+      // front of the room: blackboard, podium, projector
+      solid('school_blackboard', RX0 + 0.35, zc, { yaw: HALF }, 0.1);
+      solid('school_podium', RX0 + 1.6, zc, { yaw: HALF }, 0.1);
+      put('school_projector', RX0 + 1.2, zs - 1.4, { yaw: HALF + 0.4 });
+      put('chalk', RX0 + 1.5, zc - 0.3, { y: 1.1 });
+      put('school_board_eraser', RX0 + 1.5, zc + 0.2, { y: 1.1, yaw: 0.3 });
+      // the back blackboard and the lockers, the cleaning things in the back corner
+      solid('school_board_news', (RX0 + RX1) / 2 + 1, zs - 0.35, { yaw: PI }, 0.1);
+      solid('school_lockers', (RX0 + RX1) / 2 + 1, zn + 0.35, { yaw: 0 }, 0.1);
+      put('school_cleaning', RX1 - 0.8, zn + 0.6, { yaw: -2.4 });
+      // desks in pairs, five deep, facing the board (west); the chair side faces east
+      for (let c = 0; c < 5; c++) {
+        const x = RX0 + 3.6 + c * 1.55;
+        for (const pz of [zc - 4, zc, zc + 4]) for (const dz of [-0.33, 0.33]) {
+          const z = pz + dz;
+          solid('school_desk', x, z, { yaw: HALF }, 0.02);
+          const n = rng.int(0, 2);
+          for (let k = 0; k < n; k++) put(rng.weighted(DESK_TOP), x - rng.range(0.05, 0.2), z + rng.range(-0.18, 0.18), { y: DESK_Y, yaw: rng.angle() });
+        }
+      }
+      // students about the room
+      scatter([['school_student_sleepy', 2], ['school_student_hand', 2], ['school_student_copying', 2], ['kid', 1]], 5,
+        inRect(RX0 + 3, zn + 1.5, RX1 - 1.5, zs - 1.5), { margin: 0.4, o: { moverState: { radius: 3 } } });
+      // the floor
+      scatter(SCHOOL_TINY, 350, inRect(RX0 + 2.5, zn + 1, RX1 - 0.5, zs - 1), { margin: 0.02 });
+      scatter(SCHOOL_MID, 18, inRect(RX0 + 2.5, zn + 1, RX1 - 0.8, zs - 1), { margin: 0.25 });
+      if (r === 0) {
+        const S = { x: RX0 + 6.7, z: zc + 2 };
+        L.starts.school = { x: S.x, z: S.z, heading: HALF };
+        scatter(SCHOOL_TINY, 800, inDisc(S.x, S.z, 0.3, 4), { margin: 0 });
+        scatter([['school_chalk_stub', 1]], 40, around(S.x + 1.5, S.z, 0.4), { margin: 0 });
+        scatter([['school_note', 1]], 12, around(S.x - 1, S.z + 0.5, 0.5), { margin: 0 });
+      }
+    });
+    // the corridor along the doors: the teacher's beat, a notice board, bags and bottles left out
+    Z('plaza', poly.rect(RX1 + 0.3, -156, -52, -120));
+    put('school_teacher', RX1 + 1.6, -138, { yaw: 0, moverState: { radius: 7 } });
+    solid('school_notice_board', -53.4, -138, { yaw: -HALF }, 0.2);
+    put('office_water', RX1 + 0.6, -137, { yaw: -HALF });
+    scatter(SCHOOL_MID, 30, inRect(RX1 + 0.6, -155, -52.5, -121), { margin: 0.3 });
+    scatter(SCHOOL_TINY, 300, inRect(RX1 + 0.5, -155, -52.5, -121), { margin: 0.02 });
+    // the dean on the track; hoops, ping-pong tables, the tuck shop and the school bus round the yard
+    put('school_dean', -40, -122, { yaw: HALF, moverState: { radius: 12 } });
+    for (const z of [-104, -156]) solid('school_hoop', 60, z, { yaw: -HALF }, 0.4);
+    for (const z of [-118, -126, -134]) solid('school_pingpong', 61, z, { yaw: 0 }, 0.3);
+    solid('school_shop', 63, -95, { yaw: -HALF }, 0.3);
+    scatter([['school_spicy_strip', 3], ['ice_pop', 2], ['lollipop', 2], ['soda_can', 1]], 24, inRect(56, -99, 61, -91), { margin: 0 });
+    solid('school_bus', -40, -93, { yaw: HALF }, 0.4);
+    // nothing else is put in the classrooms or the corridor
+    block(RX0 - 1, -156, -51, -120);
+  }
   for (let x = -60; x <= 60; x += 6) put('sapling', x, -90, { yaw: rng.angle() });
   put('football', 3, -131, {});
   put('football', -12, -126, {});

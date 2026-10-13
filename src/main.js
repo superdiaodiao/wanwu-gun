@@ -283,7 +283,7 @@ function renderBallPortrait(r, t) {
 // ---- game setup ------------------------------------------------------------------------------
 
 // ---- playtest statistics (track.js) ------------------------------------------------------------
-const modeKey = () => (G.level ? `level-${G.level.id}` : G.where === 'office' ? `${G.mode}-office` : G.mode);
+const modeKey = () => (G.level ? `level-${G.level.id}` : G.where !== 'home' ? `${G.mode}-${G.where}` : G.mode);
 function trackEnd() {
   const m = modeKey();
   track('end', `${m}/${span(G.time)}`, G.time);
@@ -295,10 +295,12 @@ function trackQuit(how) {
   if (G.state === 'pause') track('quit', `${how}/${modeKey()}/${span(G.time)}`);
 }
 
-// ---- where to start (从哪儿滚起): the 小区 or the 工位 (幸福科技's office floor, layout.js). The
+// ---- where to start (从哪儿滚起): the 小区, the 工位 (幸福科技's office floor) or the 教室 (the
+// classrooms at 幸福小学), all in layout.js. The
 // 每日挑战, 关卡 and 对手赛 always start at home, so everyone plays the same game there.
 const START_MODES = ['trial', 'quick', 'timed', 'free'];
-const startPick = () => (store.get('startAt', 'home') === 'office' ? 'office' : 'home');
+const STARTS = ['home', 'office', 'school'];
+const startPick = () => { const v = store.get('startAt', 'home'); return STARTS.includes(v) ? v : 'home'; };
 const startOf = mode => (START_MODES.includes(mode) ? startPick() : 'home');
 function syncStartPick() {
   for (const b of document.querySelectorAll('#start-pick [data-start]')) b.setAttribute('aria-pressed', String(b.dataset.start === startPick()));
@@ -465,11 +467,11 @@ function introLines(mode) {
   if (mode === 'daily') return [story.INTRO_DAILY];
   if (mode === 'rivals') return [story.INTRO_RIVALS];
   if (mode === 'level') return [G.level.intro];
-  const office = G.where === 'office';
-  if (mode === 'trial') return office ? story.INTRO_TRIAL_OFFICE : story.INTRO_TRIAL;
+  const hello = { office: story.OFFICE_HELLO, school: story.SCHOOL_HELLO }[G.where];
+  if (mode === 'trial') return { office: story.INTRO_TRIAL_OFFICE, school: story.INTRO_TRIAL_SCHOOL }[G.where] || story.INTRO_TRIAL;
   const last = mode === 'quick' ? story.INTRO_QUICK : mode === 'timed' ? story.INTRO_TIMED : story.INTRO_FREE;
-  // (at the office she finds you still at work: that line stands in for her first one)
-  if (office) return seen ? [story.OFFICE_HELLO, last] : [story.OFFICE_HELLO, ...story.INTRO.slice(1), last];
+  // (at the office she finds you still at work, in class asleep: that line stands in for her first)
+  if (hello) return seen ? [hello, last] : [hello, ...story.INTRO.slice(1), last];
   return seen ? [last] : [...story.INTRO, last];
 }
 

@@ -22,6 +22,7 @@ export const UI = {
   '从哪儿滚起': 'Start from',
   '小区': 'Home',
   '工位': 'The office',
+  '教室': 'Classroom',
   '开始补天': 'Start rolling',
   '快滚 3 分钟': 'Quick Roll · 3 min',
   '<b>开始补天</b><small>快滚 3 分钟</small>': '<b>Start rolling</b><small>Quick Roll · 3 min</small>',

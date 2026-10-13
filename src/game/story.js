@@ -22,6 +22,12 @@ export const INTRO_TRIAL_OFFICE = [
   '咳咳——醒醒！本宫是女娲。天被本宫捅了个窟窿……你还在改方案？',
   '别改了，推着这颗五色石从工位滚出去。比它小的一碰就粘上，越滚越大。两分半，滚到十米！',
 ];
+// the 教室 start (the classrooms at 幸福小学): 女娲 catches you asleep in class
+export const SCHOOL_HELLO = '咳咳——醒醒！上课睡觉，被本宫逮到了吧？';
+export const INTRO_TRIAL_SCHOOL = [
+  '咳咳——醒醒！上课睡觉被本宫逮到了吧？天被本宫捅了个窟窿，得滚一块大石头去补。',
+  '作业先别写了，推着这颗五色石从教室滚出去。比它小的一碰就粘上，越滚越大。两分半，滚到十米！',
+];
 export const TRIAL_DONE = '十米！手感不错嘛。真要补天得滚到五十米——下一局来真的，三分钟，能滚多大滚多大！';
 export const TRIAL_SHORT = '差一点点！不急，再来一局就到十米了。';
 export const INTRO_FREE = '不着急，慢慢滚。滚到五十米就够补天了，到时候本宫叫你。';
@@ -132,6 +138,23 @@ export const QUIPS = {
   office_worker_laptop: '同事：等等，我还在线上开会！',
   office_elevator: '电梯：叮——上行，直达天庭。',
   office_coffee_machine: '咖啡机：全公司的命，都在我这儿呢。',
+  // 幸福小学 (教室开局)
+  school_teacher: '班主任：作业没收齐，谁也不许走！——我、我也走了？',
+  school_dean: '教导主任：走廊里不许跑！——更不许滚！',
+  school_test_paper: '59 分滚走了，家长签字这一关就算躲过去了。',
+  school_homework: '暑假作业滚走了。就跟老师说被女娲收走了——这回是真的。',
+  school_blackboard: '黑板滚走了，期末倒计时……清零。',
+  school_podium: '讲台滚走了，老师今天只能站在下面讲。',
+  school_note: '「放学等我」？本宫可不等，先带走了。',
+  school_textbooks: '书山被你推平了，学海还得自己游。',
+  school_mistakes_book: '第五本错题本也滚了，第六本从头错起。',
+  school_spicy_strip: '五毛钱的快乐，本宫收下了。',
+  school_student_sleepy: '打哈欠的同学：下课了吗？……哇，怎么在天上？',
+  school_student_copying: '抄作业的同学：等等，就差最后一题了！',
+  school_board_news: '黑板报滚走了，本周之星也跟着上天了。',
+  school_bus: '校车：滴滴——今天放学，直接送到天上。',
+  school_shop: '小卖部连货架一起端走了，课间十分钟再也没处冲了。',
+  school_projector: '重点：全部——现在全部都滚进来了。',
 };
 
 // said when nothing has been rolled up for a while, by size

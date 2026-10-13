@@ -11,5 +11,8 @@ import './nature.js';
 import './office_small.js';
 import './office_furniture.js';
 import './office_people.js';
+import './school_small.js';
+import './school_furniture.js';
+import './school_people.js';
 import './tweaks.js';
 export { CATALOG } from './registry.js';
