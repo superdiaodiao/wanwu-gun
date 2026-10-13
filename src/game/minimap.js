@@ -7,6 +7,7 @@
 // The minimap repaints its content a few times a second into a north-up layer a bit larger than the
 // window; every frame only turns and slides that layer under the ball, so turning stays smooth.
 import { ZONES } from './ground.js';
+import { t as tr, placeName } from '../i18n/index.js';
 
 const COLORS = {
   base: '#6f9b52', grass: '#79a758', field: '#b4ab60', dirt: '#a48a66', sand: '#dccb9b', concrete: '#c4c0b7',
@@ -258,7 +259,7 @@ export class Maps {
     c.font = `700 ${Math.round(9 * u)}px "Noto Sans SC", "PingFang SC", sans-serif`;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText('北', nx, ny + 0.5 * u);
+    c.fillText(tr('北'), nx, ny + 0.5 * u);
   }
 
   targets(c, list, ball, yaw, h, k, u) {
@@ -367,8 +368,8 @@ export class Maps {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `${Math.round(13 * u)}px "ZCOOL KuaiLe", "PingFang SC", sans-serif`;
-    for (const [name, x, z, from, to] of PLACES) {
-      const sx = X(x), sy = Z(z);
+    for (const [zh, x, z, from, to] of PLACES) {
+      const name = placeName(zh), sx = X(x), sy = Z(z);
       if (half < from || half > to || sx < -40 * u || sx > px + 40 * u || sy < 0 || sy > px) continue;
       ctx.lineWidth = 3.5 * u;
       ctx.strokeStyle = 'rgba(31, 27, 36, 0.8)';
@@ -408,7 +409,7 @@ export class Maps {
     ctx.fill();
     ctx.fillStyle = PAPER;
     ctx.font = `700 ${Math.round(12 * u)}px "Noto Sans SC", "PingFang SC", sans-serif`;
-    ctx.fillText('北', px - 18 * u, 18.5 * u);
+    ctx.fillText(tr('北'), px - 18 * u, 18.5 * u);
     const [len, label] = niceScale(half * 0.4);
     const lx = 12 * u, ly = px - 14 * u, lw = len * k;
     ctx.fillStyle = 'rgba(31, 27, 36, 0.8)';

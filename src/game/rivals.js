@@ -6,8 +6,9 @@ import * as THREE from 'three';
 import { Ball } from './ball.js';
 import { skinById } from './skins.js';
 import { fmt } from './hud.js';
+import { t } from '../i18n/index.js';
 
-const NAMES = ['秋名山滚神', '广场舞领队', '隔壁小娲', '瓜子收割机', '楼下大黄', '滚王之王', '包子铺老板', '夜の滚神', '五色石本石', '补天小能手'];
+export const NAMES = ['秋名山滚神', '广场舞领队', '隔壁小娲', '瓜子收割机', '楼下大黄', '滚王之王', '包子铺老板', '夜の滚神', '五色石本石', '补天小能手'];
 const SKINS = ['qinghua', 'xigua', 'xingkong', 'panda', 'yuanbao'];
 // where they start, round the player's start square (all in the carpet of seeds)
 export const RIVAL_SPAWNS = [[-8.5, 9, 0.6], [8.5, 9, -0.6], [9, -5, -2.4]];
@@ -238,7 +239,7 @@ export class Rivals {
     if ((this.boardT -= dt) > 0) return;
     this.boardT = 0.25;
     this.board.innerHTML = this.standings(player)
-      .map((e, i) => `<li class="${e.me ? 'me' : ''}${e.alive ? '' : ' out'}"><i>${i + 1}</i><span>${e.name}</span><b>${e.alive ? fmt(e.S) : '出局'}</b></li>`)
+      .map((e, i) => `<li class="${e.me ? 'me' : ''}${e.alive ? '' : ' out'}"><i>${i + 1}</i><span>${e.name}</span><b>${e.alive ? fmt(e.S) : t('出局')}</b></li>`)
       .join('');
   }
 
@@ -249,7 +250,7 @@ export class Rivals {
 
   /** everyone, biggest first; the ones rolled up last, latest out first */
   standings(player) {
-    const all = [{ name: '我', S: player.S, me: true, alive: true }, ...this.list.map(r => ({ name: r.name, S: r.ball.S, me: false, alive: r.alive, out: r.out }))];
+    const all = [{ name: t('我'), S: player.S, me: true, alive: true }, ...this.list.map(r => ({ name: r.name, S: r.ball.S, me: false, alive: r.alive, out: r.out }))];
     return all.sort((a, b) => (a.alive !== b.alive ? (a.alive ? -1 : 1) : a.alive ? b.S - a.S : b.out - a.out));
   }
 }

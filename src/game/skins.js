@@ -3,6 +3,7 @@
 // (shards.js). Each is a colour for every point of the unit sphere, plus the colour of the little
 // studs round it (or none).
 import { noise2 } from '../core/rng.js';
+import { t } from '../i18n/index.js';
 
 const WUSE = [0x2aa198, 0xd8342c, 0xf2c14e, 0xf4efe2, 0x2b2733];
 const band = (t, pal) => pal[(((Math.floor(t)) % pal.length) + pal.length) % pal.length];
@@ -80,5 +81,5 @@ export function skinOpen(skin, stars, shards) {
 
 /** what it takes, for a locked one */
 export function skinNeed(skin) {
-  return skin.shards ? `集齐 ${skin.shards} 块五色石碎片` : `累计 ★ ${skin.need} 解锁`;
+  return skin.shards ? t('集齐 {n} 块五色石碎片', { n: skin.shards }) : t('累计 ★ {n} 解锁', { n: skin.need });
 }

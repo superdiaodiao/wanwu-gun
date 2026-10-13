@@ -1,6 +1,7 @@
 // HUD: size gauge (with what is still to be absorbed), next goal, timer, last item rolled up, the
 // pickup streak, "+size" pop-ups, goal stamps, toasts.
 import { MILESTONES, SKY_GOAL } from './story.js';
+import { t } from '../i18n/index.js';
 
 const RING = 2 * Math.PI * 52;
 
@@ -57,7 +58,7 @@ export class HUD {
     if (goalText !== this.shown.goal) {
       this.goal.textContent = this.shown.goal = goalText;
       // the size that patches the sky says so
-      this.goalLbl.textContent = next && next[0] === SKY_GOAL ? '补天' : '目标';
+      this.goalLbl.textContent = next && next[0] === SKY_GOAL ? t('补天') : t('目标');
     }
     const frac = x => (next ? Math.max(0, Math.min(1, Math.log(x / prev) / Math.log(next[0] / prev))) : 1);
     // (in half-pixel steps, written only when they move: every repaint of the gauge redraws its shadow)
@@ -87,7 +88,7 @@ export class HUD {
   /** fresh: the first of its kind ever (a new 图鉴 entry) */
   lastItem(name, size, fresh = false) {
     this.last.classList.toggle('fresh', fresh);
-    this.lastLabel.textContent = fresh ? '新收集！' : '刚滚起';
+    this.lastLabel.textContent = fresh ? t('新收集！') : t('刚滚起');
     this.last.hidden = false;
     this.lastName.textContent = name;
     this.lastSize.textContent = fmt(size);
@@ -127,7 +128,7 @@ export class HUD {
     box.classList.toggle('five', n >= 30);
     this.comboN.textContent = n;
     const pct = Math.round((mult - 1) * 100);
-    this.comboBonus.textContent = pct > 0 ? `长大 +${pct}%` : '';
+    this.comboBonus.textContent = pct > 0 ? t('长大 +{pct}%', { pct }) : '';
     void box.offsetWidth;
     box.classList.add('tick');
     clearTimeout(this._comboHide);
@@ -142,7 +143,7 @@ export class HUD {
       this._comboHide = setTimeout(() => (box.hidden = true), 400);
     };
     if (n >= 8 && extra > 0) {
-      this.comboBonus.textContent = `多长了 ${fmt(extra)}`;
+      this.comboBonus.textContent = t('多长了 {size}', { size: fmt(extra) });
       box.classList.add('done');
       this._comboHide = setTimeout(fade, 1400);
     } else fade();
