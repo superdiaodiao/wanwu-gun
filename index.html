@@ -510,6 +510,10 @@ kbd {
 .logo span:nth-child(5) { color: #a88be0; animation-delay: 0.45s; transform: rotate(-4deg); }
 @keyframes roll-in { from { transform: translateY(-40px) rotate(-200deg) scale(0.3); opacity: 0; } }
 .pitch { margin: 0; max-width: 34em; font-size: 16px; line-height: 1.7; color: var(--paper); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7); text-wrap: balance; }
+.start-pick { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 10px; font-size: 13px; opacity: 0.92; }
+.start-pick span { margin-right: 4px; }
+.start-pick .chip { background: rgba(31, 27, 36, 0.6); }
+.start-pick .chip[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--ink); font-weight: 700; }
 .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .btn {
   display: grid; justify-items: center; gap: 2px;
@@ -1047,6 +1051,9 @@ html[lang="en"] .eyebrow, html[lang="en"] #res-eyebrow { letter-spacing: 1.5px; 
     <div class="eyebrow">女娲补天 · 块魂同人</div>
     <h1 class="logo" data-i18n><span>万</span><span>物</span><span>皆</span><span>可</span><span>滚</span></h1>
     <p class="pitch" data-i18n>天破了个窟窿。推着五色石，从一颗瓜子滚起——<br>猫、大妈、公交车、居民楼、整座山，统统滚上天去补。</p>
+    <div id="start-pick" class="start-pick" role="group" aria-label="从哪儿滚起">
+      <span>从哪儿滚起</span><button class="chip" type="button" data-start="home" aria-pressed="true">小区</button><button class="chip" type="button" data-start="office" aria-pressed="false">工位</button>
+    </div>
     <div class="actions">
       <button id="btn-quick" class="btn primary"><b>开始补天</b><small>快滚 3 分钟</small></button>
       <button id="btn-daily" class="btn daily"><b>每日挑战</b><small id="daily-sub">4 分钟 · 今天人人同一题</small></button>
@@ -1188,7 +1195,7 @@ html[lang="en"] .eyebrow, html[lang="en"] #res-eyebrow { letter-spacing: 1.5px; 
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.5c4ea39a.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  var file = 'wanwu.64fee142.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   var order = cn ? [cos, file] : [file, cos];
   function next() {
