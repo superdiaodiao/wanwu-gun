@@ -219,18 +219,23 @@ const FONT_CSS = `https://fonts.googleapis.${IN_CN ? 'cn' : 'com'}/css2?family=B
  * render-blocking, so on networks where Google is unreachable (mainland China without a VPN) the page
  * would sit blank until the request times out. Injected here, nothing waits for it; system fonts are
  * used until (and unless) the web fonts arrive. Resolves true once loaded, false on failure.
+ *
+ * Not before the page's load event, either: a stylesheet (and the fonts it pulls) asked for earlier
+ * holds that event back until it arrives, and a game portal hides its loading screen on it (on a
+ * slow Google connection that was seconds after the game was ready).
  */
 let fontCss = null;
 export function injectFontCss() {
   if (fontCss) return fontCss;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = FONT_CSS;
-  fontCss = new Promise(res => {
+  const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, { once: true }));
+  fontCss = loaded.then(() => new Promise(res => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = FONT_CSS;
     link.onload = () => res(true);
     link.onerror = () => res(false);
-  });
-  document.head.appendChild(link);
+    document.head.appendChild(link);
+  }));
   return fontCss;
 }
 

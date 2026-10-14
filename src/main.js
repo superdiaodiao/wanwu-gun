@@ -49,7 +49,9 @@ const START_SIZE = 0.06;
 const PLATFORM = typeof __PLATFORM__ !== 'undefined' ? __PLATFORM__ : 'site';
 const SITE = PLATFORM === 'site' ? 'superdiaodiao.github.io/wanwu-gun' : '';
 const $ = id => document.getElementById(id);
-const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
+// the next frame (so what was just changed gets painted), or a moment later in a tab nobody is
+// looking at, where frames don't come at all and starting up would otherwise stop dead
+const nextFrame = () => new Promise(r => { requestAnimationFrame(() => r()); setTimeout(r, 100); });
 const store = {
   get(k, d) { try { const v = localStorage.getItem('wanwu.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('wanwu.' + k, JSON.stringify(v)); } catch {} },
@@ -188,6 +190,7 @@ async function boot() {
   console.info(`[boot] fonts ${r('fonts')} · layout ${Math.round(T.layout - T.pre)} · ground ${Math.round(T.ground - T.layout)} · finalize ${Math.round(T.finalize - T.ground)} · total ${r('compile')} ms · ${world.objects.length} objects · ${world.types.size} types`);
   requestAnimationFrame(loop);
   await nextFrame();
+  T.frame1 = performance.now();
   $('loading').classList.add('done');
   setTimeout(() => ($('loading').hidden = true), 700);
   window.__ready = true;

@@ -2,7 +2,7 @@
 // Headless Chrome screenshot + console capture over the DevTools protocol (no dependencies).
 //
 //   node tools/shot.mjs <file|url> <out.png> [--w=1600] [--h=1000] [--wait=1200] [--full]
-//                       [--ready="window.__ready===true"] [--eval="js expression"] [--gl=swiftshader|gpu]
+//                       [--ready="window.__ready===true"] [--eval="js expression"] [--gl=swiftshader|gpu] [--cpu=4]
 //
 // Prints the saved path, then every console message / exception from the page.
 // Waits for the page's readiness expression (default window.__ready === true) before capturing.
@@ -101,6 +101,8 @@ await send('Runtime.enable');
 await send('Log.enable');
 await send('Page.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
+// --cpu=4: run the page on a CPU that many times slower (a mid-range phone is about 4×)
+if (opt.cpu) await send('Emulation.setCPUThrottlingRate', { rate: +opt.cpu });
 const loaded = new Promise(r => listeners.push(m => { if (m.method === 'Page.loadEventFired') r(); }));
 await send('Page.navigate', { url });
 await loaded;
