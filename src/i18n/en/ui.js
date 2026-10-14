@@ -157,6 +157,8 @@ export const UI = {
   '按住这里往上推': 'Hold here and push up',
   '「滚」字一出来往上一推，冲得最快；之后松手球也会自己滚': 'Push up the moment “Roll!” appears for a flying start; let go after and it keeps rolling',
   '「滚」字一出来，按住 W（或 ↑）往前滚': 'When “Roll!” appears, hold W (or ↑) to roll',
+  '球会自己往前滚，拇指按住左下角拖着拐弯': 'The ball rolls by itself: hold your thumb at the bottom left and drag to steer',
+  '按住 W（或 ↑）往前滚，A D 拐弯': 'Hold W (or ↑) to roll, A D to steer',
   '滚！': 'Roll!',
   '<em>完美起步！</em>': '<em>Perfect start!</em>',
   '抢跑了～下次等「滚」字出来再推': 'False start~ wait for “Roll!” next time',

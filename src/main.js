@@ -191,6 +191,9 @@ async function boot() {
   requestAnimationFrame(loop);
   await nextFrame();
   T.frame1 = performance.now();
+  // on a game portal a first-time player goes straight into the 试滚 (the title screen is still
+  // there afterwards, and from the pause menu)
+  if (PLATFORM !== 'site' && !trialDone()) startGame('trial', null, { direct: true });
   $('loading').classList.add('done');
   setTimeout(() => ($('loading').hidden = true), 700);
   window.__ready = true;
@@ -452,12 +455,18 @@ function ownHost() {
   return labels.slice(-w.length).join('.') === want && (PLATFORM !== 'site' || labels.length === w.length);
 }
 
-async function startGame(mode, levelId = null) {
+/**
+ * direct: straight into play, for a first visit on a game portal (no title screen first): 女娲's
+ * lines go by on their own while the ball already rolls, the count is short, and the sound comes on
+ * with the first key or touch (browsers allow it no sooner, so it isn't waited for)
+ */
+async function startGame(mode, levelId = null, { direct = false } = {}) {
   if (!ownHost()) {
     stopCopy();
     return;
   }
-  try { await audio.init(); } catch (e) { console.warn('[audio] init failed', e); }
+  if (direct) audio.init().catch(() => {});
+  else try { await audio.init(); } catch (e) { console.warn('[audio] init failed', e); }
   applyAudioPrefs();
   audio.ui('start');
   resetGame(mode, levelId);
@@ -470,6 +479,13 @@ async function startGame(mode, levelId = null) {
   G.state = 'intro';
   audio.music('title', { fade: 1 });
   const lines = introLines(mode);
+  if (direct) {
+    G.intro = null;
+    track('intro', 'direct');
+    beginPlay({ direct: true });
+    dialog.say(lines);
+    return;
+  }
   G.intro = { n: lines.length, skipped: false };
   dialog.say(lines, { blocking: true, onDone: beginPlay });
   if (giant) {
@@ -501,7 +517,7 @@ function introLines(mode) {
   return seen ? [last] : [...story.INTRO, last];
 }
 
-function beginPlay() {
+function beginPlay({ direct = false } = {}) {
   // (only the long story the first time is worth counting)
   if (G.intro && G.intro.n > 1 && !G.intro.skipped) track('intro', 'heard');
   G.intro = null;
@@ -515,10 +531,10 @@ function beginPlay() {
   if (G.rules.wishes) showWishes(G.rules.countdown ? 3 : 6);
   if (G.level) hud.toast(`<em>${G.level.name}</em> · ${G.level.text}`);
   // 3 · 2 · 1 · 滚！ (roll off right on 滚 for a flying start)
-  G.cd = G.rules.countdown ? 3.2 : -1;
+  G.cd = !G.rules.countdown ? -1 : direct ? 1.2 : 3.2;
   G.cdShown = null;
   G.cdGo = null;
-  if (G.rules.countdown) cdHint(true);
+  if (G.rules.countdown) cdHint(true, direct);
   if (giant) giant.userData.target = 0;
   rig.override = null;
   rig.zoomIdx = 0;
@@ -1705,12 +1721,14 @@ function newlyEdible() {
  * What to do when 滚 comes up, shown through the countdown: the left thumb pushing up (touch), or
  * W (keys). Goes once the ball is rolling, or a few seconds after 滚.
  */
-function cdHint(on) {
+/** the how-to-start line over the count; direct: the count is too short to aim for 滚 (just say how) */
+function cdHint(on, direct = false) {
   G.cdHint = on;
   G.cdHintT = 0;
   const el = $('cd-hint'), sh = $('stick-hint');
   el.hidden = !on;
-  if (on) el.textContent = G.touchScreen ? t('「滚」字一出来往上一推，冲得最快；之后松手球也会自己滚') : t('「滚」字一出来，按住 W（或 ↑）往前滚');
+  if (on && direct) el.textContent = G.touchScreen ? t('球会自己往前滚，拇指按住左下角拖着拐弯') : t('按住 W（或 ↑）往前滚，A D 拐弯');
+  else if (on) el.textContent = G.touchScreen ? t('「滚」字一出来往上一推，冲得最快；之后松手球也会自己滚') : t('「滚」字一出来，按住 W（或 ↑）往前滚');
   sh.classList.toggle('cd', on && G.touchScreen);
   sh.lastElementChild.textContent = on && G.touchScreen ? t('按住这里往上推') : t('拇指拖着拐弯 · 松手接着滚 · 按住不动停下');
 }
