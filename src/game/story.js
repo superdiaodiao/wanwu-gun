@@ -11,16 +11,15 @@ export const INTRO = [
 export const SKY_GOAL = 50;
 export const INTRO_TIMED = '天上的窟窿，得一块五十米的补天石才补得上。天黑之前——六分钟——滚到五十米，越大越好。去吧！';
 export const INTRO_QUICK = '天上的窟窿，得一块五十米的补天石才补得上。三分钟，能滚多大滚多大——去吧！';
-// the very first game: the short 试滚 (the rest of the story waits for its results)
+// the very first game: the short 试滚, one line and straight in (the rest of the story waits for
+// its results)
 export const INTRO_TRIAL = [
-  '咳咳——小泥人，醒醒！本宫是女娲。天被本宫捅了个窟窿，得滚一块大石头去补。',
-  '先练练手：推着这颗五色石，比它小的一碰就粘上，越滚越大。两分半，滚到十米！',
+  '小泥人，醒醒！天破了个窟窿，得滚块大石头去补。先练练手：比球小的一碰就粘上，两分半滚到十米！',
 ];
 // the 工位 start (幸福科技's open-plan floor): 女娲 finds you still at work
 export const OFFICE_HELLO = '咳咳——醒醒！本宫是女娲。……都几点了，你怎么还在加班？';
 export const INTRO_TRIAL_OFFICE = [
-  '咳咳——醒醒！本宫是女娲。天被本宫捅了个窟窿……你还在改方案？',
-  '别改了，推着这颗五色石从工位滚出去。比它小的一碰就粘上，越滚越大。两分半，滚到十米！',
+  '醒醒！天破了个窟窿，别改方案了——推着五色石从工位滚出去，比它小的一碰就粘上，两分半滚到十米！',
 ];
 export const TRIAL_DONE = '十米！手感不错嘛。真要补天得滚到五十米——下一局来真的，三分钟，能滚多大滚多大！';
 export const TRIAL_SHORT = '差一点点！不急，再来一局就到十米了。';

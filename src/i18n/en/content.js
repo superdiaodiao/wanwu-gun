@@ -458,13 +458,11 @@ export const STORY = {
   INTRO_TIMED: 'Patching that hole takes a 50 m Sky-Patch Stone. Before sunset — 6 minutes — reach 50 m. Bigger is better. Go!',
   INTRO_QUICK: 'Patching that hole takes a 50 m Sky-Patch Stone. 3 minutes — roll as big as you can. Go!',
   INTRO_TRIAL: [
-    'Ahem — little clay one, wake up! It is I, Nüwa. I poked a hole in the sky; we need a big stone to patch it.',
-    'Warm-up first: push this Five-Color Stone; smaller things stick on touch. 2½ minutes — roll up to 10 m!',
+    'Wake up, little clay one! The sky has a hole. Warm-up first: smaller things stick on touch — reach 10 m in 2½ minutes!',
   ],
   OFFICE_HELLO: "Ahem — wake up! It is I, Nüwa. …Do you know what time it is? Why are you still at work?",
   INTRO_TRIAL_OFFICE: [
-    'Ahem — wake up! It is I, Nüwa. I poked a hole in the sky… and you are still revising slides?',
-    'Forget the deck. Push this Five-Color Stone out of the office; smaller things stick on touch. 2½ minutes — roll up to 10 m!',
+    'Wake up! The sky has a hole — forget the slides. Smaller things stick on touch: reach 10 m in 2½ minutes!',
   ],
   TRIAL_DONE: '10 m! Nice touch. A real patch takes 50 m — next round is for real: 3 minutes, roll as big as you can!',
   TRIAL_SHORT: "So close! No rush — one more go and you'll hit 10 m.",

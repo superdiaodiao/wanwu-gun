@@ -32,6 +32,7 @@ import { Rivals } from './game/rivals.js';
 import { shareCard } from './game/share.js';
 import { track, trackVisit, trackStart, trackCopy, span, sizeBucket, fpsBucket } from './game/track.js';
 import { strayHost, stopCopy } from './game/guard.js';
+import { portalInit, portalLoaded, portalPlaying } from './game/portal.js';
 import { audio } from './audio/audio.js';
 
 
@@ -88,6 +89,7 @@ async function boot() {
     stopCopy();
     return;
   }
+  portalInit();
   const probe = document.createElement('canvas').getContext('webgl2');
   if (!probe) {
     $('loading').hidden = true;
@@ -197,6 +199,7 @@ async function boot() {
   $('loading').classList.add('done');
   setTimeout(() => ($('loading').hidden = true), 700);
   window.__ready = true;
+  portalLoaded();
 }
 
 // ---- giant 女娲 in the sky ---------------------------------------------------------------------
@@ -881,6 +884,7 @@ function setupUI() {
       }
       if (G.state === 'play') togglePause(true);
       audio.suspend();
+      syncPortal();
     } else if (G.state !== 'pause') audio.resume();
   });
   $('game').addEventListener('pointerdown', () => {
@@ -930,12 +934,16 @@ function togglePause(force) {
 
 // ---- main loop -------------------------------------------------------------------------------
 
+// the portal hears when a game is actually being played (portal.js)
+const syncPortal = () => portalPlaying(G.state === 'play' && !document.hidden && !(dex && dex.isOpen));
+
 // Frame pacing, to keep phones cool: paused, nothing moves, so the scene is drawn once and then left
 // alone; the title and results screens (slow camera drift) and the power-saving mode (G.fpsCap = 30)
 // run on every other screen refresh.
 let oddFrame = false;
 function loop() {
   requestAnimationFrame(loop);
+  syncPortal();
   // (a recording drives the frames itself: tools/record.mjs through __wanwu.frame)
   if (G.recording) return;
   if (dex && dex.isOpen) {
