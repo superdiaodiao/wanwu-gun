@@ -177,6 +177,8 @@ export const LEVEL_FAIL = '差一点……再来一次！';
 // 对手赛: said as it happens (the rivals' names go in)
 export const ATE_RIVAL = name => `把「${name}」整个滚进来了！`;
 export const RIVAL_ATE = (by, name) => `「${by}」把「${name}」滚走了`;
+export const INTRO_BRAWL = '大乱斗！城里十几颗五色石，比你小的滚进来，比你大的——快跑，它们会把你滚走！三分钟，活下来、长最大。';
+export const BRAWL_EATEN = name => `被「${name}」滚走了……`;
 export const RIVAL_FIRST = '比你小的对手头上是金色的名字——追上去，直接滚进来！';
 
 // poke 女娲 while she talks

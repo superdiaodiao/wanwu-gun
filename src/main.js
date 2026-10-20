@@ -382,6 +382,7 @@ function resetGame(mode, levelId = null) {
   G.outro = 0;
   G.preyHinted = false;
   G.rivalsEaten = [];
+  G.eatenBy = null;
   G.left = false;
   $('hud-count').classList.toggle('no-wish', !G.rules.wishes);
   syncLevelHud();
@@ -478,7 +479,7 @@ async function startGame(mode, levelId = null, { direct = false } = {}) {
   else wishes.clear();
   syncWishHud();
   for (const id of ['title-screen', 'levels', 'skins', 'results']) $(id).hidden = true;
-  if (G.rules.rivals) rivals.start(G.rules.rivals, START_SIZE);
+  if (G.rules.rivals) rivals.start(G.rules.rivals, START_SIZE, { brawl: !!G.rules.brawl });
   G.state = 'intro';
   audio.music('title', { fade: 1 });
   const lines = introLines(mode);
@@ -511,6 +512,7 @@ function introLines(mode) {
   store.set('introSeen', true);
   if (mode === 'daily') return [story.INTRO_DAILY];
   if (mode === 'rivals') return [story.INTRO_RIVALS];
+  if (mode === 'brawl') return [story.INTRO_BRAWL];
   if (mode === 'level') return [G.level.intro];
   const office = G.where === 'office';
   if (mode === 'trial') return office ? story.INTRO_TRIAL_OFFICE : story.INTRO_TRIAL;
@@ -524,6 +526,8 @@ function beginPlay({ direct = false } = {}) {
   // (only the long story the first time is worth counting)
   if (G.intro && G.intro.n > 1 && !G.intro.skipped) track('intro', 'heard');
   G.intro = null;
+  // 大乱斗: a few seconds at the start when nothing can roll the player up (the countdown and a bit)
+  ball.safeUntil = G.rules.brawl ? G.t + 9 : 0;
   G.state = 'play';
   // (a game that ended in the sky switched the controls off)
   input.enabled = true;
@@ -730,6 +734,7 @@ function setupUI() {
   }
   $('btn-daily').addEventListener('click', () => startGame('daily'));
   $('btn-rivals').addEventListener('click', () => startGame('rivals'));
+  $('btn-brawl').addEventListener('click', () => startGame('brawl'));
   $('btn-levels').addEventListener('click', openLevels);
   $('btn-skins').addEventListener('click', openSkins);
   $('btn-shards').addEventListener('click', openSkins);
@@ -1801,7 +1806,7 @@ function endRound(why) {
     else score = ball.S;
     ok = score !== null && score > 0;
   }
-  G.round = { why, score, ok, size: ball.S, standings: rivals.active ? rivals.standings(ball) : null };
+  G.round = { why, score, ok, size: ball.S, standings: rivals.active ? rivals.standings(ball, why === 'eaten' ? G.t : 0) : null };
   G.state = 'outro';
   G.outro = 2.2;
   input.enabled = false;
@@ -1809,7 +1814,10 @@ function endRound(why) {
   $('hud-time').hidden = true;
   audio.setHurry(false);
   dialog.clear();
-  if (G.rules.rivals) {
+  if (why === 'eaten') {
+    hud.stamp(t('被滚走了'), story.BRAWL_EATEN(G.eatenBy));
+    audio.timeUp();
+  } else if (G.rules.rivals) {
     const place = G.round.standings.findIndex(e => e.me) + 1;
     hud.stamp(place === 1 ? t('第一名') : t('第 {n} 名', { n: ord(place) }), '');
     audio.milestone(place === 1 ? 6 : 2);
@@ -1862,6 +1870,16 @@ function rivalEvents(evs) {
       const S = ball.S;
       fx.firework(ball.pos.x, ball.centerY + S, ball.pos.z, S);
       rig.fovBoost += 8;
+    } else if (e.type === 'playerEaten') {
+      // 大乱斗: a bigger one rolled the player up: that's the game
+      G.eatenBy = e.by.name;
+      ball.group.visible = false;
+      player.visible = false;
+      fx.firework(ball.pos.x, ball.centerY + ball.S, ball.pos.z, e.by.ball.S);
+      rig.shake(0.08);
+      audio.bump(1);
+      endRound('eaten');
+      return;
     } else if (e.type === 'rivalAte') {
       hud.toast(story.RIVAL_ATE(e.by.name, e.r.name));
     } else if (e.type === 'bump') {
@@ -2102,6 +2120,32 @@ function fmtScore(L, v) {
 }
 
 /** the end of a 关卡 or a 对手赛 (no trip up to the sky) */
+// ---- 大乱斗: coins for the place, what was eaten and the size reached, kept for the shop ----------
+function brawlCoins(place, kills, size, survived) {
+  return Math.max(0, 13 - place) * 8 + kills * 25 + Math.max(0, Math.round(Math.log2(size / START_SIZE) * 5)) + (survived ? 30 : 0);
+}
+
+function brawlResults(list, place, size) {
+  const kills = G.rivalsEaten.length, survived = G.round.why !== 'eaten';
+  const coins = brawlCoins(place, kills, size, survived);
+  const b = store.get('brawl', { coins: 0, games: 0, best: 99 });
+  b.coins += coins;
+  b.games++;
+  b.best = Math.min(b.best, place);
+  store.set('brawl', b);
+  $('res-eyebrow').textContent = t('大乱斗 · 3 分钟');
+  $('res-rank').textContent = survived ? (place === 1 ? t('第一名！') : t('活到最后！')) : t('被滚走了');
+  $('res-rivals').innerHTML = list.slice(0, 12).map((e, k) => `<li class="${e.me ? 'me' : ''}${e.alive ? '' : ' out'}"><i>${k + 1}</i><span>${e.name}</span><b>${e.alive ? fmt(e.S) : t('被滚走了')}</b></li>`).join('');
+  $('res-rivals').hidden = false;
+  const line = t('名次 {a} · 吞掉 {k} 个 · 长到 {s}', { a: ord(place), k: kills, s: fmt(size) });
+  $('res-quote').innerHTML = `<b>${t('金币 +{n}', { n: coins })}</b> · ${line}<br><small>${t('共有金币 {n}', { n: b.coins })}</small>`;
+  return {
+    title: t('大乱斗 第 {n} 名', { n: ord(place) }),
+    lines: [line, t('金币 +{n}', { n: coins })],
+    brag: t('我在《万物皆可滚·女娲补天》大乱斗拿了第 {n} 名，吞掉 {k} 颗球，滚到 {size}！{url}', { n: ord(place), k: kills, size: fmt(size), url: SITE }),
+  };
+}
+
 function showRoundResults() {
   trackEnd();
   G.state = 'results';
@@ -2150,7 +2194,12 @@ function showRoundResults() {
       : t('我在《万物皆可滚·女娲补天》里把五色石滚到了 {size}！{url}', { size: fmt(size), url: SITE });
   } else {
     const list = R.standings;
-    const place = list.findIndex(e => e.me) + 1;
+    // (大乱斗: the place is where the player stood by size, rolled up or not)
+    const place = R.why === 'eaten' ? 1 + list.filter(e => !e.me && e.alive && e.S > size).length : list.findIndex(e => e.me) + 1;
+    if (G.rules.brawl) {
+      ({ title, lines, brag } = brawlResults(list, place, size));
+      rivals.stop();
+    } else {
     const { stars } = progress.finishRivals(place);
     $('res-eyebrow').textContent = t('对手赛 · 3 分钟');
     $('res-rank').textContent = place === 1 ? t('第一名！') : t('第 {n} 名', { n: ord(place) });
@@ -2165,6 +2214,7 @@ function showRoundResults() {
       ate: ate.length ? t('，还把「{names}」整个滚了进来', { names: ate.join(EN ? '”, “' : '」「') }) : '',
     });
     rivals.stop();
+    }
   }
   $('res-brag').textContent = brag.trim();
   G.result = { size: fmt(size), title, mode: $('res-eyebrow').textContent, quote: $('res-quote').textContent, lines };
@@ -2257,6 +2307,16 @@ function autopilot(dt) {
   if (ap.escape > 0) {
     ap.escape -= dt;
     return { dir: ap.escH, m: 1, quick: false, turnImpulse: 0, dash: false };
+  }
+  // 大乱斗: run from anything that could roll the ball up (as a player would)
+  if (G.rules.brawl) {
+    let threat = null, td = Infinity;
+    for (const r of rivals.list) {
+      if (!r.alive || ball.S > r.ball.pickLimit()) continue;
+      const d = Math.hypot(r.ball.pos.x - ball.pos.x, r.ball.pos.z - ball.pos.z);
+      if (d < r.ball.S * 6 + 3 && d < td) { td = d; threat = r.ball; }
+    }
+    if (threat) return { dir: Math.atan2(ball.pos.x - threat.pos.x, -(ball.pos.z - threat.pos.z)), m: 1, quick: false, turnImpulse: 0, dash: td < threat.S * 2 };
   }
   if (G.autopilot === 'casual') return casualPilot(dt);
   ap.retarget -= dt;

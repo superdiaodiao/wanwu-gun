@@ -438,6 +438,7 @@ export const RIVAL_NAMES = [
   'Night Roll-sama',
   'Literally a Rock',
   'Sky-Patch Pro',
+  'Pancake Hero', 'Rush Hour', 'Bubble Tea Life Support', 'Slacking Master', "Don't Wanna Work", 'Roll Roll River', 'Ball Wars', 'One Bite', 'Popcorn Watcher', 'Scooter King', 'After-Dinner Roll', 'Retired Legend', 'Night Guard', 'Parcel Arrived',
 ];
 
 const HURRY = "1 minute left! The sun's going down — roll faster!";
@@ -600,6 +601,8 @@ export const STORY = {
   LEVEL_FAIL: 'So close… try again!',
   ATE_RIVAL: name => `Rolled up “${name}” whole!`,
   RIVAL_ATE: (by, name) => `“${by}” rolled up “${name}”`,
+  INTRO_BRAWL: "Brawl! A dozen Five-Color Stones in town. Roll up the smaller ones — and run from the bigger ones, they'll roll YOU up! 3 minutes: survive and grow biggest.",
+  BRAWL_EATEN: name => `Rolled up by “${name}”…`,
   RIVAL_FIRST: 'Rivals smaller than you have gold names — chase them down and roll them up!',
   POKES: [
     'Why are you poking me? Go roll!',

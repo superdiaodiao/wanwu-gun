@@ -13,6 +13,8 @@ export const MODES = {
   timed: { name: '限时补天', seconds: 360, wishes: true, countdown: true, ghost: true, finale: true },
   free: { name: '自由滚', seconds: null, wishes: true, countdown: false, ghost: false, finale: true },
   daily: { name: '每日挑战', seconds: 240, wishes: true, countdown: true, ghost: true, finale: true, short: true },
+  // 大乱斗: a dozen balls, and the bigger ones can roll you up (rivals.js); coins carry over (main.js)
+  brawl: { name: '大乱斗', seconds: 180, wishes: false, countdown: true, ghost: false, finale: false, rivals: 11, brawl: true },
   rivals: { name: '对手赛', seconds: 180, wishes: false, countdown: true, ghost: false, finale: false, rivals: 3 },
   level: { name: '关卡', seconds: 180, wishes: false, countdown: true, ghost: false, finale: false },
 };

@@ -2,13 +2,27 @@
 // best things they can take nearby, run from the player once the player could roll them up, and
 // take each other when one gets big enough (the player can't be taken: bumping a bigger one just
 // bounces). Each carries what it rolled up like the player's ball does, a few dozen things drawn.
+//
+// 大乱斗 (start(n, size, { brawl: true })): a dozen of them spread over the town, and now they hunt
+// the player too: one big enough rolls the player up (the 'playerEaten' event ends the game). One
+// that gets rolled up comes back a few seconds later under a new name, somewhere away from the
+// player, about a third the size of the field, so there is always something to chase and to run from.
 import * as THREE from 'three';
 import { Ball } from './ball.js';
 import { skinById } from './skins.js';
 import { fmt } from './hud.js';
 import { t } from '../i18n/index.js';
 
-export const NAMES = ['秋名山滚神', '广场舞领队', '隔壁小娲', '瓜子收割机', '楼下大黄', '滚王之王', '包子铺老板', '夜の滚神', '五色石本石', '补天小能手'];
+export const NAMES = ['秋名山滚神', '广场舞领队', '隔壁小娲', '瓜子收割机', '楼下大黄', '滚王之王', '包子铺老板', '夜の滚神', '五色石本石', '补天小能手',
+  // (more for 大乱斗, where they keep coming back)
+  '煎饼果子侠', '早高峰', '奶茶续命', '摸鱼达人', '不想上班', '滚滚长江', '球球大作战', '一口一个', '吃瓜群众', '电动车之王', '饭后百步滚', '退休滚神', '小区保安', '快递到了'];
+// 大乱斗: the sizes the field starts at, as multiples of the player's (11 rivals)
+const BRAWL_SIZES = [1, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+// 大乱斗 spawns: open ground round the 小区, the street and the plaza, away from walls and trees
+const BRAWL_SPAWNS = [
+  [-40, -28], [38, -26], [-34, 6], [34, 4], [-12, -30], [12, -32], [-30, 24], [30, 22], [0, 24], [-52, -2], [52, 2],
+  [-60, 47], [-25, 47], [25, 47], [60, 47], [110, -40], [130, 10], [160, -50], [120, 30], [-50, -38], [48, -38],
+];
 const SKINS = ['qinghua', 'xigua', 'xingkong', 'panda', 'yuanbao'];
 // where they start, round the player's start square (all in the carpet of seeds)
 export const RIVAL_SPAWNS = [[-8.5, 9, 0.6], [8.5, 9, -0.6], [9, -5, -2.4]];
@@ -32,11 +46,19 @@ export class Rivals {
     this.boardT = 0;
   }
 
-  /** a new 对手赛: n rivals at their spots, the size the player starts at */
-  start(n, size) {
+  /** a new 对手赛: n rivals at their spots, the size the player starts at; opts.brawl: 大乱斗 */
+  start(n, size, opts = {}) {
     this.stop();
+    this.brawl = !!opts.brawl;
+    this.size0 = size;
     const names = [...NAMES].sort(() => Math.random() - 0.5);
+    this.names = names.slice(n);
+    this.nameN = 0;
     const skins = [...SKINS].sort(() => Math.random() - 0.5);
+    const spots = this.brawl ? [...BRAWL_SPAWNS].sort(() => Math.random() - 0.5) : RIVAL_SPAWNS;
+    // (大乱斗: the field is already of all sizes when the player arrives: a few as small, most a bit
+    // bigger, a couple to run from and one to fear; they start away from the player's square)
+    const sizes = this.brawl ? BRAWL_SIZES.map(k => size * k).sort(() => Math.random() - 0.5) : null;
     for (let i = 0; i < n; i++) {
       let ball = this.pool[i];
       if (!ball) {
@@ -45,8 +67,8 @@ export class Rivals {
         // (not the shards: those are the player's to find; nor the square dance's loudspeaker)
         ball.canPick = o => !o.tag;
       }
-      const [x, z, h] = RIVAL_SPAWNS[i % RIVAL_SPAWNS.length];
-      ball.reset(size, x, z, h);
+      const [x, z, h = Math.random() * Math.PI * 2] = spots[i % spots.length];
+      ball.reset(sizes ? sizes[i % sizes.length] : size, x, z, h);
       ball.setSkin(skinById(skins[i % skins.length]));
       ball.group.visible = true;
       const el = document.createElement('div');
@@ -55,13 +77,36 @@ export class Rivals {
       el.hidden = true;
       this.tags.appendChild(el);
       this.list.push({
-        name: names[i], ball, el, sizeEl: el.lastChild, alive: true, out: 0, shown: '',
+        name: names[i % names.length], ball, el, sizeEl: el.lastChild, alive: true, out: 0, shown: '', ate: 0,
         // (a touch slower and less sure than the player can be)
-        ai: { target: null, retarget: 0, probe: 2.5, px: x, pz: z, escape: 0, escH: 0, skip: new Set(), skill: 0.78 + i * 0.06, seed: Math.random() * 9, wander: h },
+        ai: { target: null, retarget: 0, probe: 2.5, px: x, pz: z, escape: 0, escH: 0, skip: new Set(), skill: this.brawl ? 0.86 + Math.random() * 0.14 : 0.78 + i * 0.06, seed: Math.random() * 9, wander: h },
       });
     }
     this.active = true;
     this.board.hidden = false;
+  }
+
+  /** 大乱斗: one that was rolled up comes back, new name, away from the player, a third of the field */
+  respawn(r, player) {
+    const alive = this.list.filter(c => c.alive).map(c => c.ball.S).concat(player.S).sort((a, b) => a - b);
+    const S = Math.max(this.size0, alive[Math.floor(alive.length / 2)] * 0.35);
+    const far = Math.max(30, player.S * 14);
+    let best = null, bd = -1;
+    for (const [x, z] of BRAWL_SPAWNS) {
+      const d = Math.hypot(x - player.pos.x, z - player.pos.z);
+      if (d > far && Math.random() < 0.5) { best = [x, z]; break; }
+      if (d > bd) { bd = d; best = [x, z]; }
+    }
+    const name = this.names.length ? this.names.shift() : `${NAMES[this.nameN % NAMES.length]} ${2 + Math.floor(this.nameN++ / NAMES.length)}`;
+    r.ball.reset(S, best[0] + (Math.random() - 0.5) * 4, best[1] + (Math.random() - 0.5) * 4, Math.random() * Math.PI * 2);
+    r.ball.group.visible = true;
+    r.name = name;
+    r.el.firstChild.textContent = name;
+    r.alive = true;
+    r.ate = 0;
+    r.shown = '';
+    Object.assign(r.ai, { target: null, retarget: 0, escape: 0, px: r.ball.pos.x, pz: r.ball.pos.z });
+    r.ai.skip.clear();
   }
 
   stop() {
@@ -84,8 +129,14 @@ export class Rivals {
     if (!this.active) return out;
     const evs = [];
     for (const r of this.list) {
-      if (!r.alive) continue;
+      if (!r.alive) {
+        if (this.brawl && dt > 0 && now - r.out > 4) this.respawn(r, player);
+        continue;
+      }
       evs.length = 0;
+      // 大乱斗: rubber band: one far ahead of the player grows slower, one behind a little faster,
+      // so the table stays a race (a runaway giant leaves nothing to play for)
+      if (this.brawl) r.ball.rateBoost = Math.max(0.3, Math.min(1.3, (player.S * 2.5) / r.ball.S));
       r.ball.update(dt, this.think(r, dt, now, player), now, evs);
     }
     // touching: the player takes a rival small enough; rivals take each other; the rest bounce
@@ -93,6 +144,13 @@ export class Rivals {
       if (!r.alive) continue;
       const b = r.ball;
       const d = Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z);
+      // 大乱斗: one big enough rolls the player up
+      if (this.brawl && d < b.r + player.r * 0.85 && player.S <= b.pickLimit() && now >= (player.safeUntil || 0)) {
+        b.pending += player.Sp + player.pending;
+        r.ate++;
+        out.push({ type: 'playerEaten', by: r });
+        return out;
+      }
       if (d < player.r + b.r * 0.85) {
         if (b.S <= player.pickLimit()) {
           r.alive = false;
@@ -120,6 +178,7 @@ export class Rivals {
           c.out = now;
           c.ball.group.visible = false;
           a.ball.pending += c.ball.Sp + c.ball.pending;
+          a.ate++;
           out.push({ type: 'rivalAte', r: c, by: a });
         } else if (a.ball.S >= c.ball.S) bounce(a.ball, c.ball, d);
       }
@@ -152,6 +211,13 @@ export class Rivals {
     // the player could take it: run (weaving a little)
     const dx = b.pos.x - player.pos.x, dz = b.pos.z - player.pos.z, dp = Math.hypot(dx, dz);
     if (S <= player.pickLimit() && dp < player.S * 5 + S * 6) return go(Math.atan2(dx, -dz) + Math.sin(now * 1.7 + ai.seed) * 0.6, Math.min(1, ai.skill + 0.12));
+    // 大乱斗: the player is small enough to take, near, and worth it (one much bigger leaves a crumb
+    // be): go for it, but no faster than a hair above the player's own top speed (bigger balls are
+    // faster: a full-speed chase couldn't be outrun), so turning, dodging and dashing can get away
+    if (this.brawl && player.S <= limit && player.S >= limit * 0.15 && dp < S * 8 + 2) {
+      const m = Math.max(0.15, Math.min(ai.skill, (player.maxSpeed() * 1.05) / b.maxSpeed()));
+      return go(Math.atan2(-dx, dz) + Math.sin(now * 2.3 + ai.seed) * 0.25, m);
+    }
     ai.retarget -= dt;
     const t = ai.target;
     if (ai.retarget <= 0 || !t || (t.ball ? !t.alive : t.state !== 0)) {
@@ -248,9 +314,9 @@ export class Rivals {
     return this.list.filter(r => r.alive).map(r => ({ x: r.ball.pos.x, z: r.ball.pos.z, S: r.ball.S, prey: r.ball.S <= player.pickLimit() }));
   }
 
-  /** everyone, biggest first; the ones rolled up last, latest out first */
-  standings(player) {
-    const all = [{ name: t('我'), S: player.S, me: true, alive: true }, ...this.list.map(r => ({ name: r.name, S: r.ball.S, me: false, alive: r.alive, out: r.out }))];
+  /** everyone, biggest first; the ones rolled up last, latest out first (playerOut: 大乱斗, rolled up) */
+  standings(player, playerOut = 0) {
+    const all = [{ name: t('我'), S: player.S, me: true, alive: !playerOut, out: playerOut }, ...this.list.map(r => ({ name: r.name, S: r.ball.S, me: false, alive: r.alive, out: r.out }))];
     return all.sort((a, b) => (a.alive !== b.alive ? (a.alive ? -1 : 1) : a.alive ? b.S - a.S : b.out - a.out));
   }
 }
