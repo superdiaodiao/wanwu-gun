@@ -1,0 +1,19 @@
+<!--HEAD-->
+<title>外卖狂飙</title>
+<meta name="description" content="骑着电动车在城里送外卖：取餐、抄近路、撞翻一路、准时送到。">
+<meta name="theme-color" content="#14161c">
+<!--/HEAD-->
+<!--BODY-->
+<canvas id="game"></canvas>
+<div id="hud">
+  <div id="speedo"><b id="speed-num">0</b><span>km/h</span></div>
+  <div id="boost"><i id="boost-bar"></i><span>BOOST</span></div>
+  <div id="chaos">撞飞 <b id="chaos-num">0</b></div>
+  <canvas id="minimap"></canvas>
+  <div id="keys"><kbd>W</kbd><kbd>S</kbd> 油门 / 刹车 <kbd>A</kbd><kbd>D</kbd> 转向 <kbd>空格</kbd> 加速</div>
+</div>
+<div id="loading"><div id="loading-text">正在发动电动车……</div></div>
+<div id="touch-zone" hidden></div>
+<div id="touch-stick" hidden><div id="touch-knob"></div></div>
+<button id="touch-dash" hidden aria-label="加速">冲</button>
+<!--/BODY-->
