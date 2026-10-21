@@ -15,6 +15,7 @@ import { Movers } from '../game/movers.js';
 import { Input, isTouch } from '../game/input.js';
 import { Maps } from '../game/minimap.js';
 import { Scooter, RIDE } from './scooter.js';
+import { t } from '../i18n/index.js';
 
 const $ = id => document.getElementById(id);
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
@@ -24,7 +25,7 @@ const HOUR = 17.6; // golden hour, so the town doesn't look like 万物皆可滚
 const START = { x: -10, z: 58.5, heading: Math.PI / 2 };
 
 let engine, sky, ground, world, layout, movers, input, maps, bike, material;
-const G = { t: 0, chaos: 0, shake: 0 };
+const G = { t: 0, score: 0, shake: 0 };
 // the movers' idea of "the ball": the bike, as big as a car's notice (cars brake and honk for it,
 // people step aside) but too small to make anything flee
 const near = { pos: new THREE.Vector3(), S: 1.4, r: 0.7, pickLimit: () => 0 };
@@ -45,6 +46,7 @@ async function boot() {
   world = new World(engine.scene);
   await nextFrame();
   layout = buildLayout(world);
+  addTraffic();
   ground.build(layout.zones);
   await nextFrame();
   world.finalize();
@@ -66,6 +68,35 @@ async function boot() {
   window.__ready = true;
 }
 
+// ---- traffic ------------------------------------------------------------------------------------
+// The town was built for a rolling ball, with a few cars for colour. Riding needs traffic to weave
+// through, so the roads of the middle of town get more: a car every DRIVE_GAP m or so along each
+// lane (the movers put each on its lane and drive it), mostly cars, some taxis, vans and buses.
+const DRIVE_GAP = 22, TRAFFIC = [['car_sedan', 6], ['taxi', 4], ['suv', 3], ['minivan', 2], ['bus', 1], ['truck', 0.6], ['delivery_rider', 1.2]];
+function addTraffic() {
+  const total = TRAFFIC.reduce((a, [, w]) => a + w, 0);
+  const pick = () => {
+    let r = Math.random() * total;
+    for (const [id, w] of TRAFFIC) if ((r -= w) < 0) return id;
+    return TRAFFIC[0][0];
+  };
+  for (const lane of layout.lanes) {
+    if (lane.y > 0.5) continue; // (the railway)
+    const pts = lane.pts;
+    for (let i = 0; i < pts.length; i++) {
+      const [x0, z0] = pts[i], [x1, z1] = pts[(i + 1) % pts.length];
+      if (!lane.loop && i === pts.length - 1) break;
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      for (let d = Math.random() * DRIVE_GAP; d < len; d += DRIVE_GAP * (0.7 + Math.random() * 0.6)) {
+        const x = x0 + ((x1 - x0) * d) / len, z = z0 + ((z1 - z0) * d) / len;
+        if (Math.abs(x) > 340 || Math.abs(z) > 320) continue;
+        if (Math.hypot(x - START.x, z - START.z) < 18) continue;
+        world.add(pick(), x, z, { yaw: Math.atan2(x1 - x0, z1 - z0) });
+      }
+    }
+  }
+}
+
 // ---- controls -------------------------------------------------------------------------------------
 // keyboard: W/S throttle and brake, A/D steer; touch: the stick pushed up is throttle, down brake,
 // sideways steers (screen-up is straight ahead: the camera is always behind the bike)
@@ -84,6 +115,7 @@ function controls() {
 // ---- chase camera -----------------------------------------------------------------------------------
 // behind and above the bike, swinging round after it with a little lag, pulling back and widening
 // with speed; it looks a few metres ahead of the bike
+const _cc = new THREE.Vector3(), _ch = {}, _ccands = [];
 const cam = {
   pos: new THREE.Vector3(),
   look: new THREE.Vector3(),
@@ -106,11 +138,26 @@ const cam = {
     this.yaw += d * Math.min(1, dt * 4.5);
     const p = new THREE.Vector3(), l = new THREE.Vector3();
     this.target(p, l);
+    this.clear(p);
     const k = Math.min(1, dt * 7);
     this.pos.lerp(p, k);
     this.look.lerp(l, Math.min(1, dt * 10));
     this.fov += (62 + Math.min(14, bike.speed * 0.6) + (bike.boostT > 0 ? 6 : 0) - this.fov) * Math.min(1, dt * 4);
     this.apply();
+  },
+  /** pull the camera in towards the rider when a wall, tree or car stands between them */
+  clear(p) {
+    const hx = bike.pos.x, hy = 1.4, hz = bike.pos.z;
+    for (let k = 0.3; k <= 1.001; k += 0.1) {
+      _cc.set(hx + (p.x - hx) * k, hy + (p.y - hy) * k, hz + (p.z - hz) * k);
+      for (const o of world.grid.query(_cc.x, _cc.z, 1, _ccands, 0.5)) {
+        if (o.state !== 0 || o.h < 1.4) continue;
+        if (!world.contact(o, _cc, 0.35, _ch, true) || _ch.low) continue;
+        const s = Math.max(0.25, k - 0.12);
+        p.set(hx + (p.x - hx) * s, hy + (p.y - hy) * s, hz + (p.z - hz) * s);
+        return;
+      }
+    }
   },
   apply() {
     const c = engine.camera;
@@ -121,6 +168,60 @@ const cam = {
     c.updateProjectionMatrix();
   },
 };
+
+// ---- 擦肩而过: the reason to ride fast in traffic -------------------------------------------------
+// Passing a moving car within a hand's breadth (closer than NEAR m between the bike and its body) at
+// speed, without touching it, scores and chains: every pass within COMBO_T s of the last adds one
+// to the chain and is worth more, and tops the boost up. Parked cars don't count (too easy), and
+// touching one is a crash, which ends the chain. Nothing is scored for hitting anything.
+const NEAR = 1.3, COMBO_T = 4, NEAR_SPEED = 8, NEAR_REL = 5;
+const nm = { combo: 0, left: 0, best: 0, seen: new Map() };
+const _nc = new THREE.Vector3(), _nh = {}, _ncands = [];
+function nearMisses(dt) {
+  if (nm.combo && (nm.left -= dt) <= 0) nm.combo = 0;
+  if (bike.speed < NEAR_SPEED) return;
+  const f = bike.forward(), vx = f.x * bike.v, vz = f.z * bike.v;
+  _nc.set(bike.pos.x, RIDE.r, bike.pos.z);
+  for (const o of world.grid.query(_nc.x, _nc.z, 8, _ncands, 0.5)) {
+    const m = o.mover;
+    if (o.state !== 0 || !m || m.kind !== 'drive' || o.spec.cat !== 'vehicle') continue;
+    if (G.t - (nm.seen.get(o) ?? -9) < 2.5) continue;
+    if (world.contact(o, _nc, RIDE.r, _nh, true)) continue; // touching: a crash, not a miss
+    if (!world.contact(o, _nc, RIDE.r + NEAR, _nh, true)) continue;
+    if (Math.hypot(vx - (m.vx || 0), vz - (m.vz || 0)) < NEAR_REL) continue;
+    nm.seen.set(o, G.t);
+    nm.combo++;
+    nm.best = Math.max(nm.best, nm.combo);
+    nm.left = COMBO_T;
+    const pts = 50 * nm.combo;
+    G.score += pts;
+    bike.boost = Math.min(1, bike.boost + 0.2);
+    popup(`${t('擦肩而过')}${nm.combo > 1 ? ` ×${nm.combo}` : ''}<small>+${pts}</small>`);
+  }
+}
+
+/** ran into something solid hard enough to count: the chain breaks; a person is the worst of it */
+function crashed(e) {
+  G.shake = Math.max(G.shake, 0.25 * e.impact);
+  const cat = e.o.spec.cat;
+  if (cat === 'person' || cat === 'animal') {
+    bike.v *= 0.2;
+    bike.side = 0;
+    G.shake = 0.45;
+    popup(t('小心行人！'), true);
+  } else if (cat === 'vehicle') popup(t('撞车了！'), true);
+  else if (e.impact > 0.4) popup(t('撞上了！'), true);
+  nm.combo = 0;
+}
+
+function popup(html, bad = false) {
+  const el = document.createElement('div');
+  el.className = bad ? 'pop bad' : 'pop';
+  el.innerHTML = html;
+  $('popups').appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+  while ($('popups').children.length > 3) $('popups').firstChild.remove();
+}
 
 // ---- per frame ----------------------------------------------------------------------------------
 let last = performance.now();
@@ -144,9 +245,9 @@ function step(dt) {
   near.pos.copy(bike.pos);
   movers.update(dt, G.t, near, events);
   world.updateFlyers(dt);
+  nearMisses(dt);
   for (const e of events) {
-    if (e.type === 'knock') G.chaos++;
-    else if (e.type === 'crash') G.shake = Math.max(G.shake, 0.25 * e.impact);
+    if (e.type === 'crash') crashed(e);
   }
   G.shake = Math.max(0, G.shake - dt * 1.5);
   cam.update(dt);
@@ -186,11 +287,17 @@ function render() {
   r.render(engine.scene, engine.camera);
 }
 
-let shown = { sp: -1, chaos: -1 };
+let shown = { sp: -1, score: -1, combo: -1 };
 function hud(dt) {
   const sp = Math.round(bike.speed * 3.6);
   if (sp !== shown.sp) $('speed-num').textContent = shown.sp = sp;
-  if (G.chaos !== shown.chaos) $('chaos-num').textContent = shown.chaos = G.chaos;
+  if (G.score !== shown.score) $('score-num').textContent = shown.score = G.score;
+  if (nm.combo !== shown.combo) {
+    shown.combo = nm.combo;
+    $('combo').hidden = nm.combo < 2;
+    $('combo-num').textContent = `×${nm.combo}`;
+  }
+  if (nm.combo >= 2) $('combo-bar').style.width = `${Math.round((nm.left / COMBO_T) * 100)}%`;
   $('boost-bar').style.width = `${Math.round((bike.boostT > 0 ? bike.boostT / RIDE.boostTime : bike.boost) * 100)}%`;
   // (the minimap's "ball": the bike, seen at street scale)
   // (the minimap turns with the ball game's heading, whose forward is (sin, -cos): π − ours)

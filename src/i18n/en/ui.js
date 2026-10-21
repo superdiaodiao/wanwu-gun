@@ -23,6 +23,11 @@ export const UI = {
   '《万物皆可滚·女娲补天》的作者没有在这里发布过这个游戏。正版免费，一直在更新：': "The author of Roll It All never published the game here. The real one is free and keeps getting updates:",
   '去玩正版': 'Play the real one',
   '从哪儿滚起': 'Start from',
+  // 外卖狂飙 (src/delivery)
+  '擦肩而过': 'Near miss',
+  '小心行人！': 'Watch out for people!',
+  '撞车了！': 'Crashed into a car!',
+  '撞上了！': 'Crash!',
   '小区': 'Home',
   '工位': 'The office',
   '开始补天': 'Start rolling',

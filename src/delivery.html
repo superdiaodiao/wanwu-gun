@@ -1,6 +1,6 @@
 <!--HEAD-->
 <title>外卖狂飙</title>
-<meta name="description" content="骑着电动车在城里送外卖：取餐、抄近路、撞翻一路、准时送到。">
+<meta name="description" content="骑着电动车在城里送外卖：在车流里穿梭、擦肩而过、准时又平安地送到。">
 <meta name="theme-color" content="#14161c">
 <!--/HEAD-->
 <!--BODY-->
@@ -8,7 +8,9 @@
 <div id="hud">
   <div id="speedo"><b id="speed-num">0</b><span>km/h</span></div>
   <div id="boost"><i id="boost-bar"></i><span>BOOST</span></div>
-  <div id="chaos">撞飞 <b id="chaos-num">0</b></div>
+  <div id="score"><b id="score-num">0</b><span>分</span></div>
+  <div id="combo" hidden>擦肩 <b id="combo-num">×1</b><i id="combo-bar"></i></div>
+  <div id="popups" aria-live="polite"></div>
   <canvas id="minimap"></canvas>
   <div id="keys"><kbd>W</kbd><kbd>S</kbd> 油门 / 刹车 <kbd>A</kbd><kbd>D</kbd> 转向 <kbd>空格</kbd> 加速</div>
 </div>

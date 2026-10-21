@@ -20,8 +20,17 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #boost { position: absolute; right: 24px; bottom: 96px; width: 170px; height: 12px; border-radius: 6px; background: var(--panel); overflow: hidden; }
 #boost i { position: absolute; inset: 0 auto 0 0; width: 100%; background: var(--orange); }
 #boost span { position: absolute; right: 6px; top: -1px; font: 700 10px/14px var(--body); letter-spacing: 0.1em; color: #fff; }
-#chaos { position: absolute; left: 20px; top: 18px; padding: 6px 14px; border-radius: 12px; background: var(--panel); font-size: 15px; }
-#chaos b { font: 800 22px/1 var(--num); color: var(--orange); margin-left: 4px; }
+#score { position: absolute; left: 20px; top: 18px; padding: 6px 16px; border-radius: 12px; background: var(--panel); transform: skewX(-8deg); }
+#score b { font: 800 30px/1 var(--num); font-style: italic; color: var(--text); }
+#score span { font-size: 13px; color: var(--dim); margin-left: 4px; }
+#combo { position: absolute; left: 20px; top: 70px; padding: 6px 14px 10px; border-radius: 12px; background: var(--panel); font-size: 15px; overflow: hidden; }
+#combo b { font: 800 24px/1 var(--num); font-style: italic; color: var(--yellow); margin-left: 4px; }
+#combo i { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: var(--yellow); }
+#popups { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; }
+.pop { font: 800 26px/1.2 var(--num); font-style: italic; color: var(--yellow); text-shadow: 0 2px 0 rgba(0,0,0,0.5), 0 0 12px rgba(0,0,0,0.4); animation: pop 1.2s ease-out forwards; white-space: nowrap; }
+.pop.bad { color: #ff5a4e; }
+.pop small { font-size: 0.6em; color: var(--text); margin-left: 6px; }
+@keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 12% { transform: scale(1.12); opacity: 1; } 25% { transform: scale(1); } 80% { opacity: 1; transform: translateY(-14px); } 100% { opacity: 0; transform: translateY(-30px); } }
 #minimap { position: absolute; right: 20px; top: 16px; width: 150px; height: 150px; border-radius: 50%; border: 3px solid var(--orange); background: #22252e; }
 #keys { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 13px; color: var(--dim); background: var(--panel); padding: 6px 12px; border-radius: 10px; white-space: nowrap; }
 kbd { display: inline-block; min-width: 1.6em; padding: 0 0.35em; margin: 0 0.1em; border-radius: 4px; background: rgba(255,255,255,0.14); font: 12px/1.5 var(--body); text-align: center; }
