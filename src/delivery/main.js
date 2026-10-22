@@ -15,7 +15,12 @@ import { Movers } from '../game/movers.js';
 import { Input, isTouch } from '../game/input.js';
 import { Maps } from '../game/minimap.js';
 import { Scooter, RIDE } from './scooter.js';
-import { t } from '../i18n/index.js';
+import { Orders, settle } from './orders.js';
+import { t, translateDom, EN } from '../i18n/index.js';
+import { applyContent } from '../i18n/apply.js';
+
+// English over the Chinese (names of things, shop names), before anything reads them
+applyContent();
 
 const $ = id => document.getElementById(id);
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
@@ -24,13 +29,16 @@ const HOUR = 17.6; // golden hour, so the town doesn't look like 万物皆可滚
 // (traffic keeps to the right)
 const START = { x: -10, z: 58.5, heading: Math.PI / 2 };
 
-let engine, sky, ground, world, layout, movers, input, maps, bike, material;
-const G = { t: 0, score: 0, shake: 0 };
+let engine, sky, ground, world, layout, movers, input, maps, bike, material, orders;
+const G = { t: 0, score: 0, shake: 0, phase: 'ride', shift: null };
+const SHIFT = 240; // s: one shift of deliveries
 // the movers' idea of "the ball": the bike, as big as a car's notice (cars brake and honk for it,
 // people step aside) but too small to make anything flee
 const near = { pos: new THREE.Vector3(), S: 1.4, r: 0.7, pickLimit: () => 0 };
 
 async function boot() {
+  translateDom();
+  if (EN) document.title = t('外卖狂飙');
   const fontsDone = loadFonts(12000);
   await Promise.race([fontsDone, new Promise(r => setTimeout(r, 600))]);
   let atlasStale = false;
@@ -57,6 +65,9 @@ async function boot() {
   if (isTouch()) for (const id of ['touch-zone', 'touch-dash']) $(id).hidden = false;
   maps = new Maps(world, layout);
   maps.attach($('minimap'));
+  orders = new Orders(engine.scene, world);
+  $('btn-again').addEventListener('click', startShift);
+  startShift();
   cam.snap();
   view();
   engine.renderer.compile(engine.scene, engine.camera);
@@ -102,6 +113,7 @@ function addTraffic() {
 // sideways steers (screen-up is straight ahead: the camera is always behind the bike)
 function controls() {
   const raw = input.poll();
+  if (G.phase !== 'ride') return { throttle: 0, brake: 1, steer: 0, boost: false };
   let throttle = raw.fwd ? 1 : 0, brake = raw.back ? 1 : 0, steer = raw.keyTurn || raw.padTurn || 0;
   if (raw.stick && raw.stick.m > 0.12) {
     const up = Math.cos(raw.stick.a) * raw.stick.m, across = Math.sin(raw.stick.a) * raw.stick.m;
@@ -212,6 +224,70 @@ function crashed(e) {
   } else if (cat === 'vehicle') popup(t('撞车了！'), true);
   else if (e.impact > 0.4) popup(t('撞上了！'), true);
   nm.combo = 0;
+  // the food in the box takes the knock (from the moment it's picked up)
+  const o = orders.order;
+  if (o && o.stage === 'deliver') {
+    o.food = Math.max(0, o.food - (cat === 'person' ? 0.3 : Math.max(0.06, e.impact * 0.45)));
+    if (cat === 'person' || cat === 'animal') o.hitPerson = true;
+  }
+}
+
+// ---- the shift: a few minutes of orders, one after another, then the takings ----------------------
+function startShift() {
+  G.shift = { left: SHIFT, money: 0, done: 0, stars: [], late: 0, bestCombo: 0, nextT: 0 };
+  G.phase = 'ride';
+  G.score = 0;
+  nm.combo = 0;
+  bike.reset(START.x, START.z, START.heading);
+  cam.snap();
+  orders.order = null;
+  orders.next(bike.pos.x, bike.pos.z);
+  orders.order.score0 = G.score;
+  $('results').hidden = true;
+  $('order').hidden = false;
+}
+
+function shiftStep(dt) {
+  const sh = G.shift;
+  if (G.phase !== 'ride') return;
+  sh.left -= dt;
+  sh.bestCombo = Math.max(sh.bestCombo, nm.combo);
+  const what = orders.update(dt, bike, G.t);
+  if (what === 'picked') popup(t('取到餐了，快送！'));
+  else if (what === 'delivered') {
+    const o = orders.lastDone, r = settle(o, G.score - o.score0);
+    sh.money += r.pay + r.tip;
+    sh.done++;
+    sh.stars.push(r.stars);
+    if (!r.onTime) sh.late++;
+    popup(`${t('送达')} ${'★'.repeat(r.stars)}<small>+¥${r.pay + r.tip}</small>`);
+    sh.nextT = 1.2;
+  }
+  if (!orders.order && (sh.nextT -= dt) <= 0) {
+    orders.next(bike.pos.x, bike.pos.z);
+    orders.order.score0 = G.score;
+  }
+  if (sh.left <= 0) endShift();
+}
+
+function endShift() {
+  const sh = G.shift;
+  G.phase = 'over';
+  orders.order = null;
+  orders.show();
+  let total = 0;
+  try { total = (+localStorage.getItem('delivery.money') || 0) + sh.money; localStorage.setItem('delivery.money', String(total)); } catch {}
+  const avg = sh.stars.length ? sh.stars.reduce((a, b) => a + b, 0) / sh.stars.length : 0;
+  $('res-money').textContent = sh.money;
+  $('res-stars').textContent = sh.stars.length ? '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg)) : '';
+  $('res-lines').innerHTML = [
+    t('送了 <b>{n}</b> 单', { n: sh.done }) + (sh.late ? t('，迟到 {n} 单', { n: sh.late }) : ''),
+    t('平均 <b>{s}</b> 星', { s: avg.toFixed(1) }),
+    t('最长擦肩连击 <b>×{n}</b>', { n: sh.bestCombo }),
+    t('攒下 <b>¥{n}</b>', { n: total }),
+  ].map(l => `<li>${l}</li>`).join('');
+  $('results').hidden = false;
+  $('order').hidden = true;
 }
 
 function popup(html, bad = false) {
@@ -248,7 +324,9 @@ function step(dt) {
   nearMisses(dt);
   for (const e of events) {
     if (e.type === 'crash') crashed(e);
+    else if (e.type === 'knock' && orders.order && orders.order.stage === 'deliver') orders.order.food = Math.max(0, orders.order.food - 0.02);
   }
+  shiftStep(dt);
   G.shake = Math.max(0, G.shake - dt * 1.5);
   cam.update(dt);
 
@@ -299,12 +377,34 @@ function hud(dt) {
   }
   if (nm.combo >= 2) $('combo-bar').style.width = `${Math.round((nm.left / COMBO_T) * 100)}%`;
   $('boost-bar').style.width = `${Math.round((bike.boostT > 0 ? bike.boostT / RIDE.boostTime : bike.boost) * 100)}%`;
-  // (the minimap's "ball": the bike, seen at street scale)
-  // (the minimap turns with the ball game's heading, whose forward is (sin, -cos): π − ours)
-  maps.update(dt, { pos: bike.pos, S: 1.2, pickLimit: () => 0 }, Math.PI - cam.yaw, 1.2);
+  orderHud();
+  // (the minimap's "ball": the bike, seen at street scale; the order's spot is its one target, drawn
+  // filled, with an arrow at the rim while it's off the map; it turns with the ball game's heading,
+  // whose forward is (sin, -cos): π − ours)
+  const g = orders.target;
+  maps.update(dt, { pos: bike.pos, S: 1.2, pickLimit: () => 1 }, Math.PI - cam.yaw, 1.2, null, g ? [{ x: g.x, z: g.z, size: 0 }] : null);
+}
+
+const fmtT = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
+function orderHud() {
+  const sh = G.shift;
+  $('shift-time').textContent = fmtT(sh.left);
+  $('money-num').textContent = sh.money;
+  const o = orders.order;
+  if (!o) return;
+  const go = o.stage === 'deliver';
+  $('order').classList.toggle('go', go);
+  $('order-what').innerHTML = `<em>${go ? t('送到') : t('取餐')}</em>${go ? o.to.name : o.from.name}`;
+  $('order-dist').textContent = `${Math.round(orders.distance(bike))} m`;
+  const te = $('order-time');
+  te.textContent = go ? fmtT(o.left) : '';
+  te.classList.toggle('late', go && o.left < 10);
+  $('food').hidden = !go;
+  $('food-bar').style.width = `${Math.round(o.food * 100)}%`;
+  $('food-bar').style.background = o.food > 0.7 ? '#3ddc84' : o.food > 0.4 ? '#ffd23f' : '#ff5a4e';
 }
 
 // for testing: drive it from the console / automated runs
-window.__delivery = { get G() { return G; }, get bike() { return bike; }, get world() { return world; }, get layout() { return layout; }, step, cam };
+window.__delivery = { get G() { return G; }, get bike() { return bike; }, get world() { return world; }, get layout() { return layout; }, get orders() { return orders; }, step, cam, startShift, endShift };
 
 boot();

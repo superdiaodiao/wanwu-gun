@@ -11,8 +11,24 @@
   <div id="score"><b id="score-num">0</b><span>分</span></div>
   <div id="combo" hidden>擦肩 <b id="combo-num">×1</b><i id="combo-bar"></i></div>
   <div id="popups" aria-live="polite"></div>
+  <div id="order" hidden>
+    <div id="order-what"></div>
+    <div id="order-sub"><span id="order-dist"></span><b id="order-time"></b></div>
+    <div id="food"><i id="food-bar"></i><span>餐品</span></div>
+  </div>
+  <div id="shift"><span>本班还剩</span><b id="shift-time">4:00</b></div>
+  <div id="money">¥<b id="money-num">0</b></div>
   <canvas id="minimap"></canvas>
   <div id="keys"><kbd>W</kbd><kbd>S</kbd> 油门 / 刹车 <kbd>A</kbd><kbd>D</kbd> 转向 <kbd>空格</kbd> 加速</div>
+</div>
+<div id="results" hidden>
+  <div class="card">
+    <div class="eyebrow">下班了</div>
+    <div class="big">¥<b id="res-money">0</b></div>
+    <div class="stars" id="res-stars"></div>
+    <ul id="res-lines"></ul>
+    <button id="btn-again">再跑一班</button>
+  </div>
 </div>
 <div id="loading"><div id="loading-text">正在发动电动车……</div></div>
 <div id="touch-zone" hidden></div>
