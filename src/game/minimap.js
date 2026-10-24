@@ -12,7 +12,7 @@ import { t as tr, placeName } from '../i18n/index.js';
 const COLORS = {
   base: '#6f9b52', grass: '#79a758', field: '#b4ab60', dirt: '#a48a66', sand: '#dccb9b', concrete: '#c4c0b7',
   plaza: '#d9cfbf', brick: '#ad6e5f', sidewalk: '#ccc4b6', road: '#595c63', track: '#b3604c', stone: '#9b9992',
-  water: '#4f9db6', carpet: '#8a909a',
+  water: '#4f9db6', carpet: '#8a909a', picnic: '#e0675c',
 };
 const INK = 'rgba(40, 35, 48, 0.78)';
 const GREEN = 'rgba(44, 78, 44, 0.8)'; // trees, hills, mountains

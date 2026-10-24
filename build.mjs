@@ -6,6 +6,7 @@
 //                                                    upload for CrazyGames (no links to the site, no stats)
 //   node build.mjs gallery [--only=small,street]  -> dist/gallery.html  (or dist/gallery-<only>.html)
 //   node build.mjs audio                          -> dist/audio-test.html
+//   node build.mjs snack [--dev] [--watch]        -> dist/snack.html, the picnic brawl game (src/snack/)
 //
 // Templates live in src/<name>.html and contain two marked sections:
 //   <!--HEAD--> ... <!--/HEAD-->   (title, font links)
@@ -179,6 +180,10 @@ if (target === 'game') {
   // every non-ASCII character in the script is escaped, and the page's in assembleCrazyGames)
   opts = { ...base, charset: 'ascii', define: { ...base.define, __PLATFORM__: '"crazygames"' }, entryPoints: ['src/main.js'] };
   tplName = 'index'; outName = 'crazygames';
+} else if (target === 'snack') {
+  // 零食大乱斗 (working title): balls on a picnic blanket, eat or be eaten (src/snack/)
+  opts = { ...base, entryPoints: ['src/snack/main.js'] };
+  tplName = 'snack'; outName = 'snack';
 } else if (target === 'gallery') {
   const parts = only ? only.split(',').map(k => `./src/catalog/${k.trim()}.js`) : ['./src/catalog/index.js'];
   const contents = parts.map(p => `import '${p}';`).join('\n') + `\nimport './src/gallery.js';\n`;

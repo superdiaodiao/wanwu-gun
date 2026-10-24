@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 export const ZONES = [
-  'grass', 'field', 'dirt', 'sand', 'concrete', 'carpet', 'plaza', 'brick', 'sidewalk', 'tactile',
+  'grass', 'field', 'dirt', 'sand', 'concrete', 'carpet', 'picnic', 'plaza', 'brick', 'sidewalk', 'tactile',
   'road', 'track', 'stone', 'water', 'marking', 'marking_y',
 ];
 
@@ -85,6 +85,18 @@ const KIND_CODE = {
     col *= 0.93 + 0.12 * mix(0.5, h12(floor(p * 90.0)), vis(fw, 0.011));
     col = mix(col, col * 0.88, gridAA(p, vec2(0.5), 0.01));
     col *= 0.96 + 0.06 * fbm3(p * 0.3);
+    return col;`,
+  picnic: `
+    // a red gingham picnic blanket (bands of 0.2 m each way; where they cross, deeper red), with a
+    // little weave in the cloth
+    vec2 q = fract(p / 0.4);
+    float bx = step(0.5, q.x), bz = step(0.5, q.y);
+    float aa = vis(fw, 0.08);
+    bx = mix(0.5, bx, aa); bz = mix(0.5, bz, aa);
+    vec3 cream = lin(vec3(0.97, 0.94, 0.88)), red = lin(vec3(0.85, 0.22, 0.20));
+    vec3 col = mix(cream, red, (bx + bz) * 0.42);
+    col = mix(col, lin(vec3(0.62, 0.10, 0.10)), bx * bz * 0.55);
+    col *= 0.94 + 0.08 * mix(0.5, h12(floor(p * 60.0)), vis(fw, 0.016));
     return col;`,
   plaza: `
     vec2 id = floor(p / 1.2);

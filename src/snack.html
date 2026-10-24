@@ -1,0 +1,30 @@
+<!--HEAD-->
+<title>零食大乱斗</title>
+<meta name="description" content="野餐布上的团子大乱斗：吃掉比你小的零食和团子，躲开比你大的，活到最后、长到最大。">
+<meta name="theme-color" content="#7cc4ef">
+<!--/HEAD-->
+<!--BODY-->
+<canvas id="game"></canvas>
+<div id="hud">
+  <div id="size"><b id="size-num">6</b><span id="size-unit">cm</span></div>
+  <div id="timer"><b id="time-num">2:30</b></div>
+  <ol id="rank-board"></ol>
+  <div id="rival-tags" aria-hidden="true"></div>
+  <div id="popups" aria-live="polite"></div>
+  <div id="stamp" hidden></div>
+  <div id="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 往哪推就往哪滚 · <kbd>空格</kbd> 冲刺 · 拖动鼠标转镜头</div>
+</div>
+<div id="results" hidden>
+  <div class="card">
+    <div class="eyebrow" id="res-why"></div>
+    <div class="big" id="res-place"></div>
+    <ul id="res-lines"></ul>
+    <div class="coins">+<b id="res-coins">0</b> <span>金币</span></div>
+    <button id="btn-again">再来一局</button>
+  </div>
+</div>
+<div id="loading"><div id="loading-text">正在铺野餐布……</div></div>
+<div id="touch-zone" hidden></div>
+<div id="touch-stick" hidden><div id="touch-knob"></div></div>
+<button id="touch-dash" hidden aria-label="冲刺">冲</button>
+<!--/BODY-->

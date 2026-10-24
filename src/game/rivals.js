@@ -46,19 +46,27 @@ export class Rivals {
     this.boardT = 0;
   }
 
-  /** a new 对手赛: n rivals at their spots, the size the player starts at; opts.brawl: 大乱斗 */
+  /** a new 对手赛: n rivals at their spots, the size the player starts at; opts.brawl: 大乱斗;
+   *  opts.spawns: [[x, z], ...] where they start and come back (another map: the snack game) */
   start(n, size, opts = {}) {
     this.stop();
     this.brawl = !!opts.brawl;
+    this.spawns = opts.spawns || BRAWL_SPAWNS;
+    this.farMax = opts.farMax || Infinity; // (a small map: "far from the player" can't be 30 m)
     this.size0 = size;
     const names = [...NAMES].sort(() => Math.random() - 0.5);
     this.names = names.slice(n);
     this.nameN = 0;
     const skins = [...SKINS].sort(() => Math.random() - 0.5);
-    const spots = this.brawl ? [...BRAWL_SPAWNS].sort(() => Math.random() - 0.5) : RIVAL_SPAWNS;
+    const spots = this.brawl ? [...this.spawns].sort(() => Math.random() - 0.5) : RIVAL_SPAWNS;
     // (大乱斗: the field is already of all sizes when the player arrives: a few as small, most a bit
     // bigger, a couple to run from and one to fear; they start away from the player's square)
-    const sizes = this.brawl ? BRAWL_SIZES.map(k => size * k).sort(() => Math.random() - 0.5) : null;
+    const sizes = this.brawl ? (opts.sizes || BRAWL_SIZES).map(k => size * k).sort(() => Math.random() - 0.5) : null;
+    this.huntK = opts.huntK || 8; // (how far, in its own sizes, one goes after the player)
+    this.band = opts.band || 2.5; // (rubber band: past this many times the player's size, grows slower)
+    this.calmUntil = opts.calm || 0; // (no hunting the player before this time)
+    this.respawnMax = opts.respawnMax || Infinity; // (a small map: the ones coming back stay small)
+    this.softCap = opts.softCap || Infinity; // (a small map: past this size everyone grows slower)
     for (let i = 0; i < n; i++) {
       let ball = this.pool[i];
       if (!ball) {
@@ -89,10 +97,10 @@ export class Rivals {
   /** 大乱斗: one that was rolled up comes back, new name, away from the player, a third of the field */
   respawn(r, player) {
     const alive = this.list.filter(c => c.alive).map(c => c.ball.S).concat(player.S).sort((a, b) => a - b);
-    const S = Math.max(this.size0, alive[Math.floor(alive.length / 2)] * 0.35);
-    const far = Math.max(30, player.S * 14);
+    const S = Math.min(this.respawnMax, Math.max(this.size0, alive[Math.floor(alive.length / 2)] * 0.35));
+    const far = Math.min(this.farMax || Infinity, Math.max(30, player.S * 14));
     let best = null, bd = -1;
-    for (const [x, z] of BRAWL_SPAWNS) {
+    for (const [x, z] of this.spawns) {
       const d = Math.hypot(x - player.pos.x, z - player.pos.z);
       if (d > far && Math.random() < 0.5) { best = [x, z]; break; }
       if (d > bd) { bd = d; best = [x, z]; }
@@ -136,7 +144,7 @@ export class Rivals {
       evs.length = 0;
       // 大乱斗: rubber band: one far ahead of the player grows slower, one behind a little faster,
       // so the table stays a race (a runaway giant leaves nothing to play for)
-      if (this.brawl) r.ball.rateBoost = Math.max(0.3, Math.min(1.3, (player.S * 2.5) / r.ball.S));
+      if (this.brawl) r.ball.rateBoost = Math.max(0.3, Math.min(1.3, (player.S * this.band) / r.ball.S)) * Math.min(1, this.softCap / r.ball.S);
       r.ball.update(dt, this.think(r, dt, now, player), now, evs);
     }
     // touching: the player takes a rival small enough; rivals take each other; the rest bounce
@@ -214,7 +222,7 @@ export class Rivals {
     // 大乱斗: the player is small enough to take, near, and worth it (one much bigger leaves a crumb
     // be): go for it, but no faster than a hair above the player's own top speed (bigger balls are
     // faster: a full-speed chase couldn't be outrun), so turning, dodging and dashing can get away
-    if (this.brawl && player.S <= limit && player.S >= limit * 0.15 && dp < S * 8 + 2) {
+    if (this.brawl && now > this.calmUntil && player.S <= limit && player.S >= limit * 0.15 && dp < S * this.huntK + 1) {
       const m = Math.max(0.15, Math.min(ai.skill, (player.maxSpeed() * 1.05) / b.maxSpeed()));
       return go(Math.atan2(-dx, dz) + Math.sin(now * 2.3 + ai.seed) * 0.25, m);
     }
