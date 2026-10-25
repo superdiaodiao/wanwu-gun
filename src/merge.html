@@ -1,0 +1,24 @@
+<!--HEAD-->
+<title>万物合成大作战</title>
+<meta name="description" content="拖鞋合成水壶，水壶合成电风扇……一路合成到消防车，挡住冲过来的垃圾怪。">
+<meta name="theme-color" content="#cfe9d8">
+<!--/HEAD-->
+<!--BODY-->
+<canvas id="game"></canvas>
+<div id="hud">
+  <div id="wave"><span id="wave-label"></span><b id="wave-num"></b></div>
+  <div id="hearts"><i>❤</i><b id="hearts-num">10</b></div>
+  <div id="coins"><i class="coin"></i><b id="coins-num">0</b></div>
+  <div id="banner" hidden></div>
+  <button id="buy"><span id="buy-name">拖鞋</span><span class="cost"><i class="coin"></i><b id="buy-cost">10</b></span></button>
+  <div id="hint">把两个一样的拖到一起，合成更厉害的</div>
+</div>
+<div id="card" hidden>
+  <div class="inner">
+    <div class="title" id="card-title"></div>
+    <div class="sub" id="card-sub"></div>
+    <button id="card-btn">再来一局</button>
+  </div>
+</div>
+<div id="loading"><div>正在搬东西……</div></div>
+<!--/BODY-->

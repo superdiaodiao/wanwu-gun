@@ -187,6 +187,10 @@ if (target === 'game') {
 } else if (target === 'audio') {
   opts = { ...base, entryPoints: ['src/audio/test.js'] };
   tplName = 'audio-test'; outName = 'audio-test';
+} else if (target === 'merge') {
+  // 万物合成大作战: a separate merge-defense game built from the same models
+  opts = { ...base, entryPoints: ['src/merge/main.js'] };
+  tplName = 'merge'; outName = 'merge';
 } else {
   console.error('unknown target', target); process.exit(1);
 }
