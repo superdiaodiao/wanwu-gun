@@ -43,8 +43,9 @@ export const UI = {
   // 零食大乱斗 (src/snack)
   '零食大乱斗': 'Snack Brawl',
   '野餐布上的团子大乱斗：吃掉比你小的零食和团子，躲开比你大的，活到最后、长到最大。': 'A rolling brawl on a picnic blanket: gobble up snacks and anyone smaller, run from anyone bigger, and be the last and biggest ball standing.',
-  '往哪推就往哪滚': 'push to roll',
-  '拖动鼠标转镜头': 'drag the mouse to look',
+  '上下左右': 'up, left, down, right',
+  '或者鼠标指哪滚哪': 'or point with the mouse',
+  '点击': 'click',
   '金币': 'coins',
   '再来一局': 'Play again',
   '正在铺野餐布……': 'Laying out the picnic…',

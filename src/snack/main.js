@@ -14,7 +14,7 @@ import { World } from '../game/world.js';
 import { Movers } from '../game/movers.js';
 import { Ball, STUCK } from '../game/ball.js';
 import { CameraRig } from '../game/camera.js';
-import { Input, Driver, isTouch } from '../game/input.js';
+import { Input, isTouch } from '../game/input.js';
 import { Rivals } from '../game/rivals.js';
 import { skinById } from '../game/skins.js';
 import { fmt } from '../game/hud.js';
@@ -32,7 +32,7 @@ const RIVALS = 11;
 const HOUR = 11; // late morning: a bright picnic
 const SOFT_CAP = 6; // m: past this, balls grow ever slower (the picnic is ~75 m across)
 
-let engine, sky, ground, world, layout, movers, input, driver, ball, rivals, rig, material;
+let engine, sky, ground, world, layout, movers, input, ball, rivals, rig, material;
 const G = { t: 0, time: 0, state: 'play', eaten: 0, eatenBy: null, events: [], safeUntil: 0 };
 
 async function boot() {
@@ -64,7 +64,9 @@ async function boot() {
   rivals = new Rivals(engine.scene, world, material);
   rig = new CameraRig(engine.camera, world);
   input = new Input($('game'));
-  driver = new Driver();
+  // the mouse: the ball rolls towards the pointer (a click dashes)
+  addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { mouse.x = e.clientX; mouse.y = e.clientY; mouse.t = performance.now(); } });
+  addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button === 0) mouse.click = true; });
   if (isTouch()) for (const id of ['touch-zone', 'touch-dash']) $(id).hidden = false;
   $('btn-again').addEventListener('click', startRound);
   STUCK.max = engine.q.stuck;
@@ -90,13 +92,13 @@ function startRound() {
   rivals.start(RIVALS, START_SIZE, { brawl: true, spawns: layout.spawns, farMax: 14, sizes: [1, 1, 1, 1.2, 1.4, 1.6, 2, 2, 2.5, 3, 4], huntK: 5, band: 1.3, calm: G.t + 15, respawnMax: 0.8, softCap: SOFT_CAP });
   // (the player grows a little faster than the field: an edge for a human against a dozen)
   ball.rateBoost = 1.3;
-  rig.yaw = s.heading;
-  rig.snap(ball);
+  follow(1e3);
   G.state = 'play';
   G.time = 0;
   G.eaten = 0;
   G.eatenBy = null;
-  G.safeUntil = G.t + 4;
+  // (the first seconds nothing can eat the player: time to find their feet and some food)
+  G.safeUntil = G.t + 12;
   ball.safeUntil = G.safeUntil;
   $('results').hidden = true;
   popup(t('吃掉比你小的，躲开比你大的！'), 'good');
@@ -147,6 +149,47 @@ function popup(text, kind = '') {
   while ($('popups').children.length > 3) $('popups').firstChild.remove();
 }
 
+// ---- controls: no steering ------------------------------------------------------------------------
+// The view never turns (north is always up the screen), and every control gives the direction to
+// roll in screen terms: W A S D (or the arrows) up/left/down/right and the diagonals between; the
+// mouse, the way from the ball to the pointer; the touch stick, the way it's pushed. Space, a click
+// or the touch button dashes.
+const mouse = { x: 0, y: 0, t: -1e9, click: false };
+const _sp = new THREE.Vector3();
+function controls(raw) {
+  const out = { dir: null, m: 0, quick: false, hold: false, turnImpulse: 0, dash: raw.dash || mouse.click };
+  mouse.click = false;
+  const vx = (raw.keyTurn || 0), vz = (raw.fwd ? 1 : 0) - (raw.back ? 1 : 0);
+  if (vx || vz) {
+    // (screen up is north, −Z: heading 0; right is +X: heading π/2)
+    out.dir = Math.atan2(vx, vz);
+    out.m = 1;
+  } else if (raw.stick && raw.stick.m > 0.1) {
+    out.dir = raw.stick.a;
+    out.m = Math.min(1, raw.stick.m * 1.3);
+  } else if (performance.now() - mouse.t < 4000) {
+    _sp.set(ball.pos.x, ball.centerY, ball.pos.z).project(engine.camera);
+    const bx = ((_sp.x + 1) / 2) * innerWidth, by = ((1 - _sp.y) / 2) * innerHeight;
+    const dx = mouse.x - bx, dy = mouse.y - by, d = Math.hypot(dx, dy);
+    if (d > 24) {
+      out.dir = Math.atan2(dx, -dy);
+      out.m = Math.min(1, d / 160);
+    }
+  }
+  return out;
+}
+
+// ---- the view: from the south, high up, looking down on the ball, further off as it grows (so
+// what's coming can be seen in time); it never turns ------------------------------------------------
+const _cp = new THREE.Vector3(), _cl = new THREE.Vector3();
+function follow(speed = 6) {
+  const S = ball.displayS;
+  _cl.set(ball.pos.x, ball.centerY, ball.pos.z - S * 0.6);
+  _cp.set(ball.pos.x, ball.centerY + S * 7 + 0.35, ball.pos.z + S * 4.6 + 0.25);
+  rig.override = { pos: _cp.clone(), look: _cl.clone(), fov: 52, speed };
+  if (speed > 100) { rig.pos.copy(_cp); rig.look.copy(_cl); }
+}
+
 // ---- per frame ----------------------------------------------------------------------------------
 const NO_INPUT = { dir: null, m: 0, quick: false, hold: false, turnImpulse: 0, dash: false };
 let last = performance.now();
@@ -164,12 +207,9 @@ function step(dt) {
   G.t += dt;
   const raw = input.poll();
   const playing = G.state === 'play';
-  const inp = playing ? driver.update(raw, rig.yaw, ball.heading, dt, ball.speed() > ball.maxSpeed() * 0.3) : { ...NO_INPUT };
+  const inp = playing ? controls(raw) : { ...NO_INPUT };
   if (G.autopilot && playing) Object.assign(inp, G.autopilot(ball, rivals, world));
   G.events.length = 0;
-  rig.yaw += inp.turnImpulse || 0;
-  rig.quick = inp.quick;
-  rig.hold = !!inp.hold;
   if (playing) {
     G.time += dt;
     // (the edge over the field, less and less past the size the picnic is made for)
@@ -184,6 +224,7 @@ function step(dt) {
   movers.update(dt, G.t, ball, G.events);
   world.updateFlyers(dt);
   if ((G.cullT = (G.cullT || 0) - dt) <= 0) { G.cullT = 0.5; world.cullTiny(ball.S); }
+  follow();
   rig.update(dt, ball, G.t);
 
   sky.setHour(HOUR);
