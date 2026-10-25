@@ -187,6 +187,10 @@ if (target === 'game') {
 } else if (target === 'audio') {
   opts = { ...base, entryPoints: ['src/audio/test.js'] };
   tplName = 'audio-test'; outName = 'audio-test';
+} else if (target === 'match') {
+  // 收集三连: a separate calm match game built from the same models
+  opts = { ...base, entryPoints: ['src/match/main.js'] };
+  tplName = 'match'; outName = 'match';
 } else {
   console.error('unknown target', target); process.exit(1);
 }

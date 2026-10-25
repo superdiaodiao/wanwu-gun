@@ -297,4 +297,20 @@ export const UI = {
   '我在《万物皆可滚·女娲补天》里把五色石滚到了 {size}！{url}': 'In Roll It All · Nüwa Patches the Sky I rolled the Five-Color Stone to {size}! {url}',
   '我在《万物皆可滚·女娲补天》对手赛拿了第 {n} 名，滚到 {size}{ate}！{url}': 'I came {n} in Rivals in Roll It All · Nüwa Patches the Sky, rolling to {size}{ate}! {url}',
   '，还把「{names}」整个滚了进来': ' and rolled up “{names}” whole',
+  // 收集三连 (src/match)
+  '收集三连': 'Triple Tidy',
+  '正在装碗……': 'Filling the bowl…',
+  '第 {n} 关': 'Level {n}',
+  '早餐': 'Breakfast',
+  '玩具箱': 'Toy Box',
+  '办公桌': 'Office Desk',
+  '个': 'left',
+  '清空了！': 'All clear!',
+  '下一关：{name}': 'Next: {name}',
+  '三关都清空了，从头再来一遍？': 'All three bowls cleared. Go again from the start?',
+  '再来一遍': 'Play again',
+  '放不下了': 'Tray full',
+  '收集槽满了，换个顺序再试试': 'The tray filled up. Try a different order.',
+  '再试一次': 'Try again',
 };
+

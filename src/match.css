@@ -1,0 +1,31 @@
+/* 收集三连 — UI. Soft and warm: cream panels, peach background, rounded everything. */
+:root {
+  color-scheme: light;
+  --ink: #3b2f2a;
+  --dim: #9b8a80;
+  --peach: #ff8f6b;
+  --mint: #4cc9a0;
+  --num: "Baloo 2", ui-rounded, system-ui, sans-serif;
+  --body: ui-rounded, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+html, body { height: 100%; margin: 0; overflow: hidden; background: #ffe9d6; color: var(--ink); font-family: var(--body); user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+#hud { position: fixed; inset: 0; pointer-events: none; }
+#level { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: baseline; gap: 10px; padding: 8px 20px; white-space: nowrap; border-radius: 999px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 4px 0 rgba(59, 47, 42, 0.08); }
+#level span { font-size: 14px; color: var(--dim); }
+#level b { font: 800 22px var(--body); }
+#left { position: absolute; right: 18px; top: 16px; padding: 6px 16px; border-radius: 16px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 4px 0 rgba(59, 47, 42, 0.08); }
+@media (max-width: 520px) { #level { left: 14px; transform: none; } }
+#left b { font: 800 26px var(--num); color: var(--peach); }
+#left span { font-size: 13px; color: var(--dim); margin-left: 3px; }
+#card { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(59, 47, 42, 0.25); }
+#card .inner { min-width: 280px; padding: 26px 36px; border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(59, 47, 42, 0.12); animation: rise 0.35s ease-out; }
+#card .title { font: 800 34px var(--body); color: var(--peach); }
+#card .sub { font-size: 15px; color: var(--dim); margin: 8px 0 18px; }
+#card button { font: 800 19px var(--body); padding: 12px 40px; border: 0; border-radius: 999px; background: var(--mint); color: #fff; box-shadow: 0 5px 0 #34a07e; cursor: pointer; }
+#card button:active { transform: translateY(3px); box-shadow: 0 2px 0 #34a07e; }
+@keyframes rise { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
+#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #ffe9d6; transition: opacity 0.6s; font: 700 18px var(--body); color: var(--dim); }
+#loading.done { opacity: 0; pointer-events: none; }
