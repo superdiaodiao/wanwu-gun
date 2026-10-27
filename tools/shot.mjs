@@ -6,9 +6,9 @@
 //
 // Prints the saved path, then every console message / exception from the page.
 // Waits for the page's readiness expression (default window.__ready === true) before capturing.
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { launchChrome } from './chrome.mjs';
 
 const argv = process.argv.slice(2);
 const pos = argv.filter(a => !a.startsWith('--'));
@@ -29,23 +29,15 @@ if (!/^(https?|file|data):/.test(url)) {
 }
 const out = path.resolve(pos[1]);
 const W = +(opt.w || 1600), H = +(opt.h || 1000), WAIT = +(opt.wait || 1200), TIMEOUT = +(opt.timeout || 90000);
-const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const cacheDir = path.resolve('.cache');
-fs.mkdirSync(cacheDir, { recursive: true });
-const profile = fs.mkdtempSync(path.join(cacheDir, 'chrome-'));
 const port = 9300 + Math.floor(Math.random() * 600);
 const flags = [
-  '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+  '--headless=new', `--remote-debugging-port=${port}`,
   '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio',
   '--ignore-gpu-blocklist', `--window-size=${W},${H}`, '--allow-file-access-from-files',
   '--autoplay-policy=no-user-gesture-required',
 ];
 if ((opt.gl || 'swiftshader') === 'swiftshader') flags.push('--use-angle=swiftshader', '--enable-unsafe-swiftshader');
-const chrome = spawn(CHROME, [...flags, 'about:blank'], { stdio: 'ignore' });
-const cleanup = () => {
-  try { chrome.kill('SIGKILL'); } catch {}
-  setTimeout(() => { try { fs.rmSync(profile, { recursive: true, force: true }); } catch {} }, 300);
-};
+const { cleanup } = launchChrome(flags);
 const timer = setTimeout(() => { console.error('[shot] timeout'); cleanup(); process.exit(3); }, TIMEOUT);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

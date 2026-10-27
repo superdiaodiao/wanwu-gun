@@ -6,9 +6,10 @@
 //   node tools/record.mjs <file|url> <out.mp4> [--w=1920] [--h=1080] [--seconds=18] [--fps=30]
 //                         [--setup="js expression run once before recording (may return a promise)"]
 //                         [--gl=swiftshader|gpu]
-import { spawn, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { launchChrome } from './chrome.mjs';
 
 const argv = process.argv.slice(2);
 const pos = argv.filter(a => !a.startsWith('--'));
@@ -29,25 +30,17 @@ if (!/^(https?|file|data):/.test(url)) {
 }
 const out = path.resolve(pos[1]);
 const W = +(opt.w || 1920), H = +(opt.h || 1080), FPS = +(opt.fps || 30), N = Math.round(+(opt.seconds || 18) * FPS);
-const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const cacheDir = path.resolve('.cache');
 fs.mkdirSync(cacheDir, { recursive: true });
-const profile = fs.mkdtempSync(path.join(cacheDir, 'chrome-'));
 const frames = fs.mkdtempSync(path.join(cacheDir, 'frames-'));
 const port = 9300 + Math.floor(Math.random() * 600);
 const flags = [
-  '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+  '--headless=new', `--remote-debugging-port=${port}`,
   '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio',
   '--ignore-gpu-blocklist', `--window-size=${W},${H}`, '--allow-file-access-from-files',
 ];
 if ((opt.gl || 'swiftshader') === 'swiftshader') flags.push('--use-angle=swiftshader', '--enable-unsafe-swiftshader');
-const chrome = spawn(CHROME, [...flags, 'about:blank'], { stdio: 'ignore' });
-const cleanup = () => {
-  try { chrome.kill('SIGKILL'); } catch {}
-  setTimeout(() => {
-    for (const d of [profile, frames]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }
-  }, 300);
-};
+const { chrome, cleanup } = launchChrome(flags, { extraDirs: [frames] });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getJSON(p) {
