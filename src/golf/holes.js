@@ -1,0 +1,153 @@
+// The holes. Each is drawn in characters, one per square metre, the far end at the top:
+//   .  green        r  road (green to the ball, grey to look at)
+//   T  the tee      H  the hole (the crack to patch)      o  a sweet lying on the green
+//   (anything else is not course: a wall runs along every edge of the green)
+// then what stands on it, at (column, row) — fractions allowed, 0 is the first square's middle:
+//   { t: 'obj', id, at, rot, s }        something in the way (a catalog model; rot in degrees)
+//   { t: 'fan', at, dir, len, w, a }    an electric fan blowing along dir (a [x, z] direction)
+//   { t: 'bike', id, from, to, speed, phase }   riding back and forth between two points
+//   { t: 'goose', at, aggro, leash }    guards the ground around it: chases the ball, pecks it away
+//   { t: 'cat', at, face, period }      sits facing `face` (deg, 0 = up the hole) and swipes
+//   { t: 'quilt', at, rot }             a folded quilt: the ball bounces off it hard
+export const HOLES = [
+  {
+    name: '热身', tip: '按住往后拉，松手击球', par: 2,
+    map: [
+      '.....',
+      '..H..',
+      '.....',
+      '.....',
+      '....o',
+      '.....',
+      '.....',
+      '.....',
+      'o....',
+      '.....',
+      '.....',
+      '..T..',
+      '.....',
+    ],
+    props: [
+      { t: 'obj', id: 'traffic_cone', at: [1.1, 6] },
+      { t: 'obj', id: 'traffic_cone', at: [2.9, 6] },
+    ],
+  },
+  {
+    name: '麻将桌', tip: '撞墙会弹回来，借墙拐弯', par: 3,
+    map: [
+      '............',
+      '..........H.',
+      '............',
+      '....        ',
+      '....        ',
+      '.o..        ',
+      '....        ',
+      '....        ',
+      '....        ',
+      '....        ',
+      '.T..        ',
+      '....        ',
+    ],
+    props: [
+      { t: 'obj', id: 'mahjong_table', at: [6.6, 1], rot: 8, s: 0.78 },
+      { t: 'obj', id: 'plastic_stool', at: [2.6, 3.6] },
+      { t: 'obj', id: 'plastic_stool', at: [8.9, 0.1] },
+      { t: 'obj', id: 'plastic_stool', at: [8.9, 1.9] },
+    ],
+  },
+  {
+    name: '电风扇', tip: '风会把球吹偏，往上风那边打', par: 3,
+    map: [
+      '......',
+      '..H...',
+      '......',
+      '......',
+      '......',
+      '......',
+      '...o..',
+      '......',
+      '......',
+      '......',
+      '.o....',
+      '......',
+      '......',
+      '......',
+      '...T..',
+      '......',
+    ],
+    props: [
+      { t: 'fan', at: [-1.2, 10], dir: [1, 0], len: 7.4, w: 2.6, a: 5.5 },
+      { t: 'fan', at: [6.2, 4.5], dir: [-1, 0], len: 7.4, w: 2.6, a: 5.5 },
+    ],
+  },
+  {
+    name: '共享单车', tip: '等单车过去再打', par: 3,
+    map: [
+      '   .....   ',
+      '   ..H..   ',
+      '   .....   ',
+      '   .....   ',
+      '   .....   ',
+      'rrrrrrrrrrr',
+      'rrrrrrrrrrr',
+      'rrrrrrrrrrr',
+      '   .....   ',
+      '   .o...   ',
+      '   .....   ',
+      '   .....   ',
+      '   ..T..   ',
+      '   .....   ',
+    ],
+    props: [
+      { t: 'bike', id: 'shared_bike', from: [0.6, 5.3], to: [9.4, 5.3], speed: 2.4, phase: 0 },
+      { t: 'bike', id: 'ebike', from: [9.4, 6.7], to: [0.6, 6.7], speed: 1.8, phase: 0.45 },
+    ],
+  },
+  {
+    name: '大鹅', tip: '大鹅会追着球啄，打快点冲过去', par: 3,
+    map: [
+      '.......',
+      '...H...',
+      '.......',
+      '.......',
+      '.......',
+      '..o....',
+      '.......',
+      ' ..... ',
+      ' ..... ',
+      ' ...o. ',
+      ' ..... ',
+      ' ..... ',
+      ' ..T.. ',
+      ' ..... ',
+    ],
+    props: [
+      { t: 'goose', at: [4.6, 3.2], aggro: 2.7, leash: 2.6 },
+      { t: 'obj', id: 'flower_bed', at: [0.7, 3.4], s: 0.5 },
+    ],
+  },
+  {
+    name: '猫和被子', tip: '小心猫爪，被子能把球弹回来', par: 4,
+    map: [
+      '.........',
+      '.H.......',
+      '.........',
+      '      ...',
+      '      ...',
+      '      ...',
+      '      .o.',
+      '      ...',
+      '      ...',
+      '.........',
+      '.T.......',
+      '.........',
+    ],
+    props: [
+      { t: 'quilt', at: [7.75, 10.75], rot: 45, s: 1.7 },
+      { t: 'quilt', at: [7.75, 0.25], rot: -45, s: 1.7 },
+      { t: 'cat', id: 'cat_orange', at: [5.85, 5.2], face: 90, period: 2.4 },
+      { t: 'obj', id: 'stone_lion', at: [3.6, -0.1], rot: 180, s: 0.7 },
+      { t: 'obj', id: 'stone_lion', at: [3.6, 2.1], rot: 0, s: 0.7 },
+    ],
+  },
+];

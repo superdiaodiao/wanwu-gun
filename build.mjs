@@ -187,6 +187,10 @@ if (target === 'game') {
 } else if (target === 'audio') {
   opts = { ...base, entryPoints: ['src/audio/test.js'] };
   tplName = 'audio-test'; outName = 'audio-test';
+} else if (target === 'golf') {
+  // 小区高尔夫: a separate mini-golf game built from the same models
+  opts = { ...base, entryPoints: ['src/golf/main.js'] };
+  tplName = 'golf'; outName = 'golf';
 } else {
   console.error('unknown target', target); process.exit(1);
 }

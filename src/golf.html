@@ -1,0 +1,25 @@
+<!--HEAD-->
+<title>小区高尔夫</title>
+<meta name="description" content="一颗五色石，一个小区：绕过麻将桌，顶着电风扇，躲开共享单车和大鹅，把石头打进地上的裂缝。">
+<meta name="theme-color" content="#cfeaf5">
+<!--/HEAD-->
+<!--BODY-->
+<canvas id="game"></canvas>
+<div id="hud">
+  <div id="hole"><span id="hole-num"></span><b id="hole-name"></b></div>
+  <div id="score"><span>杆数</span><b id="strokes-num">0</b><span id="par"></span></div>
+  <div id="stars"><i>★</i><b id="stars-num">0</b></div>
+  <div id="banner" hidden><div id="banner-title"></div><div id="banner-sub"></div></div>
+  <div id="hint">按住往后拉，松手击球</div>
+  <div id="power" hidden><div id="power-fill"></div></div>
+</div>
+<div id="card" hidden>
+  <div class="inner">
+    <div class="title" id="card-title"></div>
+    <div class="stars" id="card-stars"></div>
+    <div class="sub" id="card-sub"></div>
+    <button id="card-btn">下一洞</button>
+  </div>
+</div>
+<div id="loading"><div>正在铺草皮……</div></div>
+<!--/BODY-->
