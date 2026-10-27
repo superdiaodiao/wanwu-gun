@@ -78,13 +78,19 @@ export function buildCourse(hole, index, { scene, model }) {
       if (last && Math.abs(last[1] - a) < 1e-6) last[1] = b;
       else merged.push([a, b]);
     }
+    // which side of the line the green is on: the row (h) or column (v) just inside the wall
+    const inner = o < 0 ? L + 0.5 : L - 0.5;
+    const greenAt = k => (kind === 'h' ? green(cell(k, inner)) : green(cell(inner, k)));
     for (const [a, b] of merged) {
       // the collider is the wall's inner face, along the green's edge (in map units, so shift)
       const A = kind === 'h' ? at(a, L) : at(L, a), B = kind === 'h' ? at(b, L) : at(L, b);
       course.cols.push({ kind: 'seg', ax: A.x, az: A.z, bx: B.x, bz: B.z });
-      const len = Math.hypot(B.x - A.x, B.z - A.z) + WALL_T * 2;
-      const mx = (A.x + B.x) / 2 + (kind === 'v' ? o * WALL_T / 2 : 0);
-      const mz = (A.z + B.z) / 2 + (kind === 'h' ? o * WALL_T / 2 : 0);
+      // past an outer corner the wall runs on to meet the one round the corner; at an inner corner
+      // (the green carries on beyond the end) it stops, or it would stick out into the green
+      const e0 = greenAt(a - 0.5) ? 0 : WALL_T, e1 = greenAt(b + 0.5) ? 0 : WALL_T;
+      const len = Math.hypot(B.x - A.x, B.z - A.z) + e0 + e1, slide = (e1 - e0) / 2;
+      const mx = (A.x + B.x) / 2 + (kind === 'v' ? o * WALL_T / 2 : slide);
+      const mz = (A.z + B.z) / 2 + (kind === 'h' ? o * WALL_T / 2 : slide);
       const geo = kind === 'h' ? new THREE.BoxGeometry(len, WALL_H, WALL_T) : new THREE.BoxGeometry(WALL_T, WALL_H, len);
       const w = new THREE.Mesh(geo, wallMat);
       w.position.set(mx, WALL_H / 2 - SLAB, mz);
@@ -165,13 +171,13 @@ export function buildCourse(hole, index, { scene, model }) {
     g.rotation.y = R() * Math.PI * 2;
     group.add(g);
     placed.push([x, z]);
-    course.deco.push({ g, h: new THREE.Box3().setFromObject(g).max.y + SLAB });
+    course.deco.push({ g, box: new THREE.Box3().setFromObject(g) });
   }
   for (let i = 0; i < 5; i++) {
     const g = model(['res_6f', 'res_18f', 'res_6f', 'shop_tea', 'res_32f'][i], 1);
     g.position.set(X0 - 14 + i * (X1 - X0 + 28) / 4, -SLAB, Z0 - 16 - R() * 4);
     group.add(g);
-    course.deco.push({ g, h: 30, far: true });
+    course.deco.push({ g, far: true });
   }
   const ground = new THREE.Mesh(new THREE.CircleGeometry(90, 48), lam(0xb8e09c));
   ground.rotation.x = -Math.PI / 2;

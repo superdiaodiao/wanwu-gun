@@ -62,15 +62,21 @@ export function contact(c, px, pz, r, out = CT) {
   return out;
 }
 
-/** a wind zone (a fan): from (x, z) along the unit (dx, dz) for len metres, w wide, pushing at a */
-function blow(b, w, h) {
-  const rx = b.x - w.x, rz = b.z - w.z;
+/** a wind zone (a fan): from (x, z) along the unit (dx, dz) for len metres, w wide, pushing at a;
+ *  how hard it pushes at (x, z) */
+function gust(w, x, z) {
+  const rx = x - w.x, rz = z - w.z;
   const along = rx * w.dx + rz * w.dz, side = -rx * w.dz + rz * w.dx;
-  if (along < 0 || along > w.len || Math.abs(side) > w.w / 2) return;
-  const f = w.a * (1 - (along / w.len) * 0.5) * (1 - Math.abs(side) / w.w);
+  if (along < 0 || along > w.len || Math.abs(side) > w.w / 2) return 0;
+  return w.a * (1 - (along / w.len) * 0.5) * (1 - Math.abs(side) / w.w);
+}
+function blow(b, w, h) {
+  const f = gust(w, b.x, b.z);
   b.vx += w.dx * f * h;
   b.vz += w.dz * f * h;
 }
+/** the strongest wind at (x, z) */
+export const windAt = (course, x, z) => Math.max(0, ...course.winds.map(w => gust(w, x, z)));
 
 /**
  * Moves the ball b ({x, z, vx, vz, lip}) on for dt. Returns 'sunk' when it drops into the hole.
@@ -92,7 +98,8 @@ export function stepBall(b, course, dt, onHit) {
     }
     // the hole: a pull towards it when close and not too quick, and in it goes if slow enough
     const cx = cup.x - b.x, cz = cup.z - b.z, cd = Math.hypot(cx, cz);
-    if (cd < PHYS.pullR && s < PHYS.capture && cd > 1e-4) {
+    // (only a rolling ball: one at rest beside the hole stays where it stopped)
+    if (cd < PHYS.pullR && s > PHYS.rest && s < PHYS.capture && cd > 1e-4) {
       const p = PHYS.pull * (1 - cd / PHYS.pullR);
       b.vx += (cx / cd) * p * h; b.vz += (cz / cd) * p * h;
     }

@@ -11,7 +11,8 @@ import * as THREE from 'three';
 import { BALL_R } from './physics.js';
 
 const D = Math.PI / 180;
-const ROUND = new Set(['traffic_cone', 'plastic_stool', 'rose_pot']);
+// round things get a round collider (and how much of their footprint it covers)
+const ROUND = { traffic_cone: 0.9, plastic_stool: 0.9, rose_pot: 0.9, flower_bed: 1 };
 
 export function buildProps(hole, course, ctx) {
   return hole.props.map(d => MAKERS[d.t](d, course, ctx));
@@ -20,7 +21,7 @@ export function buildProps(hole, course, ctx) {
 /** a box (or round) collider the size of the model's footprint */
 function footprint(ctx, id, k, x, z, rot, e, pad = 0.9) {
   const s = ctx.spec(id);
-  if (ROUND.has(id)) return { kind: 'circle', x, z, r: (Math.min(s.dims.w, s.dims.d) * k) / 2 * pad, e };
+  if (ROUND[id]) return { kind: 'circle', x, z, r: (Math.min(s.dims.w, s.dims.d) * k) / 2 * ROUND[id], e };
   return { kind: 'box', x, z, hx: (s.dims.w * k) / 2 * pad, hz: (s.dims.d * k) / 2 * pad, rot, e };
 }
 
@@ -102,6 +103,7 @@ const MAKERS = {
   goose(d, course, ctx) {
     const home = course.at(...d.at);
     const g = ctx.model('goose', 1.15);
+    g.rotation.order = 'YXZ'; // so the peck dips its head forward, whichever way it faces
     course.group.add(g);
     const col = { kind: 'circle', x: home.x, z: home.z, r: 0.24, e: 0.4, vx: 0, vz: 0 };
     let x = home.x, z = home.z, yaw = Math.PI, cd = 0, peck = 0, walk = 0, honkCd = 0, t = Math.random() * 5;

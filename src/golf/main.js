@@ -16,7 +16,7 @@ import { buildCoreGeometry } from '../game/ball.js';
 import { audio } from '../audio/audio.js';
 import { t, translateDom, EN } from '../i18n/index.js';
 import { applyContent } from '../i18n/apply.js';
-import { BALL_R, PHYS, stepBall, simulate, shotSpeed } from './physics.js';
+import { BALL_R, PHYS, stepBall, simulate, shotSpeed, windAt } from './physics.js';
 import { buildCourse } from './course.js';
 import { buildProps } from './props.js';
 import { HOLES } from './holes.js';
@@ -82,6 +82,7 @@ async function boot() {
   addEventListener('resize', () => aim());
   const cv = $('game');
   cv.addEventListener('pointerdown', onDown);
+  cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('pointermove', onMove);
   addEventListener('pointerup', onUp);
   addEventListener('pointercancel', () => { G.aim = null; showAim(false); });
@@ -133,6 +134,7 @@ function showAim(on) {
   arrow.userData.holder.visible = on;
   dots.visible = on;
   $('power').hidden = !on;
+  if (on) $('hint').hidden = true;
 }
 
 // ---- a hole ----------------------------------------------------------------------------------------------
@@ -228,18 +230,21 @@ function aim() {
   const fwd = dir.clone().negate();
   target.addScaledVector(fwd, shift * (side ? wide : long) * 0.5);
   fits(hi);
-  // yard things standing in front of the course (between it and the camera) are left out
+  // yard things standing in front of the course (between it and the camera) are left out: any
+  // whose box, seen from here, reaches into the course (or the fans standing just outside it)
+  for (const w of G.course.winds) pts.push(new THREE.Vector3(w.x, -0.1, w.z), new THREE.Vector3(w.x, 1.8, w.z));
   let x0 = 1, x1 = -1, y0 = 1, y1 = -1;
   for (const p of pts) { const v = p.clone().project(c); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
-  const v = new THREE.Vector3();
+  const v = new THREE.Vector3(), mid = new THREE.Vector3(cx, 0, cz), far = c.position.distanceTo(mid);
   for (const d of G.course.deco) {
     if (d.far) continue;
+    const bx = d.box, centre = bx.getCenter(new THREE.Vector3());
     let over = false;
-    // up its trunk and round its crown
-    const gx = d.g.position.x, gz = d.g.position.z, gy = d.g.position.y, w = d.h * 0.3;
-    for (const [ox, oy, oz] of [[0, 0, 0], [0, 0.5, 0], [0, 1, 0], [w, 0.75, 0], [-w, 0.75, 0], [0, 0.75, w], [0, 0.75, -w]]) {
-      v.set(gx + ox, gy + d.h * oy, gz + oz).project(c);
-      if (v.x > x0 - 0.03 && v.x < x1 + 0.03 && v.y > y0 - 0.03 && v.y < y1) over = true;
+    if (c.position.distanceTo(centre.setY(0)) < far) {
+      for (let i = 0; i < 8 && !over; i++) {
+        v.set(i & 1 ? bx.max.x : bx.min.x, i & 2 ? bx.max.y : bx.min.y, i & 4 ? bx.max.z : bx.min.z).project(c);
+        if (v.x > x0 && v.x < x1 && v.y > y0 && v.y < y1) over = true;
+      }
     }
     d.g.visible = !over;
   }
@@ -256,10 +261,12 @@ function groundAt(x, y) {
 }
 function onDown(e) {
   wake();
-  if (G.state !== 'aim') return;
+  // one finger, the main mouse button; a second touch doesn't take the shot over
+  if (G.state !== 'aim' || G.aim || !e.isPrimary || e.button !== 0) return;
   const p = groundAt(e.clientX, e.clientY);
   if (!p) return;
   G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, start: p, ang: 0, p: 0 };
+  try { e.target.setPointerCapture(e.pointerId); } catch {}
 }
 function onMove(e) {
   const a = G.aim;
@@ -345,7 +352,9 @@ function step(dt, draw = true) {
     const sp = Math.hypot(b.vx, b.vz);
     if (G.state === 'aim' && sp > 0.3) G.pushed();
     if (G.state === 'roll') {
-      if (sp < PHYS.rest) { G.still += dt; b.vx *= 0.5; b.vz *= 0.5; } else G.still = 0;
+      // (in a fan's wind it isn't held still: it drifts on until it is pinned against a wall)
+      const blown = G.course.winds.length && windAt(G.course, b.x, b.z) > PHYS.a0;
+      if (sp < PHYS.rest) { G.still += dt; if (!blown) { b.vx *= 0.5; b.vz *= 0.5; } } else G.still = 0;
       G.rollT += dt;
       // (a safety net: nothing should keep a ball going this long, but if it does, it stops)
       if (G.still > 0.2 || G.rollT > 25) {
@@ -364,7 +373,7 @@ function step(dt, draw = true) {
     }
     // rolling: turn the stone about the axis across its path
     const d = sp * dt;
-    if (d > 0) ballSpin.rotateOnWorldAxis(new THREE.Vector3(b.vz, 0, -b.vx).normalize(), -d / BALL_R);
+    if (d > 0) ballSpin.rotateOnWorldAxis(new THREE.Vector3(b.vz, 0, -b.vx).normalize(), d / BALL_R);
     ballG.position.set(b.x, BALL_R, b.z);
   }
   if (G.state === 'sink') {
