@@ -1,6 +1,6 @@
 // A hole's course, built from its character map: the green (checkered like a mown lawn), the
 // road stretches, a low wall along every edge of it (and the wall faces as colliders), the tee
-// mat, the hole — a glowing crack in the ground with a flag — and a yard around: trees, hedges,
+// mat, the hole — a cup with a glowing rim and a flag — and a yard around: trees, hedges,
 // a few buildings far off. Everything in world metres, the map centred on the origin.
 import * as THREE from 'three';
 import { CUP_R } from './physics.js';
@@ -110,7 +110,7 @@ export function buildCourse(hole, index, { scene, model }) {
   mat.receiveShadow = true;
   group.add(mat);
 
-  // ---- the hole: a dark hollow, a glowing rim, cracks running off it, and a flag ----
+  // ---- the hole: a dark hollow, a glowing rim and a flag ----
   const cup = new THREE.Group();
   cup.position.set(course.cup.x, 0, course.cup.z);
   const hollow = new THREE.Mesh(new THREE.CircleGeometry(CUP_R, 28), new THREE.MeshBasicMaterial({ color: 0x1c1714 }));
@@ -122,23 +122,6 @@ export function buildCourse(hole, index, { scene, model }) {
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.01;
   cup.add(rim);
-  // light leaking out of the crack: thin golden lines running off the rim
-  const crackMat = new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.85, depthWrite: false });
-  const R = rng(index + 7);
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2 + R() * 0.8;
-    let x = Math.cos(a) * CUP_R, z = Math.sin(a) * CUP_R, dir = a;
-    for (let k = 0; k < 2; k++) {
-      const l = 0.07 + R() * 0.08;
-      dir += (R() - 0.5) * 0.8;
-      const nx = x + Math.cos(dir) * l, nz = z + Math.sin(dir) * l;
-      const s = new THREE.Mesh(new THREE.PlaneGeometry(l, 0.018 - k * 0.006), crackMat);
-      s.rotation.set(-Math.PI / 2, 0, -dir);
-      s.position.set((x + nx) / 2, 0.004, (z + nz) / 2);
-      cup.add(s);
-      x = nx; z = nz;
-    }
-  }
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.25, 8), lam(0xffffff));
   pole.position.set(0, 0.62, 0);
   pole.castShadow = true;
@@ -154,6 +137,7 @@ export function buildCourse(hole, index, { scene, model }) {
   course.cupFx = { rim: rimMat, flag, pole };
 
   // ---- the yard around ----
+  const R = rng(index + 7);
   const near = (x, z, d) => tiles.some(t => { const p = at(t.c, t.r); return Math.abs(p.x - x) < d + 0.5 && Math.abs(p.z - z) < d + 0.5; });
   const X0 = -W / 2, X1 = W / 2, Z0 = -H / 2, Z1 = H / 2;
   const kinds = [['tree_plane', 4.2], ['tree_camphor', 4], ['tree_ginkgo', 3.6], ['bush', 1.1], ['bush', 0.9], ['flower_patch', 0.8], ['bench', 1.6], ['street_lamp', 3.6], ['rose_pot', 0.7], ['potted_plant', 0.9]];

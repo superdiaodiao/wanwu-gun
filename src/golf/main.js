@@ -1,6 +1,5 @@
-// 小区高尔夫 (working title) — mini golf through a 小区, built from 万物皆可滚's models. The ball is
-// the 补天 five-colour stone; each hole ends in a crack in the ground to knock it into. Hold and pull
-// back anywhere, let go to putt (a dotted line shows where it will run, up to the first bounce).
+// 小区高尔夫 (working title) — mini golf through a 小区, built from 万物皆可滚's models: a golf ball,
+// and each hole ends in a cup with a glowing rim. Hold and pull back anywhere, let go to putt (a dotted line shows where it will run, up to the first bounce).
 // Every hole has its own nuisance: cones and mahjong tables in the way, fans blowing, shared bikes
 // crossing, a goose guarding the hole, a cat swiping. Stars: one for sinking it, one for par or
 // better, one for every sweet on the green picked up on the way.
@@ -8,11 +7,10 @@ import * as THREE from 'three';
 import '../catalog/index.js';
 import { CATALOG } from '../catalog/registry.js';
 import { buildAtlas, loadFonts, atlasTexture } from '../core/atlas.js';
-import { objectMaterial, variant, U as MU } from '../core/materials.js';
+import { objectMaterial, U as MU } from '../core/materials.js';
 import { buildSpec } from '../core/assets.js';
 import { Engine } from '../game/engine.js';
 import { FX } from '../game/fx.js';
-import { buildCoreGeometry } from '../game/ball.js';
 import { audio } from '../audio/audio.js';
 import { t, translateDom, EN } from '../i18n/index.js';
 import { applyContent } from '../i18n/apply.js';
@@ -20,6 +18,7 @@ import { BALL_R, PHYS, stepBall, simulate, shotSpeed, windAt } from './physics.j
 import { buildCourse } from './course.js';
 import { buildProps } from './props.js';
 import { HOLES } from './holes.js';
+import { golfBall, Trail } from './ball.js';
 
 applyContent();
 
@@ -100,14 +99,13 @@ async function wake() {
 }
 
 // ---- the ball and the aiming guide -----------------------------------------------------------------
-let ballG, ballSpin, arrow, arrowMat, dots, ring;
+let ballG, ballSpin, trail, arrow, arrowMat, dots, ring;
 function makeBall(sc) {
   ballG = new THREE.Group();
-  ballSpin = new THREE.Mesh(buildCoreGeometry(), variant(material, 'plain'));
-  ballSpin.scale.setScalar(BALL_R);
-  ballSpin.castShadow = true;
+  ballSpin = golfBall(BALL_R);
   ballG.add(ballSpin);
   sc.add(ballG);
+  trail = new Trail(sc, BALL_R * 0.8);
 }
 function makeAim(sc) {
   // an arrow flat on the green from the ball, longer and redder with power
@@ -156,6 +154,7 @@ function load(i) {
   Object.assign(G.ball, { x: G.course.tee.x, z: G.course.tee.z, vx: 0, vz: 0, lip: 0 });
   ballG.visible = true;
   ballG.scale.setScalar(1);
+  trail.reset();
   G.strokes = 0; G.got = 0; G.still = 0; G.aim = null; G.state = 'aim'; G.live = true;
   showAim(false);
   $('card').hidden = true;
@@ -371,13 +370,14 @@ function step(dt, draw = true) {
       audio.comboChime(Math.min(6, G.got + 1));
       fx.pickup(s.x, 0.3, s.z, 0.1, 0.4);
     }
-    // rolling: turn the stone about the axis across its path
+    // rolling: turn the ball about the axis across its path
     const d = sp * dt;
     if (d > 0) ballSpin.rotateOnWorldAxis(new THREE.Vector3(b.vz, 0, -b.vx).normalize(), d / BALL_R);
     ballG.position.set(b.x, BALL_R, b.z);
-  }
+    trail.update(b.x, b.z, sp, dt);
+  } else trail.reset();
   if (G.state === 'sink') {
-    // into the crack: slide to the middle and drop
+    // into the cup: slide to the middle and drop
     G.sinkT += dt;
     const k = Math.min(1, G.sinkT / 0.3), cup = G.course.cup;
     ballG.position.set(b.x + (cup.x - b.x) * k, BALL_R - k * k * 0.35, b.z + (cup.z - b.z) * k);
@@ -428,7 +428,7 @@ function finish(sunk) {
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
   store.set('best', G.best);
   if (sunk && stars === 3) audio.milestone(5);
-  $('card-title').textContent = !sunk ? t('这洞先放过你') : G.strokes === 1 ? t('一杆进洞！') : t('补上了！');
+  $('card-title').textContent = !sunk ? t('这洞先放过你') : G.strokes === 1 ? t('一杆进洞！') : t('进洞！');
   $('card-stars').innerHTML = [0, 1, 2].map(i => `<i class="${i < stars ? 'on' : ''}">★</i>`).join('');
   $('card-sub').textContent = t('{n} 杆 · 标准杆 {par} · 糖 {got}/{all}', { n: G.strokes, par: hole.par, got: G.got, all });
   const lastHole = G.hole + 1 >= HOLES.length;

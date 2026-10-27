@@ -1,6 +1,6 @@
 // The holes. Each is drawn in characters, one per square metre, the far end at the top:
 //   .  green        r  road (green to the ball, grey to look at)
-//   T  the tee      H  the hole (the crack to patch)      o  a sweet lying on the green
+//   T  the tee      H  the hole      o  a sweet lying on the green
 //   (anything else is not course: a wall runs along every edge of the green)
 // then what stands on it, at (column, row) — fractions allowed, 0 is the first square's middle:
 //   { t: 'obj', id, at, rot, s }        something in the way (a catalog model; rot in degrees)

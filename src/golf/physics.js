@@ -1,4 +1,4 @@
-// The ball: a small 五色石 rolling on the flat green. Rolling slows it by a constant drag plus one
+// The ball: a golf ball rolling on the flat green. Rolling slows it by a constant drag plus one
 // that grows with speed (a hard shot runs out quickly at first, a soft putt creeps on), it bounces
 // off the course's walls and the things on it, fans blow it along, and near the hole a gentle pull
 // curls a ball that is nearly there into it. A ball over the hole drops in unless it is too fast,
@@ -9,13 +9,13 @@
 //   { kind: 'circle', x, z, r }                      a post, an animal
 //   { kind: 'box', x, z, hx, hz, rot }               anything boxy, turned by rot about y
 // each may carry e (bounciness, default the walls'), vx / vz (it is moving: it shoves the ball).
-export const BALL_R = 0.16, CUP_R = 0.25;
+export const BALL_R = 0.14, CUP_R = 0.3;
 export const PHYS = {
-  a0: 1.1, // constant rolling drag, m/s²
-  k: 0.45, // drag per m/s of speed, 1/s
-  vmin: 0.7, vmax: 11, // shot speed at the least and the most power
+  a0: 0.75, // constant rolling drag, m/s²
+  k: 0.36, // drag per m/s of speed, 1/s
+  vmin: 0.7, vmax: 9, // shot speed at the least and the most power
   rest: 0.08, // below this the ball has stopped
-  wallE: 0.72, // how much speed a wall gives back
+  wallE: 0.78, // how much speed a wall gives back
   capture: 3.0, // the hole takes a ball slower than this
   pull: 2.4, pullR: 0.5, // the hole's pull (m/s²) and its reach (m)
 };

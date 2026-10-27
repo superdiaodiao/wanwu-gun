@@ -316,7 +316,7 @@ export const UI = {
   '大鹅会追着球啄，打快点冲过去': 'The goose chases the ball: hit it fast and get past',
   '猫和被子': 'Cat and Quilts',
   '小心猫爪，被子能把球弹回来': 'Mind the paw; the quilts bounce the ball back',
-  '补上了！': 'Patched!',
+  '进洞！': 'In the hole!',
   '一杆进洞！': 'Hole in one!',
   '这洞先放过你': 'Let\'s call this one done',
   '{n} 杆 · 标准杆 {par} · 糖 {got}/{all}': '{n} strokes · par {par} · sweets {got}/{all}',

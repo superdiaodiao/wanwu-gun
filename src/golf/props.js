@@ -135,8 +135,10 @@ const MAKERS = {
         const bx = ball.x - x, bz = ball.z - z, bd = Math.hypot(bx, bz);
         if (chase && bd < col.r + BALL_R + 0.14) {
           const ux = bd > 1e-4 ? bx / bd : 0, uz = bd > 1e-4 ? bz / bd : -1;
-          ball.vx = ux * 3.4; ball.vz = uz * 3.4;
-          cd = 1.8; peck = 0.3;
+          // (soft enough, and a long enough rest after, that a ball bouncing back off a wall
+          // isn't pecked again before the player can take a shot)
+          ball.vx = ux * 2.8; ball.vz = uz * 2.8;
+          cd = 2.3; peck = 0.3;
           ctx.audio.pickup('honk', 0.7, 0.8);
           honkCd = 1;
           ctx.fx.pickup(ball.x, 0.2, ball.z, 0.05, 0.25);
@@ -165,7 +167,9 @@ const MAKERS = {
     course.group.add(zone);
     const col = { kind: 'circle', x: p.x, z: p.z, r: 0.24, e: 0.4 };
     const P = d.period || 2.4;
-    let t = (d.phase || 0) * P, batted = false;
+    // (one swipe a stroke: a ball batted against a wall can roll back into reach, and a cat that
+    // swiped again every time it did could keep the player from ever getting a shot off)
+    let t = (d.phase || 0) * P, batted = false, swiped = -1;
     return {
       cols: [col],
       update(dt, ball, game) {
@@ -178,10 +182,11 @@ const MAKERS = {
         const lunge = swipe ? Math.sin(((T - (P - 0.25)) / 0.25) * Math.PI) * 0.3 : -ready * 0.06;
         g.position.set(p.x + fx * lunge, 0, p.z + fz * lunge);
         g.scale.set(1, crouch ? 1 - ready * 0.14 : 1, 1);
-        if (swipe && !batted && game.live) {
+        if (swipe && !batted && game.live && game.strokes !== swiped) {
           const zx = p.x + fx * reach, zz = p.z + fz * reach;
           if (Math.hypot(ball.x - zx, ball.z - zz) < zr + BALL_R) {
             batted = true;
+            swiped = game.strokes;
             // batted on, the way the cat faces, with a little of where it was going
             ball.vx = ball.vx * 0.3 + fx * 3.3; ball.vz = ball.vz * 0.3 + fz * 3.3;
             ctx.audio.pickup('meow', 0.6, 0.4);
