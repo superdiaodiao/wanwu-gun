@@ -437,3 +437,114 @@ export function scratch(ctx, dest, t) {
   v.conn(n, nb, ng, g);
   return v.done();
 }
+
+// ------------------------------------------------------------------ Backyard Mini Golf
+// The golf game's own one-shots, with nothing Chinese in them (no pentatonic runs, zheng, woodblock,
+// gongs or choir): G major like the golf track, marimba / glockenspiel / vibes / brass and a kit.
+const GOLF_PC = 7;
+function majorRange(pc, lo, hi) {
+  const r = [];
+  for (let m = lo; m <= hi; m++) if ([0, 2, 4, 5, 7, 9, 11].includes((((m - pc) % 12) + 12) % 12)) r.push(m);
+  return r;
+}
+const G_SCALE = majorRange(GOLF_PC, 79, 103); // G5 .. G7
+
+// Ball in the cup: light clacks off the plastic liner, the hollow "plok" at the bottom, then a
+// happy run up the G chord on marimba with glockenspiel and a vibes chord on top.
+export function cup(ctx, out, t) {
+  const dest = mkBus(ctx, out, 0.75);
+  for (const [dt, f, vel, pan] of [[0, 2300, 0.55, 0.12], [0.07, 1900, 0.45, -0.08], [0.14, 2600, 0.3, 0.05]]) {
+    const tt = t + dt, v = new Voice(ctx, dest, tt, 0.08, pan);
+    partials(v, tt, f * rnd(0.97, 1.03), [[1, 0.1, 0.035], [1.73, 0.06, 0.025], [2.9, 0.03, 0.015]], vel);
+    noiseHit(v, tt, 'bandpass', f * 1.3, 2, vel * 0.6, 0.0005, 0.018);
+    v.done();
+  }
+  const tb = t + 0.24, v = new Voice(ctx, dest, tb, 0.1); // the bottom: a low knock, the cavity rings
+  const o = v.osc('sine', 230, tb, tb + 0.2), g = v.gain(0);
+  o.frequency.setValueAtTime(300, tb); o.frequency.exponentialRampToValueAtTime(165, tb + 0.05);
+  perc(g.gain, tb, 0.42, 0.002, 0.14);
+  v.conn(o, g, v.out);
+  noiseHit(v, tb, 'bandpass', 520, 6, 1.1, 0.002, 0.13);
+  noiseHit(v, tb, 'lowpass', 900, 0.7, 0.3, 0.001, 0.03, 'pink');
+  v.done();
+  const ta = t + 0.36, top = ta + 0.195;
+  [79, 83, 86, 91].forEach((m, i) => I.mallet(ctx, dest, ta + i * 0.065, { midi: m, vel: 0.5 + 0.04 * i, pan: -0.3 + 0.2 * i, send: 0.25 }));
+  I.mallet(ctx, dest, top, { midi: 91, vel: 0.3, kind: 'glock', send: 0.4 });
+  I.mallet(ctx, dest, top + 0.11, { midi: 98, vel: 0.26, kind: 'glock', pan: 0.3, send: 0.45 });
+  for (const m of [71, 74, 79]) I.mallet(ctx, dest, top, { midi: m, vel: 0.2, kind: 'vibes', dur: 0.8, send: 0.3 });
+}
+
+// The n-th sweet of the hole: a glockenspiel "ding-ding" a third apart (three notes from the
+// fourth sweet on) that climbs the G major scale with n, over a soft marimba note.
+export function sweet(ctx, out, t, { n = 1 } = {}) {
+  const k = clamp(Math.round(n) || 1, 1, 8) - 1, dest = mkBus(ctx, out, 0.5);
+  const notes = [G_SCALE[k], G_SCALE[k + 2]];
+  if (k >= 3) notes.push(G_SCALE[k + 4]);
+  notes.forEach((m, i) => I.mallet(ctx, dest, t + i * 0.06, { midi: m, vel: 0.5 + 0.06 * i, kind: 'glock', dur: 0.6, pan: -0.2 + 0.2 * i, send: 0.3 }));
+  I.mallet(ctx, dest, t, { midi: G_SCALE[k] - 12, vel: 0.5, dur: 0.6, send: 0.15 });
+}
+
+// Three stars: brass "ta-ta-ta-taaa" up the G chord, a marimba run and glockenspiel over the last
+// chord, upright bass, a soft kick and a wash of noise for a cymbal.
+export function fanfare(ctx, out, t) {
+  const dest = mkBus(ctx, out, 0.65);
+  [[62, 67], [67, 71], [71, 74]].forEach((ms, i) => { for (const m of ms) I.brass(ctx, dest, t + i * 0.12, { midi: m, dur: 0.07, vel: 0.6 + 0.08 * i, pan: (i - 1) * 0.2, send: 0.15 }); });
+  const th = t + 0.36;
+  for (const m of [67, 71, 74, 79]) I.brass(ctx, dest, th, { midi: m, dur: 0.62, vel: 0.72, send: 0.22 });
+  [79, 83, 86, 91].forEach((m, i) => I.mallet(ctx, dest, th + i * 0.05, { midi: m, vel: 0.55, pan: -0.3 + 0.2 * i, send: 0.25 }));
+  [91, 95, 98].forEach((m, i) => I.mallet(ctx, dest, th + 0.1 + i * 0.1, { midi: m, vel: 0.4, kind: 'glock', pan: 0.4 - 0.4 * i, send: 0.4 }));
+  I.upright(ctx, dest, th, { midi: 43, dur: 0.6, vel: 0.9 });
+  I.kick(ctx, dest, th, { vel: 0.6, f0: 110, f1: 50, decay: 0.32, click: 0.1 });
+  const v = new Voice(ctx, dest, th, 0.3);
+  noiseHit(v, th, 'highpass', 6000, 0.7, 0.3, 0.002, 1.1);
+  v.done();
+}
+
+// Golf button tap (ui('click') has Roll It All's woodblock in it): a soft pop and a short high
+// marimba note.
+export function tap(ctx, dest, t) {
+  pop(ctx, dest, t, { freq: 1175, vel: 0.26 });
+  return I.mallet(ctx, dest, t, { midi: 91, vel: 0.32, send: 0.05 });
+}
+
+// Putter on ball: a crisp click with a short metallic ping and a little body; harder shots are
+// louder and get a low thump. The click is band-passed (no fizz above ~10 kHz, and its random
+// peak stays well under the ping: golf plays this on every stroke).
+export function putt(ctx, dest, t, { power = 0.5, pan = 0 } = {}) {
+  const p = clamp(power), vel = 0.4 + 0.6 * p;
+  const v = new Voice(ctx, dest, t, 0.05, pan);
+  noiseHit(v, t, 'bandpass', 4200, 0.8, vel * 0.38, 0.0004, 0.012);
+  partials(v, t, 1550 * rnd(0.98, 1.02), [[1, 0.14, 0.07], [2.83, 0.07, 0.04], [5.2, 0.035, 0.02]], vel);
+  const o = v.osc('sine', 380, t, t + 0.1), g = v.gain(0);
+  o.frequency.setValueAtTime(480, t); o.frequency.exponentialRampToValueAtTime(320, t + 0.025);
+  perc(g.gain, t, vel * 0.35, 0.001, 0.06);
+  v.conn(o, g, v.out);
+  if (p > 0.4) {
+    const s = v.osc('sine', 140, t, t + 0.12), sg = v.gain(0);
+    s.frequency.setValueAtTime(160, t); s.frequency.exponentialRampToValueAtTime(90, t + 0.06);
+    perc(sg.gain, t, 0.3 * (p - 0.4), 0.002, 0.08);
+    v.conn(s, sg, v.out);
+  }
+  return v.done();
+}
+
+// Ball off a board or a bumper: a dull rubbery thock with no real pitch; strength 0..1.
+export function wall(ctx, dest, t, { strength = 0.5, pan = 0 } = {}) {
+  const s = clamp(strength), vel = 0.3 + 0.7 * s;
+  const v = new Voice(ctx, dest, t, 0.06, pan);
+  const o = v.osc('sine', 200, t, t + 0.12), g = v.gain(0);
+  o.frequency.setValueAtTime(260, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.05);
+  perc(g.gain, t, vel * 0.45, 0.001, 0.08);
+  v.conn(o, g, v.out);
+  noiseHit(v, t, 'bandpass', 900, 0.8, vel * 0.7, 0.0005, 0.03, 'pink');
+  noiseHit(v, t, 'highpass', 3500, 0.7, vel * 0.18, 0.0003, 0.008);
+  return v.done();
+}
+
+// Ball running over the cup's lip: a light metallic "tink".
+export function rim(ctx, dest, t, { pan = 0 } = {}) {
+  const v = new Voice(ctx, dest, t, 0.15, pan);
+  partials(v, t, 2650 * rnd(0.97, 1.03), [[1, 0.18, 0.1], [2.41, 0.09, 0.07], [4.3, 0.045, 0.04]], 1);
+  noiseHit(v, t, 'highpass', 5000, 0.7, 0.2, 0.0004, 0.006);
+  return v.done();
+}

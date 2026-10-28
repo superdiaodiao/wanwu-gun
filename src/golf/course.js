@@ -140,7 +140,7 @@ export function buildCourse(hole, index, { scene, model }) {
   const R = rng(index + 7);
   const near = (x, z, d) => tiles.some(t => { const p = at(t.c, t.r); return Math.abs(p.x - x) < d + 0.5 && Math.abs(p.z - z) < d + 0.5; });
   const X0 = -W / 2, X1 = W / 2, Z0 = -H / 2, Z1 = H / 2;
-  const kinds = [['tree_plane', 4.2], ['tree_camphor', 4], ['tree_peach', 3], ['bush', 1.1], ['bush', 0.9], ['flower_patch', 0.8], ['bench', 1.6], ['street_lamp', 3.6], ['rose_pot', 0.7], ['potted_plant', 0.9]];
+  const kinds = [['tree_plane', 4.2], ['tree_camphor', 4], ['tree_peach', 3], ['bush', 1.1], ['bush', 0.9], ['flower_patch', 0.8], ['bench', 1.6], ['sunflower', 1.3], ['rose_pot', 0.7], ['potted_plant', 0.9]];
   const placed = [];
   for (let i = 0; i < 70 && placed.length < 34; i++) {
     const [id, size] = kinds[Math.floor(R() * kinds.length)];
@@ -157,11 +157,17 @@ export function buildCourse(hole, index, { scene, model }) {
     placed.push([x, z]);
     course.deco.push({ g, box: new THREE.Box3().setFromObject(g) });
   }
-  for (let i = 0; i < 5; i++) {
-    const g = model(['res_6f', 'res_18f', 'res_6f', 'shop_tea', 'res_32f'][i], 1);
-    g.position.set(X0 - 14 + i * (X1 - X0 + 28) / 4, -SLAB, Z0 - 16 - R() * 4);
-    group.add(g);
-    course.deco.push({ g, far: true });
+  // a street of shops and towers behind the far end, side by side, their fronts well back from it
+  const street = ['shop_pharmacy', 'office_tower', 'shop_super', 'office_tower', 'shop_super'].map(id => {
+    const g = model(id, 1), bx = new THREE.Box3().setFromObject(g);
+    return { g, w: bx.max.x - bx.min.x, front: bx.max.z };
+  });
+  let x = -street.reduce((a, b) => a + b.w + 4, -4) / 2;
+  for (const b of street) {
+    b.g.position.set(x + b.w / 2, -SLAB, Z0 - 13 - R() * 3 - b.front);
+    x += b.w + 4;
+    group.add(b.g);
+    course.deco.push({ g: b.g, far: true });
   }
   const ground = new THREE.Mesh(new THREE.CircleGeometry(90, 48), lam(0xb8e09c));
   ground.rotation.x = -Math.PI / 2;

@@ -16,6 +16,18 @@ let size = 0;
 
 export const PAD = 6;
 
+// Without hanzi (withoutHanzi(), before the atlas is built): signs, banners and labels are painted
+// with no Chinese on them, for players who can't read it, as in 小区高尔夫's English version. Mahjong
+// tiles keep theirs: the characters are what the tiles are. A decal can also have an English face
+// (latinFace()), drawn instead of the Chinese one then, so a shop's board isn't left blank.
+const HAN = /[\u3400-\u9fff\uf900-\ufaff]/;
+const KEEP_HAN = /^(sm_mahjong|st_mj_)/;
+let noHanzi = false;
+const latin = new Map();
+export function withoutHanzi() { noHanzi = true; }
+/** The decal's drawing for withoutHanzi() (same size as the decal itself). */
+export function latinFace(key, draw) { latin.set(key, draw); }
+
 /** Register a decal. w/h are pixel sizes of its region in the atlas. */
 export function decal(key, w, h, draw) {
   if (regs.has(key)) console.warn('[atlas] duplicate decal key', key);
@@ -30,6 +42,7 @@ export const FONTS = {
   round: '"ZCOOL KuaiLe", "Yuanti SC", "YouYuan", "PingFang SC", "Microsoft YaHei", sans-serif',
   sans: '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Heiti SC", "Noto Sans CJK SC", sans-serif',
   serif: '"Noto Serif SC", "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif',
+  latin: '"Arial Rounded MT Bold", "Helvetica Neue", Arial, sans-serif',
 };
 
 /** Draw centered text fitted into a box. */
@@ -161,12 +174,19 @@ function paint(canvas) {
     sc.rect(0, 0, w, h);
     sc.clip();
     try {
-      reg.draw(sc, w, h);
+      if (noHanzi && !KEEP_HAN.test(key)) {
+        // (the scratch context's own text calls, for this one drawing, skip anything with hanzi in it)
+        sc.fillText = (t, ...a) => { if (!HAN.test(t)) CanvasRenderingContext2D.prototype.fillText.call(sc, t, ...a); };
+        sc.strokeText = (t, ...a) => { if (!HAN.test(t)) CanvasRenderingContext2D.prototype.strokeText.call(sc, t, ...a); };
+      }
+      ((noHanzi && latin.get(key)) || reg.draw)(sc, w, h);
     } catch (e) {
       console.error('[atlas] decal draw failed', key, e);
       sc.fillStyle = '#f0f';
       sc.fillRect(0, 0, w, h);
     }
+    delete sc.fillText;
+    delete sc.strokeText;
     sc.restore();
     ctx.drawImage(scratch, 0, 0, w, h, x, y, w, h);
     ctx.imageSmoothingEnabled = false;
@@ -213,6 +233,8 @@ const IN_CN = (() => {
   }
 })();
 const FONT_CSS = `https://fonts.googleapis.${IN_CN ? 'cn' : 'com'}/css2?family=Baloo+2:wght@600;800&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@700&family=ZCOOL+KuaiLe&display=swap`;
+// (Baloo 2 only, for a page with no Chinese to show: the CJK faces are megabytes)
+const LATIN_CSS = `https://fonts.googleapis.${IN_CN ? 'cn' : 'com'}/css2?family=Baloo+2:wght@600;800&display=swap`;
 
 /**
  * Attach the Google Fonts stylesheet from script instead of a <link> in <head>: a head stylesheet is
@@ -225,13 +247,13 @@ const FONT_CSS = `https://fonts.googleapis.${IN_CN ? 'cn' : 'com'}/css2?family=B
  * slow Google connection that was seconds after the game was ready).
  */
 let fontCss = null;
-export function injectFontCss() {
+export function injectFontCss(latinOnly = false) {
   if (fontCss) return fontCss;
   const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, { once: true }));
   fontCss = loaded.then(() => new Promise(res => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = FONT_CSS;
+    link.href = latinOnly ? LATIN_CSS : FONT_CSS;
     link.onload = () => res(true);
     link.onerror = () => res(false);
     document.head.appendChild(link);
@@ -239,12 +261,17 @@ export function injectFontCss() {
   return fontCss;
 }
 
-/** Wait for the web fonts (if any are reachable) so decal text renders with them. */
-export async function loadFonts(timeoutMs = 2500) {
+/** Wait for the web fonts (if any are reachable) so decal text renders with them. latinOnly: just
+ *  Baloo 2, for a page with no Chinese on it (小区高尔夫 in English). */
+export async function loadFonts(timeoutMs = 2500, latinOnly = false) {
   if (!document.fonts || !document.fonts.load) return;
   const timeout = new Promise(r => setTimeout(() => r(false), timeoutMs));
   // the @font-face rules only exist once the stylesheet has arrived
-  if (!(await Promise.race([injectFontCss(), timeout]))) return;
+  if (!(await Promise.race([injectFontCss(latinOnly), timeout]))) return;
+  if (latinOnly) {
+    await Promise.race([document.fonts.load('800 40px "Baloo 2"', '0123456789').catch(() => null), timeout]);
+    return;
+  }
   const probes = [
     '40px "Ma Shan Zheng"',
     '40px "ZCOOL KuaiLe"',

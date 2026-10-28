@@ -5,6 +5,7 @@
 //   audio.music('game'); audio.setIntensity(0.4);   // looping music with intensity layers
 //   every frame: audio.squareDance(proximity01);
 //   events: audio.pickup('meow', rel, objectSizeMeters), audio.bump(0.7), audio.milestone(3) ...
+//   Backyard Mini Golf: audio.music('golf'), audio.cup(), audio.sweet(n), audio.fanfare(), audio.putt(p) ...
 //
 // Every method is a safe no-op before init() and never throws.
 // Mix: music / sfx / square-dance buses -> gentle compressor -> limiter -> master -> mute -> out,
@@ -18,7 +19,7 @@ import { Track } from './sequencer.js';
 
 export const DEFAULT_VOLUME = { master: 0.85, music: 0.6, sfx: 0.9 };
 const LOOKAHEAD = 0.15, TIMER_MS = 25, HURRY_TEMPO = 1.07, DANCE_LEVEL = 0.9;
-const MUSIC_TRACKS = ['title', 'game', 'finale'];
+const MUSIC_TRACKS = ['title', 'game', 'finale', 'golf'];
 const wallNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 const IOS = typeof navigator !== 'undefined' &&
   (/iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
@@ -95,6 +96,7 @@ class AudioEngine {
     this._pickWin = []; this._combo = 0; this._lastPick = -9; this._nextPickT = 0;
     this._last = {}; this._groups = {}; this._lastTick = null;
     this._timer = null; this._userSuspended = false; this._initP = null; this._initAt = 0; this._errs = 0;
+    this._jobs = []; this._pumpT = 0; this._warmGolf = false;
   }
 
   // ---------------------------------------------------------------- state
@@ -179,6 +181,7 @@ class AudioEngine {
       this._track = null;
       this._trackName = name;
       if (!name) return;
+      if (name === 'golf') this._warm(true);
       const tr = new Track(ctx, this.m.music, getSong(name));
       this._track = tr;
       this._applyLayers(true);
@@ -339,6 +342,39 @@ class AudioEngine {
     this._fire('fireworks', 0.25, 2, (ctx, d, t) => S.fireworks(ctx, d, t), 'fireworks', 4);
   }
 
+  // ---------------------------------------------------------------- Backyard Mini Golf
+  // The golf game's one-shots: nothing Chinese in them (see sfx.js). With music('golf').
+  /** the ball drops in the cup: rattle, clunk, then a happy run up the G chord */
+  cup() {
+    this._fire('cup', 0.5, 2.4, (ctx, d, t) => S.cup(ctx, d, t));
+    this._duckMusic(0.7, 1.2);
+  }
+  /** the n-th sweet picked up on this hole (1, 2, 3…): climbs with n */
+  sweet(n = 1) {
+    this._fire('sweet', 0.04, 1.6, (ctx, d, t) => S.sweet(ctx, d, t, { n: +n || 1 }));
+  }
+  /** three stars */
+  fanfare() {
+    this._fire('fanfare', 0.5, 2.4, (ctx, d, t) => S.fanfare(ctx, d, t));
+    this._duckMusic(0.55, 1.5);
+  }
+  /** a stroke; power 0..1 */
+  putt(power = 0.5) {
+    this._fire('putt', 0.08, 0.4, (ctx, d, t) => S.putt(ctx, d, t, { power: clamp(+power || 0), pan: rnd(-0.1, 0.1) }));
+  }
+  /** the ball off a wall or a bumper; strength 0..1 */
+  wall(strength = 0.5) {
+    this._fire('wall', 0.05, 0.4, (ctx, d, t) => S.wall(ctx, d, t, { strength: clamp(+strength || 0), pan: rnd(-0.2, 0.2) }));
+  }
+  /** the ball runs over the cup's lip */
+  rim() {
+    this._fire('rim', 0.08, 0.6, (ctx, d, t) => S.rim(ctx, d, t, { pan: rnd(-0.2, 0.2) }));
+  }
+  /** a button (ui('click') has a woodblock in it) */
+  tap() {
+    this._fire('tap', 0.04, 0.8, (ctx, d, t) => S.tap(ctx, d, t));
+  }
+
   // ---------------------------------------------------------------- internals
   _fire(key, cooldown, life, play, group = 'sfx', max = 12) {
     const ctx = this._live();
@@ -471,16 +507,33 @@ class AudioEngine {
       s.start(0);
     } catch (e) { /* ignore */ }
   }
-  // Pre-render the most used plucked-string pitches in small idle chunks.
-  _warm() {
-    const ctx = this.ctx, jobs = [];
-    for (const k of ['zheng', 'pipa']) for (const m of pentaRange(2, 50, 98)) jobs.push([k, m]);
-    const step = () => {
-      if (this.ctx !== ctx) return;
-      try { for (let i = 0; i < 3 && jobs.length; i++) { const [k, m] = jobs.shift(); ksBuffer(ctx, k, m); } } catch (e) { this._err(e); return; }
-      if (jobs.length) setTimeout(step, 20);
-    };
-    setTimeout(() => { try { getSong('game'); getSong('title'); } catch (e) { this._err(e); } step(); }, 30);
+  // Pre-render the most used plucked-string pitches in small idle chunks: the zheng and pipa, or with
+  // golf (music('golf')) its ukulele strings instead. Golf asks for its track only once init() has
+  // resolved, up to 1.5 s later where the context starts suspended (iOS), so music('golf') switches
+  // the warm-up over whenever it comes: the zheng / pipa still queued are dropped.
+  _warm(golf = false) {
+    const ctx = this.ctx;
+    if (!ctx || this._warmGolf) return;
+    if (golf) {
+      this._warmGolf = true;
+      this._jobs.length = 0;
+      for (let m = 60; m <= 75; m++) this._jobs.push(['uke', m]);
+      if (!this._pumpT) this._pumpT = setTimeout(() => this._pump(ctx), 20);
+      return;
+    }
+    setTimeout(() => {
+      if (this.ctx !== ctx || this._warmGolf) return;
+      for (const k of ['zheng', 'pipa']) for (const m of pentaRange(2, 50, 98)) this._jobs.push([k, m]);
+      try { getSong('game'); getSong('title'); } catch (e) { this._err(e); }
+      if (!this._pumpT) this._pump(ctx);
+    }, 30);
+  }
+  _pump(ctx) {
+    this._pumpT = 0;
+    if (this.ctx !== ctx) return;
+    const jobs = this._jobs;
+    try { for (let i = 0; i < 3 && jobs.length; i++) { const [k, m] = jobs.shift(); ksBuffer(ctx, k, m); } } catch (e) { this._err(e); return; }
+    if (jobs.length) this._pumpT = setTimeout(() => this._pump(ctx), 20);
   }
   _err(e) {
     if (this._errs++ < 8) console.warn('[audio]', e);

@@ -6,10 +6,11 @@
 // then what stands on it, at (column, row) — fractions allowed, 0 is the first square's middle:
 //   { t: 'obj', id, at, rot, s }        something in the way (a catalog model; rot in degrees)
 //   { t: 'fan', at, dir, len, w, a }    an electric fan blowing along dir (a [x, z] direction)
-//   { t: 'bike', id, from, to, speed, phase }   riding back and forth between two points
+//   { t: 'bike', id, from, to, speed, phase, len }   a bike or a car (len metres long) going back
+//                                        and forth between two points
 //   { t: 'goose', at, aggro, leash }    guards the ground around it: chases the ball, pecks it away
 //   { t: 'cat', at, face, period }      sits facing `face` (deg, 0 = up the hole) and swipes
-//   { t: 'quilt', at, rot }             a folded quilt: the ball bounces off it hard
+//   { t: 'tires', at, rot, s }          a wall of tyres: the ball bounces off it hard
 export const HOLES = [
   {
     name: '热身', tip: '按住往后拉，松手击球；糖全捡到多一颗星', par: 2,
@@ -34,7 +35,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '麻将桌', tip: '撞墙会弹回来，借墙拐弯', par: 3,
+    name: '跷跷板', tip: '撞墙会弹回来，借墙拐弯', par: 3,
     map: [
       '............',
       '..........H.',
@@ -50,10 +51,10 @@ export const HOLES = [
       '....        ',
     ],
     props: [
-      { t: 'obj', id: 'mahjong_table', at: [6.6, 1], rot: 8, s: 0.78 },
-      { t: 'obj', id: 'plastic_stool', at: [2.6, 3.6] },
-      { t: 'obj', id: 'plastic_stool', at: [8.9, 0.1] },
-      { t: 'obj', id: 'plastic_stool', at: [8.9, 1.9] },
+      { t: 'obj', id: 'seesaw', at: [6.6, 1], rot: 8, s: 0.6 },
+      { t: 'obj', id: 'fire_hydrant', at: [2.6, 3.6] },
+      { t: 'obj', id: 'fire_hydrant', at: [8.9, 0.1] },
+      { t: 'obj', id: 'fire_hydrant', at: [8.9, 1.9] },
     ],
   },
   {
@@ -82,7 +83,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '共享单车', tip: '等单车过去再打', par: 3,
+    name: '过马路', tip: '等车过去再打', par: 3,
     map: [
       '   .....   ',
       '   ..H..   ',
@@ -100,8 +101,8 @@ export const HOLES = [
       '   .....   ',
     ],
     props: [
-      { t: 'bike', id: 'shared_bike', from: [0.6, 5.3], to: [9.4, 5.3], speed: 2.4, phase: 0 },
-      { t: 'bike', id: 'ebike', from: [9.4, 6.7], to: [0.6, 6.7], speed: 1.8, phase: 0.45 },
+      { t: 'bike', id: 'cab', len: 1.7, from: [0.6, 5.3], to: [9.4, 5.3], speed: 2.4, phase: 0 },
+      { t: 'bike', id: 'toy_car', len: 1.5, from: [9.4, 6.7], to: [0.6, 6.7], speed: 1.8, phase: 0.45 },
     ],
   },
   {
@@ -128,7 +129,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '猫和被子', tip: '猫爪圈里会被拍，被子会把球狠狠弹回来', par: 4,
+    name: '猫和轮胎', tip: '猫爪圈里会被拍，轮胎会把球狠狠弹回来', par: 4,
     map: [
       '.........',
       '.H.......',
@@ -144,15 +145,15 @@ export const HOLES = [
       '.........',
     ],
     props: [
-      { t: 'quilt', at: [7.75, 10.75], rot: 45, s: 1.7 },
-      { t: 'quilt', at: [7.75, 0.25], rot: -45, s: 1.7 },
+      { t: 'tires', at: [7.75, 10.75], rot: 45, s: 1.7 },
+      { t: 'tires', at: [7.75, 0.25], rot: -45, s: 1.7 },
       { t: 'cat', id: 'cat_orange', at: [5.85, 5.2], face: 90, period: 2.4 },
-      { t: 'obj', id: 'stone_lion', at: [3.6, -0.1], rot: 180, s: 0.7 },
-      { t: 'obj', id: 'stone_lion', at: [3.6, 2.1], rot: 0, s: 0.7 },
+      { t: 'obj', id: 'potted_plant', at: [3.6, -0.1] },
+      { t: 'obj', id: 'potted_plant', at: [3.6, 2.1] },
     ],
   },
   {
-    name: '弹弹被子', tip: '被子比墙还弹，借它拐弯', par: 3,
+    name: '弹弹轮胎', tip: '轮胎比墙还弹，借它拐弯', par: 3,
     map: [
       '.........',
       '....H....',
@@ -168,9 +169,9 @@ export const HOLES = [
       '.........',
     ],
     props: [
-      { t: 'quilt', at: [4, 6.6], rot: 0, s: 1.5 },
-      { t: 'quilt', at: [2.2, 3.4], rot: 35, s: 1.3 },
-      { t: 'quilt', at: [5.8, 3.4], rot: -35, s: 1.3 },
+      { t: 'tires', at: [4, 6.6], rot: 0, s: 1.5 },
+      { t: 'tires', at: [2.2, 3.4], rot: 35, s: 1.3 },
+      { t: 'tires', at: [5.8, 3.4], rot: -35, s: 1.3 },
     ],
   },
   {
@@ -190,7 +191,7 @@ export const HOLES = [
       '.....',
     ],
     props: [
-      { t: 'obj', id: 'plastic_stool', at: [2, 5.6] },
+      { t: 'obj', id: 'fire_hydrant', at: [2, 5.6] },
       { t: 'cat', id: 'cat_orange', at: [0.15, 6.6], face: 90, period: 2.4 },
       { t: 'cat', id: 'cat_orange', at: [3.85, 3.8], face: 270, period: 2.4, phase: 0.5 },
     ],
@@ -214,8 +215,8 @@ export const HOLES = [
       '  .....    ',
     ],
     props: [
-      { t: 'bike', id: 'shared_bike', from: [0.6, 6.05], to: [9.4, 6.05], speed: 2.2, phase: 0.2 },
-      { t: 'bike', id: 'ebike', from: [9.4, 7.0], to: [0.6, 7.0], speed: 1.7, phase: 0.7 },
+      { t: 'bike', id: 'cab', len: 1.7, from: [0.6, 6.05], to: [9.4, 6.05], speed: 2.2, phase: 0.2 },
+      { t: 'bike', id: 'toy_car', len: 1.5, from: [9.4, 7.0], to: [0.6, 7.0], speed: 1.7, phase: 0.7 },
       { t: 'goose', at: [4.8, 3.4], aggro: 1.7, leash: 2 },
       { t: 'obj', id: 'traffic_cone', at: [8.1, 4.2] },
     ],

@@ -43,7 +43,7 @@ section('引擎 Engine',
   slider('sfx', 0, 1, 0.01, 0.9, v => audio.setVolume('sfx', v)));
 
 section('音乐 Music',
-  row(...['title', 'game', 'finale'].map(t => btn(t, () => audio.music(t, { fade: ui.fade }))), btn('stop (null)', () => audio.music(null, { fade: ui.fade }))),
+  row(...['title', 'game', 'finale', 'golf'].map(t => btn(t, () => audio.music(t, { fade: ui.fade }))), btn('stop (null)', () => audio.music(null, { fade: ui.fade }))),
   slider('fade s', 0, 4, 0.1, 1.5, v => { ui.fade = v; }),
   slider('intensity', 0, 1, 0.01, 0, v => audio.setIntensity(v)),
   row(check('hurry (last 60 s)', on => audio.setHurry(on))));
@@ -84,6 +84,20 @@ section('终章 Finale',
     for (let i = 0; i < 4; i++) { audio.fireworks(); await sleep(1400); }
   })));
 
+section('小区高尔夫 Backyard Mini Golf',
+  row(btn('cup()', () => audio.cup()), ...[1, 2, 3, 4, 5, 6].map(n => btn(`sweet(${n})`, () => audio.sweet(n))), btn('fanfare()', () => audio.fanfare())),
+  row(...[0.2, 0.6, 1].map(p => btn(`putt(${p})`, () => audio.putt(p))), ...[0.2, 0.6, 1].map(st => btn(`wall(${st})`, () => audio.wall(st))),
+    btn('rim()', () => audio.rim()), btn('tap()', () => audio.tap())),
+  row(btn('▶ a hole: putt, walls, sweets, cup, three stars', async () => {
+    audio.music('golf', { fade: 1 });
+    audio.putt(0.7); await sleep(600);
+    audio.wall(0.7); await sleep(450); audio.wall(0.35); await sleep(400);
+    for (let n = 1; n <= 3; n++) { audio.sweet(n); await sleep(380); }
+    audio.rim(); await sleep(250);
+    audio.cup(); await sleep(900);
+    audio.fanfare();
+  })));
+
 const sel = $('select', {}, ...BABBLE_VOICES.map(v => $('option', { value: v }, v)));
 sel.addEventListener('change', () => { ui.babbleVoice = sel.value; });
 const txt = $('input', { type: 'text', placeholder: '打字试试 type here — one syllable per character' });
@@ -119,12 +133,13 @@ function preInitCheck() {
     () => audio.ready, () => audio.musicOn, () => audio.muted,
     () => audio.setVolume('master', 0.85), () => audio.setVolume('bogus', 7), () => audio.setVolume('sfx', NaN),
     () => audio.toggleMusic(), () => audio.toggleMusic(), () => audio.toggleMute(), () => audio.toggleMute(),
-    () => audio.suspend(), () => audio.resume(), () => audio.music('game'), () => audio.music('nope'), () => audio.music(null),
+    () => audio.suspend(), () => audio.resume(), () => audio.music('game'), () => audio.music('golf'), () => audio.music('nope'), () => audio.music(null),
     () => audio.setIntensity(0.5), () => audio.setIntensity('x'), () => audio.setIntensity(0), () => audio.setHurry(true), () => audio.setHurry(false),
     () => audio.squareDance(0.5), () => audio.squareDance(0), () => audio.squareDanceStop(),
     () => audio.pickup('meow', 0.1, 0.4), () => audio.pickup('???', NaN), () => audio.pickup(), () => audio.voice('scream_f'), () => audio.voice('nope', 2),
     () => audio.bump(1), () => audio.knock(3), () => audio.dash(), () => audio.milestone(3), () => audio.milestone(99), () => audio.tick(5), () => audio.timeUp(),
     () => audio.ui('click'), () => audio.ui('weird'), () => audio.babble(), () => audio.babble('martian'), () => audio.launch(), () => audio.patch(), () => audio.fireworks(),
+    () => audio.cup(), () => audio.sweet(3), () => audio.sweet('x'), () => audio.fanfare(), () => audio.putt(2), () => audio.wall(NaN), () => audio.rim(), () => audio.tap(),
   ];
   for (const f of calls) { try { f(); } catch (e) { errors.push(String(e)); } }
   const state = audio.ready === false && audio.musicOn === true && audio.muted === false;
@@ -147,7 +162,8 @@ async function liveCheck() {
     audio.music('game', { fade: 0.2 });
     const acts = [() => audio.pickup('meow', 0.2, 0.4), () => audio.pickup('tiny', 0.03, 0.02), () => audio.voice('honk'), () => audio.bump(0.8),
       () => audio.knock(3), () => audio.dash(), () => audio.milestone(2), () => audio.tick(3), () => audio.ui('click'), () => audio.babble('nuwa'),
-      () => audio.setHurry(true), () => audio.setHurry(false), () => audio.music('title'), () => audio.music('game')];
+      () => audio.setHurry(true), () => audio.setHurry(false), () => audio.music('title'), () => audio.music('game'),
+      () => audio.music('golf'), () => audio.putt(0.8), () => audio.wall(0.5), () => audio.sweet(2), () => audio.cup(), () => audio.fanfare(), () => audio.tap()];
     for (const a of acts) { a(); audio.squareDance(0.6); await sleep(70); sample(); }
     for (let i = 0; i < 12; i++) { audio.squareDance(0.6); await sleep(50); sample(); }
     const t = ctx.currentTime;

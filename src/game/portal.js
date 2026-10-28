@@ -5,6 +5,8 @@
 //   loadingStart / loadingStop   around boot (the page is up until the title screen shows)
 //   gameplayStart / gameplayStop  while a game is actually being played (not the title, the story
 //                                 before it, pause, the 图鉴, the finale or the results)
+//   settings.muteAudio            CrazyGames' own mute, which the game's sound must follow
+//                                 (portalOnMute)
 // The script loads alongside the boot and never holds it up: calls made before the SDK is ready are
 // replayed once it is (only the last gameplay state matters), and if it fails to load the game runs
 // without it.
@@ -17,6 +19,7 @@ let sdk = null;          // window.CrazyGames.SDK once init is done
 let loading = null;      // true between loadingStart and loadingStop, as asked so far
 let playing = false;     // gameplay state as asked so far
 let sentLoading = null, sentPlaying = false;
+let onMute = null;       // the game's handler for CrazyGames' mute setting
 
 function send() {
   if (!sdk) return;
@@ -46,10 +49,25 @@ export function portalInit() {
       await SDK.init();
       sdk = SDK;
       send();
+      if (onMute) hookMute();
     } catch (e) { console.warn('[portal] init failed', e); }
   };
   s.onerror = () => console.warn('[portal] SDK did not load');
   document.head.appendChild(s);
+}
+
+function hookMute() {
+  try {
+    onMute(!!sdk.game.settings.muteAudio);
+    sdk.game.addSettingsChangeListener(s => onMute(!!(s && s.muteAudio)));
+  } catch (e) { console.warn('[portal]', e); }
+}
+
+/** cb(muted) with CrazyGames' mute setting once the SDK is up, and again whenever it changes */
+export function portalOnMute(cb) {
+  if (!on) return;
+  onMute = cb;
+  if (sdk) hookMute();
 }
 
 /** the title screen is up */

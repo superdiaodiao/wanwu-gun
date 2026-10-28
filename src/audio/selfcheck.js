@@ -59,6 +59,13 @@ export function checkList() {
   add('launch', 4.6, (c, b) => S.launch(c, b.sfx, T0), 'oneshot', true);
   add('patch', 5.6, (c, b) => S.patch(c, b.sfx, T0), 'oneshot', true);
   add('fireworks', 2.4, (c, b) => S.fireworks(c, b.sfx, T0), 'oneshot', true);
+  add('golf cup', 2.6, (c, b) => S.cup(c, b.sfx, T0), 'oneshot', true);
+  for (const n of [1, 3, 6]) add(`golf sweet ${n}`, 1.6, (c, b) => S.sweet(c, b.sfx, T0, { n }));
+  add('golf fanfare', 2.4, (c, b) => S.fanfare(c, b.sfx, T0), 'oneshot', true);
+  for (const p of [0.2, 1]) add(`golf putt ${p}`, 0.6, (c, b) => S.putt(c, b.sfx, T0, { power: p }));
+  for (const st of [0.2, 1]) add(`golf wall ${st}`, 0.6, (c, b) => S.wall(c, b.sfx, T0, { strength: st }));
+  add('golf rim', 0.8, (c, b) => S.rim(c, b.sfx, T0));
+  add('golf tap', 1, (c, b) => S.tap(c, b.sfx, T0));
   add('squareDanceStop scratch', 1, (c, b) => S.scratch(c, b.sfx, T0));
   add('inst:zheng D5', 2, (c, b) => I.pluck(c, b.music, T0, { midi: 74, vel: 0.8 }), 'inst');
   add('inst:pipa D5', 2, (c, b) => I.pluck(c, b.music, T0, { midi: 74, vel: 0.8, kind: 'pipa' }), 'inst');
@@ -77,6 +84,11 @@ export function checkList() {
   add('inst:pad 4 notes', 3, (c, b) => I.pad(c, b.music, T0, { midis: [55, 59, 62, 69], dur: 2, vel: 0.55 }), 'inst');
   add('inst:choir 4 notes', 3, (c, b) => choir(c, b.music, T0, { midis: [62, 66, 69, 74], dur: 2, vel: 0.4 }), 'inst');
   add('inst:bell E6', 2, (c, b) => I.bell(c, b.music, T0, { midi: 88, vel: 0.2, dur: 2 }), 'inst');
+  add('inst:marimba G4', 2, (c, b) => I.mallet(c, b.music, T0, { midi: 67, vel: 0.72 }), 'inst');
+  add('inst:vibes G4 1s', 2.5, (c, b) => I.mallet(c, b.music, T0, { midi: 67, vel: 0.6, kind: 'vibes', dur: 1 }), 'inst');
+  add('inst:glock G6', 2, (c, b) => I.mallet(c, b.music, T0, { midi: 91, vel: 0.3, kind: 'glock' }), 'inst');
+  add('inst:uke strum G', 1.5, (c, b) => I.uke(c, b.music, T0, { midis: [67, 62, 67, 71], vel: 0.62, dur: 0.5 }), 'inst');
+  add('inst:upright G2', 1.2, (c, b) => I.upright(c, b.music, T0, { midi: 43, dur: 0.6, vel: 0.82 }), 'inst');
   add('music:title', 6, (c, b) => playTrack(c, b.music, 'title'), 'music');
   add('music:game intro i=0', 6, (c, b) => playTrack(c, b.music, 'game', { intensity: 0 }), 'music');
   add("music:game A' i=1", 6, (c, b) => playTrack(c, b.music, 'game', { startBar: 12, intensity: 1 }), 'music');
@@ -85,6 +97,8 @@ export function checkList() {
   add('music:game luogu', 6, (c, b) => playTrack(c, b.music, 'game', { startBar: 43, intensity: 1 }), 'music');
   add('music:finale', 6, (c, b) => playTrack(c, b.music, 'finale'), 'music');
   add('music:finale B', 6, (c, b) => playTrack(c, b.music, 'finale', { startBar: 8 }), 'music');
+  add('music:golf', 6, (c, b) => playTrack(c, b.music, 'golf'), 'music');
+  add('music:golf B', 6, (c, b) => playTrack(c, b.music, 'golf', { startBar: 8 }), 'music');
   add('music:dance (speaker)', 6, (c, b) => { const sp = createSpeaker(c, c.destination, b.wet); sp.out.gain.value = 0.9; playTrack(c, sp.in, 'dance'); }, 'music');
   add('FULL MIX master chain', 6, c => {
     const m = createMixer(c, c.destination);
@@ -165,7 +179,7 @@ export async function runSelfCheck(onProgress) {
 export async function diagSongs() {
   const names = new Map([...Object.entries(I).filter(([, f]) => typeof f === 'function'), ['choir', choir], ['strum', strum]].map(([k, f]) => [f, k]));
   const cases = [['title', {}], ['game', { startBar: 4, intensity: 0 }], ['game', { startBar: 12, intensity: 1 }], ['game', { startBar: 20, intensity: 1 }],
-    ['game', { startBar: 28, intensity: 1 }], ['finale', { startBar: 8 }], ['dance', {}]];
+    ['game', { startBar: 28, intensity: 1 }], ['finale', { startBar: 8 }], ['dance', {}], ['golf', {}], ['golf', { startBar: 8 }]];
   const fmt = x => (Number.isFinite(x) ? x.toFixed(1) : '-inf').padStart(7);
   const out = [];
   for (const [name, o] of cases) {
@@ -191,7 +205,7 @@ export async function diagSongs() {
 export function tuningCheck() {
   const ctx = new OfflineAudioContext(1, 1, SR);
   const res = [];
-  for (const kind of ['zheng', 'pipa', 'harp']) {
+  for (const kind of ['zheng', 'pipa', 'harp', 'uke']) {
     for (const midi of [45, 50, 57, 62, 69, 74, 81, 86, 93, 98]) {
       const d = I.ksBuffer(ctx, kind, midi).getChannelData(0);
       const f = mtof(midi), P = SR / f, a = Math.floor(0.08 * SR), n = Math.min(4096, d.length - a - 2 * Math.ceil(P) - 4);
@@ -213,7 +227,7 @@ export function tuningCheck() {
 // loop boundaries and reports whole-song levels. test page: ?full
 export async function fullSongs() {
   const out = [];
-  for (const [name, o] of [['title', {}], ['game', { intensity: 0.3 }], ['game', { intensity: 1, hurry: true }], ['finale', {}], ['dance', {}]]) {
+  for (const [name, o] of [['title', {}], ['game', { intensity: 0.3 }], ['game', { intensity: 1, hurry: true }], ['finale', {}], ['dance', {}], ['golf', {}]]) {
     const song = getSong(name);
     const bars = song.variants[0].length + (song.variants[1].length - song.loopStart) + 1;
     const secs = (bars * 240) / (song.bpm * (o.hurry ? 1.07 : 1));

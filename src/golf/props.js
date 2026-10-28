@@ -1,10 +1,11 @@
 // What stands on a hole and gets in the way — each with its own small rule:
-//   obj    just there (a traffic cone, a mahjong table, a stone lion): the ball bounces off it
+//   obj    just there (a traffic cone, a seesaw, a fire hydrant): the ball bounces off it
 //   fan    an electric fan: a strip of wind in front of it pushes the ball along; it swings a bit
-//   bike   a shared bike riding back and forth across the road: it shoves the ball it meets
+//   bike   a bike or a car going back and forth across the road: it shoves the ball it meets
 //   goose  guards the ground around it: when the ball comes near it waddles over and pecks it away
 //   cat    sits by the green; every few seconds it crouches, then swipes the ball in front of it
-//   quilt  a folded quilt: the ball bounces off it harder than it came in, with a boing
+//   tires  a wall of tyres painted red and white: the ball bounces off it harder than it came in,
+//          with a boing
 // Each returns { cols, update(dt, ball, game) }: cols join the course's (moving ones are updated
 // in place, with their speed so they shove), update moves and animates it. The ones that do
 // something to the ball also say what, in a few words, and where over them: tag { text, at() }.
@@ -13,7 +14,7 @@ import { BALL_R } from './physics.js';
 
 const D = Math.PI / 180;
 // round things get a round collider (and how much of their footprint it covers)
-const ROUND = { traffic_cone: 0.9, plastic_stool: 0.9, rose_pot: 0.9, flower_bed: 1 };
+const ROUND = { traffic_cone: 0.9, fire_hydrant: 0.8, rose_pot: 0.9, potted_plant: 0.8, flower_bed: 1 };
 
 export function buildProps(hole, course, ctx) {
   return hole.props.map(d => MAKERS[d.t](d, course, ctx));
@@ -77,14 +78,16 @@ const MAKERS = {
   bike(d, course, ctx) {
     const A = course.at(...d.from), B = course.at(...d.to);
     const L = Math.hypot(B.x - A.x, B.z - A.z), ux = (B.x - A.x) / L, uz = (B.z - A.z) / L;
-    const g = ctx.model(d.id, 1);
+    // (a car comes down to len metres long, the size of a bike: a toy car, a taxi like a toy one)
+    const s = ctx.spec(d.id), k = d.len ? d.len / s.maxDim : 1;
+    const g = ctx.model(d.id, k);
     course.group.add(g);
-    const s = ctx.spec(d.id);
-    const col = { kind: 'box', x: A.x, z: A.z, hx: s.dims.w / 2 * 0.85, hz: s.dims.d / 2 * 0.9, rot: 0, e: 0.45, vx: 0, vz: 0 };
+    const col = { kind: 'box', x: A.x, z: A.z, hx: s.dims.w * k / 2 * 0.85, hz: s.dims.d * k / 2 * 0.9, rot: 0, e: 0.45, vx: 0, vz: 0 };
     let u = (d.phase || 0) * 2 * L, bell = 0, lean = 0;
+    const ring = d.id === 'shared_bike' ? 'bell' : 'horn';
     const me = {
-      cols: [col], tag: tag(ctx, '会撞开球', d.id, 1, () => [col.x, 0, col.z]),
-      hit(speed) { if (bell <= 0 && speed > 0.4) { ctx.audio.pickup('bell', 0.6, 1.2); bell = 1.2; } },
+      cols: [col], tag: tag(ctx, '会撞开球', d.id, k, () => [col.x, 0, col.z]),
+      hit(speed) { if (bell <= 0 && speed > 0.4) { ctx.audio.voice(ring); bell = 1.2; } },
       update(dt) {
         bell -= dt;
         // ride to the end, a short stop, ride back
@@ -98,7 +101,7 @@ const MAKERS = {
         col.vx = moving ? ux * d.speed * dir : 0;
         col.vz = moving ? uz * d.speed * dir : 0;
         col.rot = Math.atan2(ux * dir, uz * dir);
-        lean += ((moving ? 0 : 0.12) - lean) * Math.min(1, dt * 5);
+        lean += ((moving || ring === 'horn' ? 0 : 0.12) - lean) * Math.min(1, dt * 5); // (a bike leans on its stand)
         g.position.set(col.x, 0, col.z);
         g.rotation.set(0, col.rot, lean);
       },
@@ -116,7 +119,7 @@ const MAKERS = {
     let x = home.x, z = home.z, yaw = Math.PI, cd = 0, peck = 0, walk = 0, honkCd = 0, t = Math.random() * 5;
     const me = {
       cols: [col], tag: tag(ctx, '会追着啄球', 'goose', 1.15, () => [x, 0, z]),
-      hit(speed) { if (honkCd <= 0 && speed > 0.5) { ctx.audio.pickup('honk', 0.5, 0.8); honkCd = 1; } },
+      hit(speed) { if (honkCd <= 0 && speed > 0.5) { ctx.audio.voice('honk'); honkCd = 1; } },
       update(dt, ball, game) {
         t += dt; cd -= dt; peck -= dt; honkCd -= dt;
         const near = Math.hypot(ball.x - home.x, ball.z - home.z) < d.aggro;
@@ -146,7 +149,7 @@ const MAKERS = {
           // isn't pecked again before the player can take a shot)
           ball.vx = ux * 2.8; ball.vz = uz * 2.8;
           cd = 2.3; peck = 0.3;
-          ctx.audio.pickup('honk', 0.7, 0.8);
+          ctx.audio.voice('honk');
           honkCd = 1;
           ctx.fx.pickup(ball.x, 0.2, ball.z, 0.05, 0.25);
           game.pushed();
@@ -200,7 +203,7 @@ const MAKERS = {
             swiped = game.strokes;
             // batted on, the way the cat faces, with a little of where it was going
             ball.vx = ball.vx * 0.3 + fx * 3.3; ball.vz = ball.vz * 0.3 + fz * 3.3;
-            ctx.audio.pickup('meow', 0.6, 0.4);
+            ctx.audio.voice('meow');
             ctx.fx.pickup(ball.x, 0.2, ball.z, 0.05, 0.25);
             game.pushed();
           }
@@ -209,16 +212,35 @@ const MAKERS = {
     };
   },
 
-  quilt(d, course, ctx) {
+  tires(d, course, ctx) {
     const p = course.at(...d.at), rot = (d.rot || 0) * D, k = d.s || 1;
-    const g = ctx.model('quilt_stack', k);
+    // a block of tyres two high, red and white in turn, filling the box the ball bounces off (the
+    // size of the folded quilts that stood here first, so the holes play the same)
+    const col = footprint(ctx, 'quilt_stack', k, p.x, p.z, rot, 1.15, 0.95);
+    // (tyres no wider than 0.22 m across the short side and as many as fill the long one, so a cell is
+    // near square; each one is stretched a little to its cell, and the block covers the box edge to edge)
+    const h0 = Math.min(col.hx, col.hz), r0 = h0 / Math.ceil(h0 / 0.22);
+    const nx = Math.max(1, Math.round(col.hx / r0)), nz = Math.max(1, Math.round(col.hz / r0));
+    const sx = col.hx / nx, sz = col.hz / nz, R = Math.min(sx, sz), t = R * 0.36;
+    const geo = new THREE.TorusGeometry(R - t, t, 8, 20);
+    const paint = [new THREE.MeshLambertMaterial({ color: 0xe8453c }), new THREE.MeshLambertMaterial({ color: 0xf6f2ea })];
+    const g = new THREE.Group();
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) for (let h = 0; h < 2; h++) {
+      const m = new THREE.Mesh(geo, paint[(i + j) % 2]);
+      m.rotation.x = Math.PI / 2;
+      m.scale.set(sx / R, sz / R, 1); // (lying flat, the torus's own y is the world's z)
+      m.position.set(-col.hx + sx + i * 2 * sx, t + h * 2 * t * 0.95, -col.hz + sz + j * 2 * sz);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+    }
     g.position.set(p.x, 0, p.z);
     g.rotation.y = rot;
     course.group.add(g);
-    const col = footprint(ctx, 'quilt_stack', k, p.x, p.z, rot, 1.15, 0.95);
     let sq = 0;
+    const top = 4 * t + 0.25;
     const me = {
-      cols: [col], tag: tag(ctx, '超级弹', 'quilt_stack', k, () => [p.x, 0, p.z]),
+      cols: [col], tag: { text: '超级弹', at: () => [p.x, top, p.z] },
       hit(speed) {
         if (speed < 0.3) return;
         sq = Math.min(1, 0.4 + speed / 6);

@@ -174,6 +174,7 @@ export const NAMES = {
   suv: 'SUV',
   car_sedan: 'Car',
   taxi: 'Taxi',
+  cab: 'Taxi',
   minivan: 'Minivan',
   delivery_rider: 'Delivery rider',
   bus: 'Bus',

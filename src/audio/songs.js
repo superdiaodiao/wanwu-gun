@@ -7,6 +7,8 @@
 //            L3 (claps, extra hats, cymbals, doublings) + 'hurry' (ticking).
 //   finale — 96 BPM, D 宫, 16 bars: big chords, strummed zheng, dizi anthem, choir, gong.
 //   dance  — 128 BPM four-on-the-floor, A 羽 (C 宫), 16 bars: erhu-like hook + synth brass.
+//   golf   — for Backyard Mini Golf, with nothing Chinese in it: 112 BPM light swing, G major,
+//            16 bars A 8 | B 8: marimba tune over ukulele strums, upright bass, shaker and claps.
 // Each song is built twice (variant 0/1) and the loops alternate for variety.
 import * as I from './instruments.js';
 import { choir } from './voices.js';
@@ -19,6 +21,7 @@ const QUAL = {
   '': [0, 4, 7], m: [0, 3, 7], maj7: [0, 4, 7, 11], m7: [0, 3, 7, 10], 7: [0, 4, 7, 10],
   maj9: [0, 4, 7, 11, 14], m9: [0, 3, 7, 10, 14], m11: [0, 3, 7, 10, 17], 6: [0, 4, 7, 9], 69: [0, 4, 7, 9, 14],
   '7sus4': [0, 5, 7, 10], '9sus4': [0, 5, 7, 10, 14], '6sus2': [0, 2, 7, 9], sus2: [0, 2, 7], sus4: [0, 5, 7],
+  m6: [0, 3, 7, 9],
 };
 const acc = s => (s === '#' ? 1 : s === 'b' ? -1 : 0);
 const chordCache = new Map();
@@ -395,12 +398,83 @@ function buildDance(variant) {
   return A.bars;
 }
 
+// ------------------------------------------------------------------ golf (112 BPM light swing, G major)
+// Backyard Mini Golf: a sunny backyard-afternoon loop with no Chinese colour — the tune uses the
+// whole major scale over functional harmony (I vi IV V, secondary dominants E7 and the borrowed
+// iv Cm6), played on marimba over strummed ukulele, upright bass, shaker, soft kick and claps,
+// with the odd glockenspiel sparkle. 16 bars, A 8 | B 8. Variant 1 moves the tune to vibes, adds
+// a marimba counter-line from bar 5, swaps the strum patterns of A and B and walks the bass in B.
+// The tune is written in the same numbered notation as the others (1 = G4).
+const GOLF_A = ["1 - 3 5 - 3 1' -", '7 - 6 5 - 3 2 -', "4 - 6 1' - 6 4 -", '2 - 4 6 - 4 3 2',
+  "1 - 3 5 - 3 1' -", "#1' - 7 6 - 5 3 -", '4 - 3 2 - 1 7, 2', '1 - - - 0 2 3 5'];
+const GOLF_B = ["6 - - 5 6 - 1' -", '7 - 6 5 - - 0 0', '5 - - 3 5 - 7 -', '6 - 5 3 - #1 - 3',
+  '4 - - 3 4 - 6 -', 'b6 - - - 4 - 2 -', "3 - 5 1' - 7 6 5", '4 - 3 2 - 0 7, 2'];
+const GOLF_MEL = [GOLF_A, GOLF_B].flat().join(' ');
+const GOLF_MEL1 = [GOLF_A.slice(0, 3), '2 - 4 6 - 4 2 7,', GOLF_A.slice(4, 7), '1 - 5, 7, 1 2 3 5', GOLF_B].flat().join(' ');
+const GOLF_CH = ['G', 'Em7', 'Cmaj7', 'D7', 'G', 'E7', ['Am7', 'D7'], 'G', 'C', 'D7', 'Bm7', 'E7', 'Am7', 'Cm6', 'G', 'D7'];
+// ukulele chord shapes: frets on the g C E A strings (D7 the open 2020: no C5 on top to rub the tune's B4)
+const UKE_TAB = { G: '0232', Em7: '0202', Cmaj7: '0002', D7: '2020', E7: '1202', Am7: '0000', C: '0003', Bm7: '2222', Cm6: '2333' };
+const UKE_OPEN = [67, 60, 64, 69];
+const ukeChord = sym => [...UKE_TAB[sym]].map((f, i) => UKE_OPEN[i] + +f);
+// [step, dir, vel, len]: the island strum (D - D U - U D U) and chops on 2 and 4
+const STRUMS = {
+  island: [[0, 'D', 0.71, 4], [4, 'D', 0.8, 2], [6, 'U', 0.56, 4], [10, 'U', 0.56, 2], [12, 'D', 0.71, 2], [14, 'U', 0.56, 2]],
+  chop: [[0, 'D', 0.67, 3], [4, 'X', 0.67, 0], [8, 'D', 0.56, 3], [12, 'X', 0.67, 0], [14, 'U', 0.48, 2]],
+};
+// bass in two with walk-ups into the next chord, [step, midi, len] per bar
+const GOLF_BASS = [
+  [[0, 43, 6], [8, 50, 6]], [[0, 40, 6], [8, 47, 6]], [[0, 48, 6], [8, 43, 6]], [[0, 38, 6], [8, 45, 4], [12, 42, 4]],
+  [[0, 43, 6], [8, 42, 4], [12, 41, 4]], [[0, 40, 6], [8, 47, 4], [12, 44, 4]], [[0, 45, 6], [8, 38, 4], [12, 42, 4]], [[0, 43, 6], [8, 45, 4], [12, 47, 4]],
+  [[0, 48, 6], [8, 43, 6]], [[0, 38, 6], [8, 45, 4], [12, 46, 4]], [[0, 47, 6], [8, 42, 6]], [[0, 40, 6], [8, 47, 4], [12, 44, 4]],
+  [[0, 45, 6], [8, 52, 4], [12, 50, 4]], [[0, 48, 6], [8, 51, 4], [12, 50, 4]], [[0, 43, 6], [8, 47, 4], [12, 48, 4]], [[0, 50, 4], [4, 48, 4], [8, 45, 4], [12, 42, 4]],
+];
+// variant 1, B: walking quarters
+const GOLF_WALK = [[48, 50, 52, 49], [50, 48, 45, 46], [47, 50, 42, 41], [40, 44, 47, 44], [45, 48, 52, 50], [48, 51, 45, 50], [43, 47, 50, 49], [50, 48, 45, 42]];
+
+function buildGolf(variant) {
+  const A = new Arr(), T = 67, KICK = { f0: 110, f1: 50, decay: 0.32, click: 0.1 };
+  const chordAt = (b, s) => { const c = GOLF_CH[b]; return Array.isArray(c) ? c[s < 8 ? 0 : 1] : c; };
+  GOLF_CH.forEach((c, b) => {
+    const B = b >= 8;
+    for (const [s, dir, vel, len] of STRUMS[B !== !!variant ? 'chop' : 'island']) A.ev(b, s, 'L0', I.uke, { midis: ukeChord(chordAt(b, s)), dir, vel }, len);
+    if (variant && B) GOLF_WALK[b - 8].forEach((m, i) => A.ev(b, i * 4, 'L0', I.upright, { midi: m, vel: i ? 0.7 : 0.8 }, 3));
+    else for (const [s, m, len] of GOLF_BASS[b]) A.ev(b, s, 'L0', I.upright, { midi: m, vel: s ? 0.72 : 0.82 }, len - 1);
+    A.ev(b, 0, 'L0', I.kick, { vel: 0.5, ...KICK });
+    A.ev(b, 8, 'L0', I.kick, { vel: 0.42, ...KICK });
+    if (B) A.ev(b, 6, 'L0', I.kick, { vel: 0.26, ...KICK });
+    for (const s of [4, 12]) A.ev(b, s, 'L0', I.clap, { vel: 0.75, pan: 0.05 });
+    for (let s = 0; s < 16; s += 2) A.ev(b, s, 'L0', I.shaker, { vel: s % 4 ? 0.27 : 0.15, pan: -0.3 });
+    if (variant && B) for (const s of [2, 6, 10, 14]) A.ev(b, s, 'L0', I.hat, { vel: 0.16, pan: 0.3 });
+    // variant 1 counter-line from bar 5: marimba broken chords below the tune
+    if (variant && b >= 4) for (const [sym, s0, len] of halves(c)) {
+      const ch = chord(sym), r = rootIn(ch.root, 48), tones = [r, r + ch.ivs[1], r + ch.ivs[2], r + 12];
+      for (let s = s0; s < s0 + len; s += 2) A.ev(b, s, 'L0', I.mallet, { midi: tones[[0, 2, 1, 2, 3, 2, 1, 2][s / 2]], vel: s % 4 ? 0.26 : 0.33, pan: -0.35, send: 0.15 });
+    }
+  });
+  // fills: an open hat into B, a clap pickup back to the top
+  A.ev(7, 14, 'L0', I.hat, { vel: 0.2, open: true, pan: 0.3 });
+  for (const [s, v] of [[10, 0.36], [14, 0.5]]) A.ev(15, s, 'L0', I.clap, { vel: v, pan: -0.1 });
+  jianpu(variant ? GOLF_MEL1 : GOLF_MEL, T).forEach(n => {
+    const b = Math.floor(n.pos / 8), s = (n.pos % 8) * 2;
+    const vel = (s % 4 ? 0.68 : 0.8) + Math.min(0.08, n.len * 0.02);
+    if (variant) A.ev(b, s, 'L0', I.mallet, { midi: n.midi, vel: vel * 0.8, kind: 'vibes', pan: 0.05, send: 0.25 }, n.len * 2);
+    else A.ev(b, s, 'L0', I.mallet, { midi: n.midi, vel, pan: 0.05, send: 0.2 });
+  });
+  // glockenspiel sparkles: the cadence into B, an answer in bar 10, the lead-in back to the top
+  const glock = (b, s, m, vel = 0.2) => A.ev(b, s, 'L0', I.mallet, { midi: m, vel, kind: 'glock', pan: s % 4 ? 0.4 : -0.4, send: 0.4 });
+  [91, 95, 98].forEach((m, i) => glock(7, i * 2, m));
+  (variant ? [93, 98] : [90, 93]).forEach((m, i) => glock(9, 12 + i * 2, m, 0.17));
+  [90, 93].forEach((m, i) => glock(15, 10 + i * 2, m, 0.17));
+  return A.bars;
+}
+
 // ------------------------------------------------------------------ registry
 const DEFS = {
   title: { bpm: 90, swing: 0.5, loopStart: 0, level: 1, layers: ['L0'], build: buildTitle },
   game: { bpm: 116, swing: 0.58, loopStart: 4, level: 0.7, layers: ['L0', 'L1', 'L2', 'L3', 'hurry'], build: buildGame },
   finale: { bpm: 96, swing: 0.5, loopStart: 0, level: 0.7, layers: ['L0'], build: buildFinale },
   dance: { bpm: 128, swing: 0.5, loopStart: 0, level: 1, layers: ['L0'], build: buildDance },
+  golf: { bpm: 112, swing: 0.56, loopStart: 0, level: 0.9, layers: ['L0'], build: buildGolf },
 };
 export const SONG_NAMES = Object.keys(DEFS);
 const songs = {};

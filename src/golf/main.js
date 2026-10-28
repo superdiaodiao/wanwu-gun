@@ -1,7 +1,7 @@
 // 小区高尔夫 (working title) — mini golf through a 小区, built from 万物皆可滚's models: a golf ball,
 // and each hole ends in a cup with a glowing rim. Hold and pull back anywhere, let go to putt (a dotted line shows where it will run, up to the first bounce).
-// Every hole has its own nuisance: cones and mahjong tables in the way, fans blowing, shared bikes
-// crossing, a goose guarding the hole, a cat swiping; until the first shot each says over it what it
+// Every hole has its own nuisance: cones and a seesaw in the way, fans blowing, cars crossing, a
+// goose guarding the hole, a cat swiping, tyres; until the first shot each says over it what it
 // does to the ball. Stars: one for sinking it, one for par or better, one for every sweet on the
 // green picked up on the way. The nine holes make a round: the best strokes for each hole and for
 // a whole round are kept. On CrazyGames (node build.mjs golf-crazygames) their SDK hears when a
@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import '../catalog/index.js';
 import { CATALOG } from '../catalog/registry.js';
-import { buildAtlas, loadFonts, atlasTexture } from '../core/atlas.js';
+import { buildAtlas, loadFonts, atlasTexture, withoutHanzi } from '../core/atlas.js';
 import { objectMaterial, U as MU } from '../core/materials.js';
 import { buildSpec } from '../core/assets.js';
 import { Engine } from '../game/engine.js';
@@ -22,8 +22,11 @@ import { buildCourse } from './course.js';
 import { buildProps } from './props.js';
 import { HOLES } from './holes.js';
 import { golfBall, Trail } from './ball.js';
-import { portalInit, portalLoaded, portalPlaying } from '../game/portal.js';
+import { portalInit, portalLoaded, portalPlaying, portalOnMute } from '../game/portal.js';
 import { strayHost } from '../game/guard.js';
+
+// counted things in English: '{n} stroke{s}'
+const pl = (zh, n, vars) => t(zh, { n, s: n === 1 ? '' : 's', ...vars });
 
 applyContent();
 
@@ -74,9 +77,12 @@ async function boot() {
   }
   portalInit();
   audio.setMuted(store.get('muted', false));
-  const fontsDone = loadFonts(12000);
-  await Promise.race([fontsDone, new Promise(r => setTimeout(r, 600))]);
+  // (the signs' Chinese wants the web fonts, waited for briefly; in English nothing painted needs
+  // one, and only the numbers' Baloo 2 is fetched)
+  const fontsDone = loadFonts(12000, EN);
+  if (!EN) await Promise.race([fontsDone, new Promise(r => setTimeout(r, 600))]);
   await nextFrame();
+  if (EN) withoutHanzi(); // (no Chinese on the signs for players who can't read it)
   buildAtlas();
   material = objectMaterial(atlasTexture());
   engine = new Engine($('game'), matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
@@ -99,20 +105,24 @@ async function boot() {
   addEventListener('pointermove', onMove);
   addEventListener('pointerup', onUp);
   addEventListener('pointercancel', () => { G.aim = null; showAim(false); });
-  $('card-btn').addEventListener('click', () => { audio.ui('click'); next(); });
+  $('card-btn').addEventListener('click', () => { audio.tap(); next(); });
   const mute = $('mute');
   const showMute = () => { mute.classList.toggle('off', audio.muted); mute.setAttribute('aria-label', t(audio.muted ? '打开声音' : '关掉声音')); };
-  mute.addEventListener('click', () => { store.set('muted', audio.setMuted(!audio.muted)); wake(); showMute(); });
+  // muted by the button (kept) or by CrazyGames' own setting, which wins
+  let portalMute = false;
+  const applyMute = () => { audio.setMuted(portalMute || store.get('muted', false)); showMute(); };
+  mute.addEventListener('click', () => { store.set('muted', !audio.muted); applyMute(); wake(); });
+  portalOnMute(m => { portalMute = m; applyMute(); });
   showMute();
   // (a hidden tab goes quiet; CrazyGames sees it is hidden for itself, so gameplay isn't stopped)
   document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else audio.resume(); });
   G.best = store.get('best', []);
   G.round = store.get('round', []);
   load(Math.min(store.get('hole', 0), HOLES.length - 1));
+  portalLoaded(); // (before the first frame, which says the hole is being played)
   requestAnimationFrame(loop);
   await nextFrame();
   $('loading').classList.add('done');
-  portalLoaded();
   window.__ready = true;
 }
 
@@ -122,7 +132,7 @@ function playing() {
 }
 
 async function wake() {
-  try { await audio.init(); if (!G.music) { G.music = true; audio.music('title', { fade: 2 }); } } catch {}
+  try { await audio.init(); if (!G.music) { G.music = true; audio.music('golf', { fade: 2 }); } } catch {}
 }
 
 // ---- the ball and the aiming guide -----------------------------------------------------------------
@@ -173,7 +183,7 @@ function load(i) {
   G.cols = [...G.course.cols, ...G.props.flatMap(p => p.cols)];
   G.course.cols = G.cols; // what the ball meets: walls and everything on the green
   G.sweets = G.course.candies.map((p, k) => {
-    const g = model(['candy', 'lollipop', 'coin_1yuan'][k % 3], 1, 0.5);
+    const g = model(['candy', 'lollipop', 'ice_pop'][k % 3], 1, 0.5);
     g.position.set(p.x, 0.16, p.z);
     G.course.group.add(g);
     return { x: p.x, z: p.z, g, got: false, t: k };
@@ -436,7 +446,7 @@ function shoot(ang, p) {
   G.state = 'roll';
   G.still = 0;
   G.rollT = 0;
-  audio.pickup('hard', 0.5 + p * 0.4, 0.12);
+  audio.putt(p);
   if (!store.get('shot', false)) { store.set('shot', true); }
   $('hint').hidden = true;
   $('tags').classList.add('out');
@@ -458,8 +468,8 @@ function onHit(c, s) {
   if (c.owner?.hit) c.owner.hit(s);
   if (G.hitT > 0 || s < 0.5) return;
   G.hitT = 0.07;
-  if (c.lip) audio.pickup('hard', 0.3, 0.05);
-  else if (!c.owner) audio.pickup('hard', Math.min(1, s / 7) * 0.7, 0.35);
+  if (c.lip) audio.rim();
+  else if (!c.owner) audio.wall(Math.min(1, s / 7));
 }
 
 function step(dt, draw = true) {
@@ -497,8 +507,7 @@ function step(dt, draw = true) {
     for (const s of G.sweets) if (!s.got && Math.hypot(s.x - b.x, s.z - b.z) < 0.4) {
       s.got = true;
       G.got++;
-      audio.pickup(spec(['candy', 'lollipop', 'coin_1yuan'][s.t % 3]).sfx, 0.5, 0.1);
-      audio.comboChime(Math.min(6, G.got + 1));
+      audio.sweet(G.got);
       fx.pickup(s.x, 0.3, s.z, 0.1, 0.4);
       hud();
     }
@@ -547,7 +556,7 @@ function sink() {
   G.state = 'sink';
   G.sinkT = 0;
   const cup = G.course.cup;
-  audio.patch();
+  audio.cup();
   for (let i = 0; i < (G.strokes === 1 ? 6 : 3); i++) setTimeout(() => fx.firework(cup.x + (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, cup.z + (Math.random() - 0.5) * 0.6, 1.1), i * 160);
   if (G.strokes === 1) audio.fireworks();
 }
@@ -560,13 +569,14 @@ function finish(sunk) {
   const stars = !sunk ? 0 : 1 + (G.strokes <= hole.par ? 1 : 0) + (G.got >= all ? 1 : 0);
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
   store.set('best', G.best);
-  if (sunk && stars === 3) audio.milestone(5);
+  if (sunk && stars === 3) audio.fanfare();
   $('card-title').textContent = !sunk ? t('这洞先放过你') : G.strokes === 1 ? t('一杆进洞！') : t('进洞！');
   $('card-stars').innerHTML = [0, 1, 2].map(i => `<i class="${i < stars ? 'on' : ''}">★</i>`).join('');
-  $('card-sub').textContent = t('{n} 杆 · 标准杆 {par} · 糖 {got}/{all}', { n: G.strokes, par: hole.par, got: G.got, all });
+  $('card-sub').textContent = pl('{n} 杆 · 标准杆 {par} · 糖 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all });
   const lastHole = G.hole + 1 >= HOLES.length;
   $('card-btn').textContent = lastHole ? t('从第一洞再来') : t('下一洞');
-  if (lastHole) $('card-sub').textContent += ' · ' + t('一共 {n} 颗星', { n: G.best.reduce((a, b) => a + (b || 0), 0) });
+  const starsAll = G.best.reduce((a, b) => a + (b || 0), 0);
+  if (lastHole) $('card-sub').textContent += ' · ' + pl('一共 {n} 颗星', starsAll);
   // records: this hole's fewest strokes, and on the last hole the round's
   const lines = [];
   const holeBest = store.get('strokes', []), was = holeBest[G.hole];
@@ -582,7 +592,7 @@ function finish(sunk) {
   if (lastHole && HOLES.every((h, k) => G.round[k] > 0)) {
     const total = G.round.reduce((a, b) => a + b, 0), par = HOLES.reduce((a, h) => a + h.par, 0);
     const bestRound = store.get('bestRound', 0);
-    const line = t('这一轮 {n} 杆 · 标准杆 {par}', { n: total, par });
+    const line = pl('这一轮 {n} 杆 · 标准杆 {par}', total, { par });
     if (bestRound && total < bestRound) lines.push(`<b>${t('新纪录！')}</b> ${line}`);
     else lines.push(line + (bestRound ? ' · ' + t('最好一轮 {n} 杆', { n: bestRound }) : ''));
     if (!bestRound || total < bestRound) store.set('bestRound', total);
@@ -594,7 +604,7 @@ function finish(sunk) {
 }
 
 window.__golf = {
-  get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES,
+  get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES, audio,
 };
 
 boot();

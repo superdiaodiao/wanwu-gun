@@ -1,18 +1,23 @@
 // Synthesized instruments. Each is (ctx, dest, t, params) -> Voice and works offline too.
-//   plucked strings (guzheng / pipa / harp) via pre-rendered Karplus–Strong buffers,
+//   plucked strings (guzheng / pipa / harp / ukulele) via pre-rendered Karplus–Strong buffers,
 //   dizi flute, 木鱼 wood block, 大锣 / 小锣 gongs, 镲 cymbal, drums, electric piano, bass,
-//   synth brass, erhu-like lead, warm pad, celesta bell, sine drone.
+//   synth brass, erhu-like lead, warm pad, celesta bell, sine drone; and for the golf game
+//   (nothing Chinese): marimba / vibraphone / glockenspiel mallets, ukulele strums, upright bass.
 import { Voice, cached, mtof, clamp, lerp, prng, perc, adsr, wave, rnd, pentaRange } from './core.js';
 
 const TINYG = 1e-5;
 
 // ------------------------------------------------------------------ Karplus–Strong strings
 // dur: max buffer seconds; lo/hi: T60 (s) for low/high notes; bright: excitation low-pass (0..1);
-// pos: pluck position (comb); S: loop-filter weight (0.5 = classic average, lower = brighter).
+// pos: pluck position (comb; comb: its depth, 0.9 if not given); S: loop-filter weight (0.5 = classic
+// average, lower = brighter).
 const KS = {
   zheng: { dur: 2.8, lo: 3.4, hi: 1.1, bright: 0.55, pos: 0.13, S: 0.38 },
   pipa: { dur: 1.6, lo: 1.6, hi: 0.6, bright: 0.85, pos: 0.09, S: 0.44 },
   harp: { dur: 3.0, lo: 3.0, hi: 1.5, bright: 0.3, pos: 0.23, S: 0.5 },
+  // nylon: warmer than the pipa, short; a shallow comb (no deep notch at the 5th harmonic) keeps the
+  // strum's 1-3 kHz sparkle
+  uke: { dur: 1.6, lo: 2.0, hi: 1.1, bright: 0.45, pos: 0.2, comb: 0.5, S: 0.45 },
 };
 export function ksBuffer(ctx, kind, midi) {
   return cached(ctx, `ks:${kind}:${midi}`, c => renderKS(c, KS[kind] || KS.zheng, midi));
@@ -34,7 +39,8 @@ function renderKS(ctx, P, midi) {
   let s = 0;
   for (let i = 0; i <= N; i++) { s += P.bright * (r() * 2 - 1 - s); ex[i] = s; }
   const off = Math.max(1, Math.round(P.pos * N));
-  for (let i = N; i >= off; i--) ex[i] -= 0.9 * ex[i - off];
+  const cd = P.comb ?? 0.9;
+  for (let i = N; i >= off; i--) ex[i] -= cd * ex[i - off];
   let mean = 0;
   for (let i = 0; i <= N; i++) mean += ex[i];
   mean /= N + 1;
@@ -369,5 +375,77 @@ export function drone(ctx, dest, t, { midi = 40, dur = 2, vel = 0.5, send = 0.1 
   const amp = v.gain(0);
   adsr(amp.gain, t, dur, 0.35, 0, 1, 0.7, vel * 0.3);
   a.connect(amp); v.conn(b, bg, amp); amp.connect(v.out);
+  return v.done();
+}
+
+// ------------------------------------------------------------------ golf: mallets, ukulele, upright bass
+// Struck bars: sine partials at the bar's mode ratios ([ratio, amp, share of the decay]), the upper
+// modes dying much faster, plus a soft mallet knock. lo / hi: decay of the fundamental (s, to
+// -80 dB) for low / high notes; trem: vibraphone motor [Hz, depth]. dur > 0 damps the bar after
+// dur (vibes pedal up); 0 lets it ring out. The marimba is played with fairly hard mallets (a strong
+// 4th-mode ring and knock) so the golf tune carries on small speakers.
+const MALLET = {
+  marimba: { modes: [[1, 1, 1], [3.99, 0.4, 0.22], [9.9, 0.06, 0.07]], lo: 1.9, hi: 0.8, knock: 0.65, kf: 2500 },
+  vibes: { modes: [[1, 1, 1], [3.99, 0.14, 0.3], [9.9, 0.02, 0.1]], lo: 4.5, hi: 2.6, knock: 0.2, kf: 2500, trem: [5.2, 0.35] },
+  glock: { modes: [[1, 1, 1], [2.76, 0.25, 0.45], [5.4, 0.1, 0.22], [8.93, 0.04, 0.12]], lo: 2.4, hi: 1.5, knock: 0.25, kf: 7000 },
+};
+export function mallet(ctx, dest, t, { midi = 72, vel = 0.7, kind = 'marimba', dur = 0, pan = 0, send = 0.2 } = {}) {
+  const P = MALLET[kind] || MALLET.marimba;
+  const v = new Voice(ctx, dest, t, send, pan);
+  const f = mtof(midi), d = lerp(P.lo, P.hi, clamp((midi - 48) / 48));
+  const stop = dur > 0 ? t + dur + 0.3 : Infinity;
+  const body = v.gain(1), damp = v.gain(1);
+  for (const [r, a, k] of P.modes) {
+    if (f * r > 15000) continue;
+    const o = v.osc('sine', f * r, t, Math.min(t + d * k + 0.03, stop)), g = v.gain(0);
+    perc(g.gain, t, vel * 0.45 * a, 0.0015, d * k);
+    v.conn(o, g, body);
+  }
+  if (P.trem) { body.gain.value = 1 - P.trem[1] / 2; v.lfo(body.gain, P.trem[0], P.trem[1] / 2, t, Math.min(t + d, stop)); }
+  if (dur > 0) { damp.gain.setValueAtTime(1, t + dur); damp.gain.setTargetAtTime(0, t + dur, 0.06); }
+  v.conn(body, damp, v.out);
+  const n = v.noise(t, t + 0.03, 'pink'), lp = v.filter('lowpass', P.kf, 0.7), ng = v.gain(0);
+  perc(ng.gain, t, vel * 0.18 * P.knock, 0.0005, 0.015);
+  v.conn(n, lp, ng, v.out);
+  return v.done();
+}
+
+// Ukulele strum over the four strings (re-entrant g C E A; `midis` in string order): dir 'D' strums
+// down from the g string, 'U' flicks up over the top three, 'X' is a muted chop (a short "chk").
+export function uke(ctx, dest, t, { midis = [67, 62, 67, 71], vel = 0.5, dir = 'D', dur = 0.3, gap = 0.011, pan = 0.2, send = 0.12 } = {}) {
+  const up = dir === 'U', chop = dir === 'X';
+  const strings = up ? midis.slice(1).reverse() : midis;
+  const d = chop ? 0.04 : Math.max(0.06, dur);
+  strings.forEach((m, i) => pluck(ctx, dest, t + i * gap * (up ? 0.8 : 1) + rnd(0, 0.002), {
+    midi: m, vel: vel * (up ? 0.75 : 1) * (0.88 + (0.12 * i) / strings.length) * rnd(0.93, 1.05), kind: 'uke', dur: d, pan: pan + (i - 1.5) * 0.06, send,
+  }));
+  if (chop) {
+    const v = new Voice(ctx, dest, t, 0.03, pan);
+    const n = v.noise(t, t + 0.05), bp = v.filter('bandpass', 1800, 1.2), g = v.gain(0);
+    perc(g.gain, t, vel * 0.22, 0.001, 0.03);
+    v.conn(n, bp, g, v.out);
+    v.done();
+  }
+}
+
+// Upright-ish bass: a sine plus a gently filtered saw, plucked (fast attack, string-like decay),
+// a soft finger thump and a small pitch sag at the pluck; damped after dur.
+export function upright(ctx, dest, t, { midi = 43, dur = 0.5, vel = 0.8, send = 0.03, pan = 0 } = {}) {
+  const v = new Voice(ctx, dest, t, send, pan);
+  const f = mtof(midi), end = t + dur + 0.25;
+  const sub = v.osc('sine', f, t, end), saw = v.osc('sawtooth', f, t, end);
+  for (const o of [sub, saw]) { o.frequency.setValueAtTime(f * 1.01, t); o.frequency.setTargetAtTime(f, t, 0.025); }
+  const lp = v.filter('lowpass', f * 3, 0.7);
+  lp.frequency.setValueAtTime(Math.min(f * 9, 3000), t);
+  lp.frequency.setTargetAtTime(f * 4, t, 0.07);
+  const sg = v.gain(0.9), subG = v.gain(0.5), amp = v.gain(0);
+  amp.gain.setValueAtTime(0, t);
+  amp.gain.linearRampToValueAtTime(vel * 0.145, t + 0.005);
+  amp.gain.setTargetAtTime(vel * 0.05, t + 0.005, 0.3);
+  amp.gain.setTargetAtTime(0, t + Math.max(dur, 0.05), 0.035);
+  v.conn(saw, sg, lp, amp); v.conn(sub, subG, amp); amp.connect(v.out);
+  const n = v.noise(t, t + 0.04, 'pink'), nl = v.filter('lowpass', 600, 0.7), ng = v.gain(0);
+  perc(ng.gain, t, vel * 0.16, 0.001, 0.03);
+  v.conn(n, nl, ng, v.out);
   return v.done();
 }

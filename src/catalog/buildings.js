@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { def } from './registry.js';
 import { D, shade, mix } from '../core/modeler.js';
-import { decal, fitText, verticalText, FONTS, getUV } from '../core/atlas.js';
+import { decal, latinFace, fitText, verticalText, FONTS, getUV } from '../core/atlas.js';
 
 // the shared font loader only requests a sample of glyphs; ask for the ones our signs use as well
 if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
@@ -259,6 +259,17 @@ signDecal('bd_sign_pharm', '平安药店', '医保定点 · 24小时售药', '#1
 signDecal('bd_sign_hw', '五金店', '水电 · 工具 · 配钥匙', '#f2c14e', '#1d3f7a', '#1d3f7a');
 signDecal('bd_sign_noodle', '牛肉面', '拉面 · 刀削面 · 盖浇饭', '#16806f', '#ffffff', '#bff0e4');
 signDecal('bd_sign_rest', '幸福饭店', '家常菜 · 宴席 · 外卖', '#b2231d', '#f6d36b', '#f6d36b');
+// (English faces of the boards 小区高尔夫 shows: plain lettering, no calligraphy)
+function latinSign(key, text, sub, bg, fg) {
+  latinFace(key, (ctx, w, h) => {
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = fg; ctx.lineWidth = 3; ctx.strokeRect(6, 6, w - 12, h - 12);
+    fitText(ctx, text, w / 2, h * 0.43, w * 0.78, h * 0.5, FONTS.latin, fg);
+    fitText(ctx, sub, w / 2, h * 0.8, w * 0.6, h * 0.14, FONTS.latin, fg);
+  });
+}
+latinSign('bd_sign_super', 'MINI MART', 'GROCERIES · SNACKS · DRINKS', '#e03a2f', '#ffffff');
+latinSign('bd_sign_pharm', 'PHARMACY', 'OPEN 7 DAYS', '#1f8f56', '#ffffff');
 
 function awningDecal(key, c1, c2) {
   decal(key, 64, 40, (ctx, w, h) => {

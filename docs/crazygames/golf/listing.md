@@ -17,12 +17,12 @@ Backyard Mini Golf (the title the game gives itself in English)
 
 ## Description
 
-A mini golf course squeezed in between the apartment blocks, where the neighbors all have opinions
-about your ball. A goose guards the hole and chases your ball to peck it away. Electric fans blow it
-sideways, bikes and scooters zip across the road, a cat swipes at anything that rolls past its paw,
-and folded quilts bounce it back harder than any wall.
+A mini golf course squeezed into the backyards of a busy neighborhood, where everything has an
+opinion about your ball. A goose guards the hole and chases your ball to peck it away. Electric fans
+blow it sideways, cars zip across the road, a cat swipes at anything that rolls past its paw, and
+stacks of tires bounce it back harder than any wall.
 
-- 9 holes: after two warm-ups, fans, bikes, a goose, cats and bouncy quilts get in the way, each
+- 9 holes: after two warm-ups, fans, cars, a goose, cats and bouncy tires get in the way, each
   with a tag over it saying what it does
 - Hold anywhere, pull back and let go: a dotted line shows where the ball will run, up to its first
   bounce

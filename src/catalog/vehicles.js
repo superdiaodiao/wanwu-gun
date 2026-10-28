@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { def } from './registry.js';
 import { D, shade } from '../core/modeler.js';
-import { decal, fitText, FONTS } from '../core/atlas.js';
+import { decal, latinFace, fitText, FONTS } from '../core/atlas.js';
 
 // ---- shared palette ----------------------------------------------------------------------------
 const TIRE = 0x2a2a2e, HUB = 0xc9cdd2, GLASS = 0x2c4057, TRIM = 0x3a3a40, DARK = 0x2f3136;
@@ -408,6 +408,34 @@ decal('ve_taxi_sign', 96, 40, (ctx, w, h) => {
 decal('ve_taxi_door', 128, 32, (ctx, w, h) => {
   fitText(ctx, '幸福出租', w / 2, h / 2, w - 8, h - 6, FONTS.sans, '#f7f3e6');
 });
+// the yellow cab's faces (for 小区高尔夫's English version: TAXI, a checker band, a plain plate)
+decal('ve_cab_door', 128, 32, (ctx, w, h) => {
+  for (let i = 0; i < 16; i++) for (let j = 0; j < 2; j++) {
+    ctx.fillStyle = (i + j) % 2 ? '#f7f3e6' : '#1d1d22';
+    ctx.fillRect(i * 8, h - 16 + j * 8, 8, 8);
+  }
+  fitText(ctx, '幸福出租', w / 2, h * 0.3, w - 8, h * 0.5, FONTS.sans, '#1d1d22');
+});
+latinFace('ve_cab_door', (ctx, w, h) => {
+  for (let i = 0; i < 16; i++) for (let j = 0; j < 2; j++) {
+    ctx.fillStyle = (i + j) % 2 ? '#f7f3e6' : '#1d1d22';
+    ctx.fillRect(i * 8, h - 16 + j * 8, 8, 8);
+  }
+  fitText(ctx, 'TAXI', w / 2, h * 0.3, w - 8, h * 0.5, FONTS.latin, '#1d1d22');
+});
+latinFace('ve_taxi_sign', (ctx, w, h) => {
+  ctx.fillStyle = '#f7f3e6';
+  ctx.fillRect(0, 0, w, h);
+  fitText(ctx, 'TAXI', w / 2, h / 2, w - 16, h - 10, FONTS.latin, '#1d1d22');
+});
+latinFace('ve_plate_taxi', (ctx, w, h) => {
+  ctx.fillStyle = '#f4f4ee';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#1d1d22';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(3, 3, w - 6, h - 6);
+  fitText(ctx, 'CAB 088', w / 2, h / 2, w - 14, h - 12, FONTS.latin, '#1d1d22');
+});
 
 def('taxi', {
   name: '出租车',
@@ -415,44 +443,54 @@ def('taxi', {
   sfx: 'horn',
   fill: 0.55,
   mover: { kind: 'drive', speed: 9 },
-  build(m) {
-    const yellow = 0xf2c230, green = 0x2f8f5b, L = 4.5, W = 1.8;
-    // two-tone body: green lower half, yellow waist, hood, boot and cabin
-    m.rbox(W, 0.4, L, 0.12, green, 0, 0.47, 0);
-    m.rbox(W - 0.02, 0.26, L - 0.08, 0.1, yellow, 0, 0.77, 0);
-    m.rbox(1.56, 0.5, 2.2, 0.13, yellow, 0, 1.14, -0.22);
-    m.sym(s => m.box(0.12, 0.08, 0.2, yellow, s * 0.86, 0.97, 0.78));
-    // glass
-    m.wedge(0.62, 0.46, 1.42, GLASS, 0, 1.12, 1.19, 0, -90 * D, 0);
-    m.wedge(0.5, 0.42, 1.42, GLASS, 0, 1.1, -1.57, 0, 90 * D, 0);
-    m.box(1.57, 0.28, 1.95, GLASS, 0, 1.17, -0.22);
-    m.box(1.59, 0.3, 0.09, yellow, 0, 1.17, -0.18);
-    // roof light 出租
-    m.box(0.36, 0.05, 0.16, TRIM, 0, 1.41, -0.25);
-    m.glow(0.8);
-    m.extrude([[-0.3, 0], [0.3, 0], [0.25, 0.2], [-0.25, 0.2]], 0.24, 0xf7f3e6, 0, 1.43, -0.25);
-    m.decal(0.42, 0.16, 've_taxi_sign', 0, 1.525, -0.128);
-    m.decal(0.42, 0.16, 've_taxi_sign', 0, 1.525, -0.372, 0, Math.PI, 0);
-    m.glow(0);
-    // bumpers, grille, lamps, plates
-    m.box(W * 0.97, 0.2, 0.14, TRIM, 0, 0.36, L / 2 - 0.02);
-    m.box(W * 0.97, 0.2, 0.14, TRIM, 0, 0.36, -L / 2 + 0.02);
-    m.box(0.72, 0.12, 0.04, TRIM, 0, 0.6, L / 2 + 0.005);
-    m.glow(1);
-    m.sym(s => m.box(0.36, 0.12, 0.05, LAMP, s * 0.6, 0.68, L / 2 - 0.02));
-    m.sym(s => m.box(0.34, 0.1, 0.05, TAIL, s * 0.6, 0.73, -L / 2 + 0.02));
-    m.glow(0);
-    m.decal(0.44, 0.14, 've_plate_taxi', 0, 0.38, L / 2 + 0.056);
-    m.decal(0.44, 0.14, 've_plate_taxi', 0, 0.38, -L / 2 - 0.056, 0, Math.PI, 0);
-    // door seams, handles, side lettering
-    m.sym(s => {
-      for (const z of [0.9, -0.18, -1.22]) m.box(0.012, 0.54, 0.02, 0x2a2a30, s * 0.902, 0.62, z);
-      for (const z of [0.5, -0.56]) m.box(0.02, 0.03, 0.14, 0xe9e4d6, s * 0.9, 0.8, z);
-      sideDecal(m, s, 0.66, 0.16, 've_taxi_door', 0.904, 0.47, 0.36);
-    });
-    for (const z of [1.4, -1.4]) m.sym(s => wheel(m, s * 0.79, z, 0.32, 0.23));
-  },
+  build(m) { taxiBody(m, 0x2f8f5b, 've_taxi_door'); },
 });
+// all yellow, with a checker band (小区高尔夫's road holes)
+def('cab', {
+  name: '出租车',
+  cat: 'vehicle',
+  sfx: 'horn',
+  fill: 0.55,
+  mover: { kind: 'drive', speed: 9 },
+  build(m) { taxiBody(m, 0xf2c230, 've_cab_door'); },
+});
+function taxiBody(m, lower, door) {
+  const yellow = 0xf2c230, L = 4.5, W = 1.8;
+  // two-tone body: lower half (green on a 出租车), yellow waist, hood, boot and cabin
+  m.rbox(W, 0.4, L, 0.12, lower, 0, 0.47, 0);
+  m.rbox(W - 0.02, 0.26, L - 0.08, 0.1, yellow, 0, 0.77, 0);
+  m.rbox(1.56, 0.5, 2.2, 0.13, yellow, 0, 1.14, -0.22);
+  m.sym(s => m.box(0.12, 0.08, 0.2, yellow, s * 0.86, 0.97, 0.78));
+  // glass
+  m.wedge(0.62, 0.46, 1.42, GLASS, 0, 1.12, 1.19, 0, -90 * D, 0);
+  m.wedge(0.5, 0.42, 1.42, GLASS, 0, 1.1, -1.57, 0, 90 * D, 0);
+  m.box(1.57, 0.28, 1.95, GLASS, 0, 1.17, -0.22);
+  m.box(1.59, 0.3, 0.09, yellow, 0, 1.17, -0.18);
+  // roof light 出租
+  m.box(0.36, 0.05, 0.16, TRIM, 0, 1.41, -0.25);
+  m.glow(0.8);
+  m.extrude([[-0.3, 0], [0.3, 0], [0.25, 0.2], [-0.25, 0.2]], 0.24, 0xf7f3e6, 0, 1.43, -0.25);
+  m.decal(0.42, 0.16, 've_taxi_sign', 0, 1.525, -0.128);
+  m.decal(0.42, 0.16, 've_taxi_sign', 0, 1.525, -0.372, 0, Math.PI, 0);
+  m.glow(0);
+  // bumpers, grille, lamps, plates
+  m.box(W * 0.97, 0.2, 0.14, TRIM, 0, 0.36, L / 2 - 0.02);
+  m.box(W * 0.97, 0.2, 0.14, TRIM, 0, 0.36, -L / 2 + 0.02);
+  m.box(0.72, 0.12, 0.04, TRIM, 0, 0.6, L / 2 + 0.005);
+  m.glow(1);
+  m.sym(s => m.box(0.36, 0.12, 0.05, LAMP, s * 0.6, 0.68, L / 2 - 0.02));
+  m.sym(s => m.box(0.34, 0.1, 0.05, TAIL, s * 0.6, 0.73, -L / 2 + 0.02));
+  m.glow(0);
+  m.decal(0.44, 0.14, 've_plate_taxi', 0, 0.38, L / 2 + 0.056);
+  m.decal(0.44, 0.14, 've_plate_taxi', 0, 0.38, -L / 2 - 0.056, 0, Math.PI, 0);
+  // door seams, handles, side lettering
+  m.sym(s => {
+    for (const z of [0.9, -0.18, -1.22]) m.box(0.012, 0.54, 0.02, 0x2a2a30, s * 0.902, 0.62, z);
+    for (const z of [0.5, -0.56]) m.box(0.02, 0.03, 0.14, 0xe9e4d6, s * 0.9, 0.8, z);
+    sideDecal(m, s, 0.66, 0.16, door, 0.904, 0.47, 0.36);
+  });
+  for (const z of [1.4, -1.4]) m.sym(s => wheel(m, s * 0.79, z, 0.32, 0.23));
+}
 
 // ---- SUV --------------------------------------------------------------------------------------
 def('suv', {
