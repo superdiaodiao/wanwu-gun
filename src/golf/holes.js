@@ -11,7 +11,7 @@
 //   { t: 'quilt', at, rot }             a folded quilt: the ball bounces off it hard
 export const HOLES = [
   {
-    name: '热身', tip: '按住往后拉，松手击球', par: 2,
+    name: '热身', tip: '按住往后拉，松手击球；糖全捡到多一颗星', par: 2,
     map: [
       '.....',
       '..H..',
@@ -127,7 +127,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '猫和被子', tip: '小心猫爪，被子能把球弹回来', par: 4,
+    name: '猫和被子', tip: '猫爪圈里会被拍，被子会把球狠狠弹回来', par: 4,
     map: [
       '.........',
       '.H.......',
@@ -148,6 +148,75 @@ export const HOLES = [
       { t: 'cat', id: 'cat_orange', at: [5.85, 5.2], face: 90, period: 2.4 },
       { t: 'obj', id: 'stone_lion', at: [3.6, -0.1], rot: 180, s: 0.7 },
       { t: 'obj', id: 'stone_lion', at: [3.6, 2.1], rot: 0, s: 0.7 },
+    ],
+  },
+  {
+    name: '弹弹被子', tip: '被子比墙还弹，借它拐弯', par: 3,
+    map: [
+      '.........',
+      '....H....',
+      '.........',
+      '.........',
+      '.o.....o.',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '....T....',
+      '.........',
+    ],
+    props: [
+      { t: 'quilt', at: [4, 6.6], rot: 0, s: 1.5 },
+      { t: 'quilt', at: [2.2, 3.4], rot: 35, s: 1.3 },
+      { t: 'quilt', at: [5.8, 3.4], rot: -35, s: 1.3 },
+    ],
+  },
+  {
+    name: '两只猫', tip: '猫爪圈里会被拍，看准空当再打', par: 3,
+    map: [
+      '.....',
+      '..H..',
+      '.....',
+      '.....',
+      '.....',
+      '.....',
+      '.o...',
+      '.....',
+      '.....',
+      '.....',
+      '..T..',
+      '.....',
+    ],
+    props: [
+      { t: 'obj', id: 'plastic_stool', at: [2, 5.6] },
+      { t: 'cat', id: 'cat_orange', at: [0.15, 6.6], face: 90, period: 2.4 },
+      { t: 'cat', id: 'cat_orange', at: [3.85, 3.8], face: 270, period: 2.4, phase: 0.5 },
+    ],
+  },
+  {
+    name: '早高峰', tip: '等车过去再打，再绕开大鹅', par: 4,
+    map: [
+      '.........  ',
+      '.......H.  ',
+      '.........  ',
+      '.........  ',
+      '....o....  ',
+      '.........  ',
+      'rrrrrrrrrrr',
+      'rrrrrrrrrrr',
+      '  .....    ',
+      '  .....    ',
+      '  ..o..    ',
+      '  .....    ',
+      '  ..T..    ',
+      '  .....    ',
+    ],
+    props: [
+      { t: 'bike', id: 'shared_bike', from: [0.6, 6.05], to: [9.4, 6.05], speed: 2.2, phase: 0.2 },
+      { t: 'bike', id: 'ebike', from: [9.4, 7.0], to: [0.6, 7.0], speed: 1.7, phase: 0.7 },
+      { t: 'goose', at: [4.8, 3.4], aggro: 1.7, leash: 2 },
+      { t: 'obj', id: 'traffic_cone', at: [8.1, 4.2] },
     ],
   },
 ];

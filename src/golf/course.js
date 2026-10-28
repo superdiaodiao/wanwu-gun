@@ -140,7 +140,7 @@ export function buildCourse(hole, index, { scene, model }) {
   const R = rng(index + 7);
   const near = (x, z, d) => tiles.some(t => { const p = at(t.c, t.r); return Math.abs(p.x - x) < d + 0.5 && Math.abs(p.z - z) < d + 0.5; });
   const X0 = -W / 2, X1 = W / 2, Z0 = -H / 2, Z1 = H / 2;
-  const kinds = [['tree_plane', 4.2], ['tree_camphor', 4], ['tree_ginkgo', 3.6], ['bush', 1.1], ['bush', 0.9], ['flower_patch', 0.8], ['bench', 1.6], ['street_lamp', 3.6], ['rose_pot', 0.7], ['potted_plant', 0.9]];
+  const kinds = [['tree_plane', 4.2], ['tree_camphor', 4], ['tree_peach', 3], ['bush', 1.1], ['bush', 0.9], ['flower_patch', 0.8], ['bench', 1.6], ['street_lamp', 3.6], ['rose_pot', 0.7], ['potted_plant', 0.9]];
   const placed = [];
   for (let i = 0; i < 70 && placed.length < 34; i++) {
     const [id, size] = kinds[Math.floor(R() * kinds.length)];

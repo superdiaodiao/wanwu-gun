@@ -1,8 +1,10 @@
 // 小区高尔夫 (working title) — mini golf through a 小区, built from 万物皆可滚's models: a golf ball,
 // and each hole ends in a cup with a glowing rim. Hold and pull back anywhere, let go to putt (a dotted line shows where it will run, up to the first bounce).
 // Every hole has its own nuisance: cones and mahjong tables in the way, fans blowing, shared bikes
-// crossing, a goose guarding the hole, a cat swiping. Stars: one for sinking it, one for par or
-// better, one for every sweet on the green picked up on the way.
+// crossing, a goose guarding the hole, a cat swiping; until the first shot each says over it what it
+// does to the ball. Stars: one for sinking it, one for par or better, one for every sweet on the
+// green picked up on the way. The nine holes make a round: the best strokes for each hole and for
+// a whole round are kept.
 import * as THREE from 'three';
 import '../catalog/index.js';
 import { CATALOG } from '../catalog/registry.js';
@@ -52,7 +54,7 @@ function model(id, k = 1, size) {
 }
 
 const G = {
-  hole: 0, state: 'load', strokes: 0, got: 0, best: [], course: null, props: [], cols: [], sweets: [],
+  hole: 0, state: 'load', strokes: 0, got: 0, best: [], round: [], course: null, props: [], cols: [], sweets: [],
   ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, hitT: 0, t: 0, sinkT: 0, live: true,
   pushed() { if (G.state === 'aim') { G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
 };
@@ -78,7 +80,7 @@ async function boot() {
   makeBall(sc);
   makeAim(sc);
   engine.camera.fov = 40;
-  addEventListener('resize', () => aim());
+  addEventListener('resize', () => { aim(); hudBottom(); });
   const cv = $('game');
   cv.addEventListener('pointerdown', onDown);
   cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -87,6 +89,7 @@ async function boot() {
   addEventListener('pointercancel', () => { G.aim = null; showAim(false); });
   $('card-btn').addEventListener('click', () => { audio.ui('click'); next(); });
   G.best = store.get('best', []);
+  G.round = store.get('round', []);
   load(Math.min(store.get('hole', 0), HOLES.length - 1));
   requestAnimationFrame(loop);
   await nextFrame();
@@ -152,6 +155,8 @@ function load(i) {
     return { x: p.x, z: p.z, g, got: false, t: k };
   });
   Object.assign(G.ball, { x: G.course.tee.x, z: G.course.tee.z, vx: 0, vz: 0, lip: 0 });
+  G.from = { x: G.ball.x, z: G.ball.z };
+  G.green = new Set(G.course.tiles.map(q => q.c + ',' + q.r));
   ballG.visible = true;
   ballG.scale.setScalar(1);
   trail.reset();
@@ -159,10 +164,69 @@ function load(i) {
   showAim(false);
   $('card').hidden = true;
   $('hint').hidden = i > 0 || store.get('shot', false);
+  // a round starts at the first hole
+  if (i === 0) { G.round = []; store.set('round', G.round); }
   hud();
   aim();
   banner(t(hole.name), t(hole.tip));
+  // what each nuisance does (one of each kind: the one lowest on the screen, so furthest from the
+  // bars at the top), and on the first hole what the sweets are for
+  const pick = new Map();
+  for (const p of G.props) if (p.tag) {
+    tagV.set(...p.tag.at()).project(engine.camera);
+    const y = (Math.abs(tagV.x) <= 1 ? 0 : 10) + tagV.y, had = pick.get(p.tag.text);
+    if (!had || y < had.y) pick.set(p.tag.text, { tag: p.tag, y });
+  }
+  const list = [...pick.values()].map(v => v.tag);
+  if (i === 0 && G.sweets.length) { const s = G.sweets[0]; list.push({ text: '全捡到 +1 ★', at: () => [s.x, 0.6, s.z] }); }
+  showTags(list);
   store.set('hole', i);
+}
+
+// ---- the tags: a word over each thing that does something to the ball, till the first shot -------
+let tags = [], tagsTimer = 0, tagTop = 0;
+const tagV = new THREE.Vector3();
+function showTags(list) {
+  const box = $('tags');
+  box.innerHTML = '';
+  box.classList.add('out');
+  tags = list.map(tg => {
+    const el = document.createElement('div');
+    el.className = 'tag';
+    el.textContent = t(tg.text);
+    box.appendChild(el);
+    return { at: tg.at, el, half: el.offsetWidth / 2, h: el.offsetHeight };
+  });
+  hudBottom();
+  // (they come in once the hole's name, which they would sit under, has gone)
+  clearTimeout(tagsTimer);
+  const hole = G.hole;
+  tagsTimer = setTimeout(() => { if (G.hole === hole && G.strokes === 0 && G.state !== 'card') box.classList.remove('out'); }, 2100);
+}
+/** where the bars at the top end */
+function hudBottom() {
+  tagTop = Math.max(...['hole', 'score', 'stars'].map(id => $(id).getBoundingClientRect().bottom)) + 6;
+}
+function placeTags() {
+  if (!tags.length) return;
+  const cv = engine.renderer.domElement, w = cv.clientWidth, h = cv.clientHeight, placed = [];
+  for (const tg of tags) {
+    tagV.set(...tg.at()).project(engine.camera);
+    // kept on the screen and off the bars at the top: a thing near an edge has its tag pushed in,
+    // one up by the bars has it below instead of above; and a tag that would cover another moves on
+    const x = Math.max(6, Math.min(w - 2 * tg.half - 6, ((tagV.x + 1) / 2) * w - tg.half));
+    const py = ((1 - tagV.y) / 2) * h, below = py - 8 - tg.h < tagTop;
+    let y = below ? py + 8 : py - 8 - tg.h;
+    for (let k = 0; k < 4; k++) {
+      const o = placed.find(r => x < r.x + r.w && r.x < x + 2 * tg.half && y < r.y + r.h && r.y < y + tg.h);
+      if (!o) break;
+      y = below ? o.y + o.h + 4 : o.y - tg.h - 4;
+    }
+    y = Math.max(tagTop, Math.min(h - tg.h - 6, y));
+    placed.push({ x, y, w: 2 * tg.half, h: tg.h });
+    tg.el.classList.toggle('below', below);
+    tg.el.style.transform = `translate(${x}px, ${y}px)`;
+  }
 }
 
 function next() {
@@ -176,6 +240,7 @@ function hud() {
   $('hole-name').textContent = t(hole.name);
   $('strokes-num').textContent = G.strokes;
   $('par').textContent = t('标准 {n}', { n: hole.par });
+  $('sweets-num').textContent = `${G.got}/${G.sweets.length}`;
   $('stars-num').textContent = G.best.reduce((a, b) => a + (b || 0), 0);
 }
 
@@ -310,6 +375,7 @@ function drawAim() {
 
 function shoot(ang, p) {
   const v = shotSpeed(p);
+  G.from = { x: G.ball.x, z: G.ball.z };
   G.ball.vx = Math.sin(ang) * v;
   G.ball.vz = -Math.cos(ang) * v;
   G.strokes++;
@@ -319,6 +385,7 @@ function shoot(ang, p) {
   audio.pickup('hard', 0.5 + p * 0.4, 0.12);
   if (!store.get('shot', false)) { store.set('shot', true); }
   $('hint').hidden = true;
+  $('tags').classList.add('out');
   hud();
 }
 
@@ -348,6 +415,15 @@ function step(dt, draw = true) {
   if (G.state === 'aim' || G.state === 'roll') {
     const r = stepBall(b, G.course, dt, onHit);
     if (r === 'sunk') sink();
+    // (a safety net: nothing should knock the ball off the course, but if anything does, it goes
+    // back to where it was hit from)
+    const C = G.course;
+    if (G.state !== 'sink' && !G.green.has(Math.round(b.x + (C.W - 1) / 2) + ',' + Math.round(b.z + (C.H - 1) / 2))) {
+      Object.assign(b, { x: G.from.x, z: G.from.z, vx: 0, vz: 0 });
+      fx.pickup(b.x, 0.2, b.z, 0.05, 0.25);
+      G.still = 0;
+      if (G.state === 'roll') { if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false); else G.state = 'aim'; }
+    }
     const sp = Math.hypot(b.vx, b.vz);
     if (G.state === 'aim' && sp > 0.3) G.pushed();
     if (G.state === 'roll') {
@@ -369,6 +445,7 @@ function step(dt, draw = true) {
       audio.pickup(spec(['candy', 'lollipop', 'coin_1yuan'][s.t % 3]).sfx, 0.5, 0.1);
       audio.comboChime(Math.min(6, G.got + 1));
       fx.pickup(s.x, 0.3, s.z, 0.1, 0.4);
+      hud();
     }
     // rolling: turn the ball about the axis across its path
     const d = sp * dt;
@@ -402,6 +479,7 @@ function step(dt, draw = true) {
   MU.time.value = G.t;
   const r = engine.renderer, cam = engine.camera;
   fx.setViewport(r.domElement.clientHeight, cam.fov);
+  placeTags();
   const bd = G.course.bounds;
   engine.updateShadow(new THREE.Vector3((bd.x0 + bd.x1) / 2, 0, (bd.z0 + bd.z1) / 2), Math.max(bd.x1 - bd.x0, bd.z1 - bd.z0) * 0.75 + 2);
   r.setViewport(0, 0, engine.width, engine.height);
@@ -434,6 +512,28 @@ function finish(sunk) {
   const lastHole = G.hole + 1 >= HOLES.length;
   $('card-btn').textContent = lastHole ? t('从第一洞再来') : t('下一洞');
   if (lastHole) $('card-sub').textContent += ' · ' + t('一共 {n} 颗星', { n: G.best.reduce((a, b) => a + (b || 0), 0) });
+  // records: this hole's fewest strokes, and on the last hole the round's
+  const lines = [];
+  const holeBest = store.get('strokes', []), was = holeBest[G.hole];
+  if (sunk) {
+    if (was && G.strokes < was) lines.push(`<b>${t('新纪录！')}</b> ${t('最好 {n} 杆', { n: G.strokes })}`);
+    else if (was) lines.push(t('最好 {n} 杆', { n: was }));
+    if (!was || G.strokes < was) { holeBest[G.hole] = G.strokes; store.set('strokes', holeBest); }
+  }
+  G.round[G.hole] = G.strokes; // (a hole let off counts the strokes it took)
+  store.set('round', G.round);
+  // (coming back later goes on to the next hole, or after the last starts a new round)
+  store.set('hole', lastHole ? 0 : G.hole + 1);
+  if (lastHole && HOLES.every((h, k) => G.round[k] > 0)) {
+    const total = G.round.reduce((a, b) => a + b, 0), par = HOLES.reduce((a, h) => a + h.par, 0);
+    const bestRound = store.get('bestRound', 0);
+    const line = t('这一轮 {n} 杆 · 标准杆 {par}', { n: total, par });
+    if (bestRound && total < bestRound) lines.push(`<b>${t('新纪录！')}</b> ${line}`);
+    else lines.push(line + (bestRound ? ' · ' + t('最好一轮 {n} 杆', { n: bestRound }) : ''));
+    if (!bestRound || total < bestRound) store.set('bestRound', total);
+  }
+  $('card-best').innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+  $('card-best').hidden = !lines.length;
   hud();
   $('card').hidden = false;
 }

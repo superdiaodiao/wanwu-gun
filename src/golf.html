@@ -6,8 +6,9 @@
 <!--BODY-->
 <canvas id="game"></canvas>
 <div id="hud">
+  <div id="tags"></div>
   <div id="hole"><span id="hole-num"></span><b id="hole-name"></b></div>
-  <div id="score"><span>杆数</span><b id="strokes-num">0</b><span id="par"></span></div>
+  <div id="score"><span>杆数</span><b id="strokes-num">0</b><span id="par"></span><span class="sep">糖</span><b id="sweets-num" class="small">0/0</b></div>
   <div id="stars"><i>★</i><b id="stars-num">0</b></div>
   <div id="banner" hidden><div id="banner-title"></div><div id="banner-sub"></div></div>
   <div id="hint">按住往后拉，松手击球</div>
@@ -18,6 +19,7 @@
     <div class="title" id="card-title"></div>
     <div class="stars" id="card-stars"></div>
     <div class="sub" id="card-sub"></div>
+    <div class="best" id="card-best" hidden></div>
     <button id="card-btn">下一洞</button>
   </div>
 </div>

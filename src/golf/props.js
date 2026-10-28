@@ -4,9 +4,10 @@
 //   bike   a shared bike riding back and forth across the road: it shoves the ball it meets
 //   goose  guards the ground around it: when the ball comes near it waddles over and pecks it away
 //   cat    sits by the green; every few seconds it crouches, then swipes the ball in front of it
-//   quilt  a folded quilt: the ball bounces off it harder than it came in, with a soft thump
+//   quilt  a folded quilt: the ball bounces off it harder than it came in, with a boing
 // Each returns { cols, update(dt, ball, game) }: cols join the course's (moving ones are updated
-// in place, with their speed so they shove), update moves and animates it.
+// in place, with their speed so they shove), update moves and animates it. The ones that do
+// something to the ball also say what, in a few words, and where over them: tag { text, at() }.
 import * as THREE from 'three';
 import { BALL_R } from './physics.js';
 
@@ -16,6 +17,12 @@ const ROUND = { traffic_cone: 0.9, plastic_stool: 0.9, rose_pot: 0.9, flower_bed
 
 export function buildProps(hole, course, ctx) {
   return hole.props.map(d => MAKERS[d.t](d, course, ctx));
+}
+
+/** what a thing does to the ball, said over it: at() is where (above the model's top) */
+function tag(ctx, text, id, k, at) {
+  const h = ctx.spec(id).dims.h * k + 0.25;
+  return { text, at: () => { const [x, y, z] = at(); return [x, y + h, z]; } };
 }
 
 /** a box (or round) collider the size of the model's footprint */
@@ -53,7 +60,7 @@ const MAKERS = {
     }
     let t = Math.random() * 6;
     return {
-      cols: [], wind,
+      cols: [], wind, tag: tag(ctx, '会吹偏球', 'electric_fan', 1.6, () => [p.x, -0.12, p.z]),
       update(dt) {
         t += dt;
         g.rotation.y = yaw + Math.sin(t * 1.1) * 0.22; // an oscillating fan
@@ -76,7 +83,7 @@ const MAKERS = {
     const col = { kind: 'box', x: A.x, z: A.z, hx: s.dims.w / 2 * 0.85, hz: s.dims.d / 2 * 0.9, rot: 0, e: 0.45, vx: 0, vz: 0 };
     let u = (d.phase || 0) * 2 * L, bell = 0, lean = 0;
     const me = {
-      cols: [col],
+      cols: [col], tag: tag(ctx, '会撞开球', d.id, 1, () => [col.x, 0, col.z]),
       hit(speed) { if (bell <= 0 && speed > 0.4) { ctx.audio.pickup('bell', 0.6, 1.2); bell = 1.2; } },
       update(dt) {
         bell -= dt;
@@ -108,7 +115,7 @@ const MAKERS = {
     const col = { kind: 'circle', x: home.x, z: home.z, r: 0.24, e: 0.4, vx: 0, vz: 0 };
     let x = home.x, z = home.z, yaw = Math.PI, cd = 0, peck = 0, walk = 0, honkCd = 0, t = Math.random() * 5;
     const me = {
-      cols: [col],
+      cols: [col], tag: tag(ctx, '会追着啄球', 'goose', 1.15, () => [x, 0, z]),
       hit(speed) { if (honkCd <= 0 && speed > 0.5) { ctx.audio.pickup('honk', 0.5, 0.8); honkCd = 1; } },
       update(dt, ball, game) {
         t += dt; cd -= dt; peck -= dt; honkCd -= dt;
@@ -159,11 +166,14 @@ const MAKERS = {
     g.position.set(p.x, 0, p.z);
     g.rotation.y = Math.atan2(fx, fz);
     course.group.add(g);
-    // where the paw reaches, shown faintly on the green, brighter as the cat gets ready
+    // where the paw reaches, shown on the green with an edge round it, brighter as the cat gets ready
     const reach = 0.72, zr = 0.55;
-    const zone = new THREE.Mesh(new THREE.CircleGeometry(zr, 28), new THREE.MeshBasicMaterial({ color: 0xff8a3d, transparent: true, opacity: 0.12, depthWrite: false }));
+    const zone = new THREE.Mesh(new THREE.CircleGeometry(zr, 28), new THREE.MeshBasicMaterial({ color: 0xff8a3d, transparent: true, opacity: 0.25, depthWrite: false }));
     zone.rotation.x = -Math.PI / 2;
     zone.position.set(p.x + fx * reach, 0.006, p.z + fz * reach);
+    const rim = new THREE.Mesh(new THREE.RingGeometry(zr - 0.05, zr, 40), new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.7, depthWrite: false }));
+    rim.position.z = 0.001; // (the zone is turned flat, so its z is up)
+    zone.add(rim);
     course.group.add(zone);
     const col = { kind: 'circle', x: p.x, z: p.z, r: 0.24, e: 0.4 };
     const P = d.period || 2.4;
@@ -171,14 +181,15 @@ const MAKERS = {
     // swiped again every time it did could keep the player from ever getting a shot off)
     let t = (d.phase || 0) * P, batted = false, swiped = -1;
     return {
-      cols: [col],
+      cols: [col], tag: tag(ctx, '会拍球', d.id || 'cat_orange', 1.7, () => [p.x, 0, p.z]),
       update(dt, ball, game) {
         t += dt;
         const T = t % P;
         const crouch = T > P - 0.75 && T < P - 0.25, swipe = T >= P - 0.25;
         if (T < dt) batted = false;
         const ready = crouch ? (T - (P - 0.75)) / 0.5 : 0;
-        zone.material.opacity = swipe ? 0.5 : 0.1 + ready * 0.3;
+        zone.material.opacity = swipe ? 0.6 : 0.25 + ready * 0.3;
+        rim.material.opacity = swipe || crouch ? 1 : 0.7;
         const lunge = swipe ? Math.sin(((T - (P - 0.25)) / 0.25) * Math.PI) * 0.3 : -ready * 0.06;
         g.position.set(p.x + fx * lunge, 0, p.z + fz * lunge);
         g.scale.set(1, crouch ? 1 - ready * 0.14 : 1, 1);
@@ -207,11 +218,11 @@ const MAKERS = {
     const col = footprint(ctx, 'quilt_stack', k, p.x, p.z, rot, 1.15, 0.95);
     let sq = 0;
     const me = {
-      cols: [col],
+      cols: [col], tag: tag(ctx, '超级弹', 'quilt_stack', k, () => [p.x, 0, p.z]),
       hit(speed) {
         if (speed < 0.3) return;
         sq = Math.min(1, 0.4 + speed / 6);
-        ctx.audio.pickup('soft', 0.8, 0.8);
+        ctx.audio.bump(Math.min(1, 0.35 + speed / 8)); // a thump and a spring's boing
       },
       update(dt) {
         sq = Math.max(0, sq - dt * 3);
