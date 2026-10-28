@@ -324,7 +324,7 @@ export const UI = {
   '猫爪圈里会被拍，看准空当再打': 'Paw circles swipe: time your shot',
   '早高峰': 'Rush Hour',
   '等车过去再打，再绕开大鹅': 'Wait for a gap, then dodge the goose',
-  '会吹偏球': 'Blows the ball',
+  '会吹偏球': 'Blows it sideways',
   '会撞开球': 'Knocks the ball away',
   '会追着啄球': 'Chases the ball!',
   '会拍球': 'Swipes the ball',
@@ -339,5 +339,7 @@ export const UI = {
   '{n} 杆 · 标准杆 {par} · 糖 {got}/{all}': '{n} strokes · par {par} · sweets {got}/{all}',
   '一共 {n} 颗星': '{n} stars in all',
   '从第一洞再来': 'Back to hole 1',
+  '关掉声音': 'Sound off',
+  '这个游戏只在 CrazyGames 上玩': 'Backyard Mini Golf is only on CrazyGames',
 };
 

@@ -4,6 +4,8 @@
 //                                                    when not --dev: see assembleSite)
 //   node build.mjs crazygames                     -> dist/crazygames/index.html + dist/crazygames.zip, the
 //                                                    upload for CrazyGames (no links to the site, no stats)
+//   node build.mjs golf                           -> dist/golf.html (小区高尔夫)
+//   node build.mjs golf-crazygames                -> dist/crazygames-golf/index.html + dist/crazygames-golf.zip
 //   node build.mjs gallery [--only=small,street]  -> dist/gallery.html  (or dist/gallery-<only>.html)
 //   node build.mjs audio                          -> dist/audio-test.html
 //
@@ -111,15 +113,15 @@ function asciiHtml(html) {
   return out;
 }
 
-function assembleCrazyGames() {
-  fs.rmSync('dist/crazygames', { recursive: true, force: true });
-  fs.mkdirSync('dist/crazygames');
-  fs.writeFileSync('dist/crazygames/index.html', asciiHtml(fs.readFileSync('dist/crazygames.html', 'utf8')));
-  fs.rmSync('dist/crazygames.html');
-  fs.rmSync('dist/crazygames.zip', { force: true });
-  execFileSync('zip', ['-q', '-9', '../crazygames.zip', 'index.html'], { cwd: 'dist/crazygames' });
+function assembleCrazyGames(name) {
+  fs.rmSync(`dist/${name}`, { recursive: true, force: true });
+  fs.mkdirSync(`dist/${name}`);
+  fs.writeFileSync(`dist/${name}/index.html`, asciiHtml(fs.readFileSync(`dist/${name}.html`, 'utf8')));
+  fs.rmSync(`dist/${name}.html`);
+  fs.rmSync(`dist/${name}.zip`, { force: true });
+  execFileSync('zip', ['-q', '-9', `../${name}.zip`, 'index.html'], { cwd: `dist/${name}` });
   const kb = f => (fs.statSync(f).size / 1024).toFixed(0);
-  console.log(`[build] dist/crazygames/index.html ${kb('dist/crazygames/index.html')} KB → dist/crazygames.zip ${kb('dist/crazygames.zip')} KB`);
+  console.log(`[build] dist/${name}/index.html ${kb(`dist/${name}/index.html`)} KB → dist/${name}.zip ${kb(`dist/${name}.zip`)} KB`);
 }
 
 // While the audio module is still being written, resolve it to a silent stand-in so the game builds.
@@ -191,6 +193,10 @@ if (target === 'game') {
   // 小区高尔夫: a separate mini-golf game built from the same models
   opts = { ...base, entryPoints: ['src/golf/main.js'] };
   tplName = 'golf'; outName = 'golf';
+} else if (target === 'golf-crazygames') {
+  // its upload for CrazyGames, made the same way as the game's (above)
+  opts = { ...base, charset: 'ascii', define: { ...base.define, __PLATFORM__: '"crazygames"' }, entryPoints: ['src/golf/main.js'] };
+  tplName = 'golf'; outName = 'crazygames-golf';
 } else {
   console.error('unknown target', target); process.exit(1);
 }
@@ -215,7 +221,7 @@ if (watch) {
     const r = await esbuild.build(opts);
     assemble(tplName, r.outputFiles[0].text, outName, artifact);
     if (target === 'game' && !dev) assembleSite(tplName, r.outputFiles[0].text);
-    if (target === 'crazygames') assembleCrazyGames();
+    if (target === 'crazygames' || target === 'golf-crazygames') assembleCrazyGames(outName);
   } catch (e) {
     process.exit(1);
   }

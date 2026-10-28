@@ -4,7 +4,8 @@
 // crossing, a goose guarding the hole, a cat swiping; until the first shot each says over it what it
 // does to the ball. Stars: one for sinking it, one for par or better, one for every sweet on the
 // green picked up on the way. The nine holes make a round: the best strokes for each hole and for
-// a whole round are kept.
+// a whole round are kept. On CrazyGames (node build.mjs golf-crazygames) their SDK hears when a
+// hole is being played (game/portal.js).
 import * as THREE from 'three';
 import '../catalog/index.js';
 import { CATALOG } from '../catalog/registry.js';
@@ -21,10 +22,13 @@ import { buildCourse } from './course.js';
 import { buildProps } from './props.js';
 import { HOLES } from './holes.js';
 import { golfBall, Trail } from './ball.js';
+import { portalInit, portalLoaded, portalPlaying } from '../game/portal.js';
+import { strayHost } from '../game/guard.js';
 
 applyContent();
 
 const $ = id => document.getElementById(id);
+const PLATFORM = typeof __PLATFORM__ !== 'undefined' ? __PLATFORM__ : 'site';
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 const GIVE_UP = 5; // strokes over par before the hole lets you off
 const store = {
@@ -62,6 +66,14 @@ const G = {
 async function boot() {
   translateDom();
   if (EN) document.title = t('小区高尔夫');
+  // the CrazyGames build plays on CrazyGames only (and opened from disk or this machine): a copy
+  // put up anywhere else says so instead
+  if (PLATFORM === 'crazygames' && strayHost()) {
+    $('loading').firstElementChild.textContent = t('这个游戏只在 CrazyGames 上玩');
+    return;
+  }
+  portalInit();
+  audio.setMuted(store.get('muted', false));
   const fontsDone = loadFonts(12000);
   await Promise.race([fontsDone, new Promise(r => setTimeout(r, 600))]);
   await nextFrame();
@@ -88,13 +100,25 @@ async function boot() {
   addEventListener('pointerup', onUp);
   addEventListener('pointercancel', () => { G.aim = null; showAim(false); });
   $('card-btn').addEventListener('click', () => { audio.ui('click'); next(); });
+  const mute = $('mute');
+  const showMute = () => { mute.classList.toggle('off', audio.muted); mute.setAttribute('aria-label', t(audio.muted ? '打开声音' : '关掉声音')); };
+  mute.addEventListener('click', () => { store.set('muted', audio.setMuted(!audio.muted)); wake(); showMute(); });
+  showMute();
+  // (a hidden tab goes quiet; CrazyGames sees it is hidden for itself, so gameplay isn't stopped)
+  document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else audio.resume(); });
   G.best = store.get('best', []);
   G.round = store.get('round', []);
   load(Math.min(store.get('hole', 0), HOLES.length - 1));
   requestAnimationFrame(loop);
   await nextFrame();
   $('loading').classList.add('done');
+  portalLoaded();
   window.__ready = true;
+}
+
+/** tell the portal whether a hole is being played (not while the card between holes is up) */
+function playing() {
+  portalPlaying(G.state !== 'card' && G.state !== 'load');
 }
 
 async function wake() {
@@ -210,17 +234,27 @@ function hudBottom() {
 function placeTags() {
   if (!tags.length) return;
   const cv = engine.renderer.domElement, w = cv.clientWidth, h = cv.clientHeight, placed = [];
+  // the cup and the ball stay in sight: a tag that would cover them moves off as off another tag
+  for (const [x, z, rad] of [[G.course.cup.x, G.course.cup.z, 0.3], [G.ball.x, G.ball.z, 0.2]]) {
+    tagV.set(x, 0, z).project(engine.camera);
+    const cx = ((tagV.x + 1) / 2) * w, cy = ((1 - tagV.y) / 2) * h;
+    tagV.set(x + rad, 0, z).project(engine.camera);
+    const R = Math.max(10, Math.abs(((tagV.x + 1) / 2) * w - cx));
+    placed.push({ x: cx - R, y: cy - R, w: 2 * R, h: 2 * R });
+  }
   for (const tg of tags) {
     tagV.set(...tg.at()).project(engine.camera);
     // kept on the screen and off the bars at the top: a thing near an edge has its tag pushed in,
     // one up by the bars has it below instead of above; and a tag that would cover another moves on
     const x = Math.max(6, Math.min(w - 2 * tg.half - 6, ((tagV.x + 1) / 2) * w - tg.half));
-    const py = ((1 - tagV.y) / 2) * h, below = py - 8 - tg.h < tagTop;
-    let y = below ? py + 8 : py - 8 - tg.h;
+    const py = ((1 - tagV.y) / 2) * h;
+    let below = py - 8 - tg.h < tagTop, y = below ? py + 8 : py - 8 - tg.h;
     for (let k = 0; k < 4; k++) {
       const o = placed.find(r => x < r.x + r.w && r.x < x + 2 * tg.half && y < r.y + r.h && r.y < y + tg.h);
       if (!o) break;
       y = below ? o.y + o.h + 4 : o.y - tg.h - 4;
+      // (no room above it, up by the bars: below it instead)
+      if (!below && y < tagTop) { below = true; y = o.y + o.h + 4; }
     }
     y = Math.max(tagTop, Math.min(h - tg.h - 6, y));
     placed.push({ x, y, w: 2 * tg.half, h: tg.h });
@@ -343,19 +377,23 @@ function onDown(e) {
   wake();
   // one finger, the main mouse button; a second touch doesn't take the shot over
   if (G.state !== 'aim' || G.aim || !e.isPrimary || e.button !== 0) return;
-  const p = groundAt(e.clientX, e.clientY);
-  if (!p) return;
-  G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, start: p, ang: 0, p: 0 };
+  G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ang: 0, p: 0 };
   try { e.target.setPointerCapture(e.pointerId); } catch {}
 }
+const ballV = new THREE.Vector3();
 function onMove(e) {
   const a = G.aim;
   if (!a || e.pointerId !== a.id) return;
-  const p = groundAt(e.clientX, e.clientY);
+  // the pull is taken as if it started at the ball, wherever the press was: pulling straight down
+  // the screen shoots straight up it (from the ground under the press, the camera's perspective
+  // would bend a pull near the side of the screen by up to a quarter turn)
+  const r = engine.renderer.domElement.getBoundingClientRect(), b = G.ball;
+  ballV.set(b.x, 0, b.z).project(engine.camera);
+  const p = groundAt(r.left + ((ballV.x + 1) / 2) * r.width + e.clientX - a.sx, r.top + ((1 - ballV.y) / 2) * r.height + e.clientY - a.sy);
   if (!p) return;
   const px = Math.hypot(e.clientX - a.sx, e.clientY - a.sy);
   a.p = Math.max(0, Math.min(1, (px - 10) / (0.3 * Math.min(innerWidth, innerHeight))));
-  const dx = a.start.x - p.x, dz = a.start.z - p.z;
+  const dx = b.x - p.x, dz = b.z - p.z;
   if (Math.hypot(dx, dz) > 1e-3) a.ang = Math.atan2(dx, -dz);
   showAim(a.p > 0);
   drawAim();
@@ -413,6 +451,7 @@ function loop() {
   const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
   step(dt);
+  playing();
 }
 
 function onHit(c, s) {
@@ -476,6 +515,7 @@ function step(dt, draw = true) {
     ballG.position.set(b.x + (cup.x - b.x) * k, BALL_R - k * k * 0.35, b.z + (cup.z - b.z) * k);
     ballG.scale.setScalar(1 - k * 0.5);
     if (G.sinkT > 0.3) ballG.visible = false;
+    if (G.sinkT > 0.9) finish(true);
   }
   for (const s of G.sweets) {
     if (s.got) { s.g.position.y += dt * 3; s.g.scale.multiplyScalar(Math.max(0, 1 - dt * 6)); continue; }
@@ -510,7 +550,6 @@ function sink() {
   audio.patch();
   for (let i = 0; i < (G.strokes === 1 ? 6 : 3); i++) setTimeout(() => fx.firework(cup.x + (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, cup.z + (Math.random() - 0.5) * 0.6, 1.1), i * 160);
   if (G.strokes === 1) audio.fireworks();
-  setTimeout(() => finish(true), 900);
 }
 
 function finish(sunk) {
