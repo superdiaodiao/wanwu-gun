@@ -260,10 +260,10 @@ function aim() {
   const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
   const long = b.z1 - b.z0, wide = b.x1 - b.x0;
   const side = c.aspect > 1.15 && long > wide * 1.25;
-  // look from the tee's side of the hole (from +z, or from +x/-x when on its side)
-  const tee = G.course.tee;
-  const dir = side ? new THREE.Vector3(tee.x >= cx ? 1 : -1, 0, 0) : new THREE.Vector3(0, 0, 1);
-  if (side && Math.abs(tee.x - cx) < 0.5) dir.set(1, 0, 0);
+  // look from the tee's end of the hole (from +z); on its side, from whichever side puts the tee
+  // on the left of the screen, or the right for the holes that say so (so it isn't always the left)
+  const tee = G.course.tee, dir = new THREE.Vector3(0, 0, 1);
+  if (side) { const s = Math.sign(tee.z - cz) || 1; dir.set(HOLES[G.hole].side === 'right' ? -s : s, 0, 0); }
   const tilt = 0.62; // from straight down
   const pts = [];
   for (const x of [b.x0, b.x1]) for (const z of [b.z0, b.z1]) pts.push(new THREE.Vector3(x, 0, z), new THREE.Vector3(x, 0.3, z));
