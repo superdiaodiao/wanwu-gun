@@ -253,22 +253,17 @@ function banner(title, sub) {
   b.hidden = false;
 }
 
-/** frame the whole hole: from its near end (the tee), or from the side when a long hole meets a
- *  wide screen; as close as still shows every wall and the flag, clear of the bars at top and bottom */
+/** frame the whole hole from its near end, so the ball starts near the player and is hit away from
+ *  them: as close as still shows every wall and the flag, clear of the bars at top and bottom */
 function aim() {
   const c = engine.camera, b = G.course.bounds;
   const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
-  const long = b.z1 - b.z0, wide = b.x1 - b.x0;
-  const side = c.aspect > 1.15 && long > wide * 1.25;
-  // look from the tee's end of the hole (from +z); on its side, from whichever side puts the tee
-  // on the left of the screen, or the right for the holes that say so (so it isn't always the left)
-  const tee = G.course.tee, dir = new THREE.Vector3(0, 0, 1);
-  if (side) { const s = Math.sign(tee.z - cz) || 1; dir.set(HOLES[G.hole].side === 'right' ? -s : s, 0, 0); }
-  const tilt = 0.62; // from straight down
+  const dir = new THREE.Vector3(0, 0, 1); // (every hole is drawn with its tee at the near end, +z)
   const pts = [];
   for (const x of [b.x0, b.x1]) for (const z of [b.z0, b.z1]) pts.push(new THREE.Vector3(x, 0, z), new THREE.Vector3(x, 0.3, z));
   pts.push(new THREE.Vector3(G.course.cup.x, 1.3, G.course.cup.z));
   const target = new THREE.Vector3(cx, 0, cz);
+  let tilt = 0.62; // from straight down
   const fits = d => {
     c.position.copy(target).addScaledVector(dir, Math.sin(tilt) * d);
     c.position.y = Math.cos(tilt) * d;
@@ -280,20 +275,40 @@ function aim() {
       if (Math.abs(v.x) > 0.92) return false;
       minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
     }
-    // and centre it up and down between the bars
-    return maxY < 0.8 && minY > -0.86;
+    // and centre it up and down between the bars, with room under the near end to pull back in
+    return maxY < 0.8 && minY > -0.76;
+  };
+  const fit = () => {
+    let lo = 3, hi = 80;
+    for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; }
+    fits(hi);
+    return hi;
   };
   c.updateProjectionMatrix();
-  let lo = 3, hi = 80;
-  for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; }
+  // how steeply to look down: lower, more from behind the ball, when that shows the near end of the
+  // hole clearly bigger (a long hole on a wide screen, which from above would be a thin strip down
+  // the middle), but not so low that the far end comes out less than half the size of the near end
+  // (a wide hole on a tall screen gains nothing from it, only flattens, so stays as seen from above)
+  const metre = z => {
+    const a = new THREE.Vector3(cx, 0, z).project(c), e = new THREE.Vector3(cx + 1, 0, z).project(c);
+    return Math.abs(e.x - a.x);
+  };
+  let best = 0.62, most = 0;
+  for (let a = 0.62; a <= 1.25; a += 0.03) {
+    tilt = a;
+    fit();
+    const near = metre(b.z1);
+    if (metre(b.z0) < near * 0.5) break;
+    if (near > most * 1.02) { most = near; best = a; }
+  }
+  tilt = best;
+  fit();
   // nudge the target so the course sits in the middle of the free band
-  fits(hi);
   let minY = 1, maxY = -1;
   for (const p of pts) { const v = p.clone().project(c); minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y); }
-  const shift = ((maxY + minY) / 2 - (-0.03)) * 0.5;
-  const fwd = dir.clone().negate();
-  target.addScaledVector(fwd, shift * (side ? wide : long) * 0.5);
-  fits(hi);
+  const shift = ((maxY + minY) / 2 - 0.02) * 0.5;
+  target.addScaledVector(dir, -shift * (b.z1 - b.z0) * 0.5);
+  fit();
   // yard things standing in front of the course (between it and the camera) are left out: any
   // whose box, seen from here, reaches into the course (or the fans standing just outside it)
   for (const w of G.course.winds) pts.push(new THREE.Vector3(w.x, -0.1, w.z), new THREE.Vector3(w.x, 1.8, w.z));
@@ -303,8 +318,9 @@ function aim() {
   for (const d of G.course.deco) {
     if (d.far) continue;
     const bx = d.box, centre = bx.getCenter(new THREE.Vector3());
-    let over = false;
-    if (c.position.distanceTo(centre.setY(0)) < far) {
+    // (and anything between the near end and the camera, which seen from low looms large)
+    let over = bx.min.z > b.z1 + 0.3;
+    if (!over && c.position.distanceTo(centre.setY(0)) < far) {
       for (let i = 0; i < 8 && !over; i++) {
         v.set(i & 1 ? bx.max.x : bx.min.x, i & 2 ? bx.max.y : bx.min.y, i & 4 ? bx.max.z : bx.min.z).project(c);
         if (v.x > x0 && v.x < x1 && v.y > y0 && v.y < y1) over = true;

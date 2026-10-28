@@ -1,5 +1,5 @@
-// The holes. Each is drawn in characters, one per square metre, the far end at the top (a long one
-// is turned on its side on a wide screen, with its tee on the left, or the right if it has side: 'right'):
+// The holes. Each is drawn in characters, one per square metre, the far end at the top (the tee
+// near the bottom: the hole is seen from that end, so the ball starts near the player):
 //   .  green        r  road (green to the ball, grey to look at)
 //   T  the tee      H  the hole      o  a sweet lying on the green
 //   (anything else is not course: a wall runs along every edge of the green)
@@ -57,7 +57,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '电风扇', tip: '风会把球吹偏，往上风那边打', par: 3, side: 'right',
+    name: '电风扇', tip: '风会把球吹偏，往上风那边打', par: 3,
     map: [
       '......',
       '..H...',
@@ -105,7 +105,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '大鹅', tip: '大鹅会追着球啄，打快点冲过去', par: 3, side: 'right',
+    name: '大鹅', tip: '大鹅会追着球啄，打快点冲过去', par: 3,
     map: [
       '.......',
       '...H...',
@@ -152,7 +152,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '弹弹被子', tip: '被子比墙还弹，借它拐弯', par: 3, side: 'right',
+    name: '弹弹被子', tip: '被子比墙还弹，借它拐弯', par: 3,
     map: [
       '.........',
       '....H....',
@@ -196,7 +196,7 @@ export const HOLES = [
     ],
   },
   {
-    name: '早高峰', tip: '等车过去再打，再绕开大鹅', par: 4, side: 'right',
+    name: '早高峰', tip: '等车过去再打，再绕开大鹅', par: 4,
     map: [
       '.........  ',
       '.......H.  ',

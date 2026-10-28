@@ -300,7 +300,7 @@ export const UI = {
   // 小区高尔夫 (src/golf)
   '小区高尔夫': 'Backyard Mini Golf',
   '正在铺草皮……': 'Rolling out the turf…',
-  '按住往后拉，松手击球': 'Hold, pull back, let go to putt',
+  '在哪都能按住，往后拉，松手击球': 'Hold anywhere, pull back, let go to putt',
   '杆数': 'Strokes',
   '糖': 'Sweets',
   '标准 {n}': 'Par {n}',
