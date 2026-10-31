@@ -62,7 +62,8 @@ export function golfBall(r) {
 }
 
 /** the streak: a ribbon flat on the green along where the ball has just been, narrowing and
- *  fading towards its tail, and only there at all while the ball is going quickly */
+ *  fading towards its tail, and only there at all while the ball is going quickly (lift(x, z): the
+ *  green's height, where it isn't flat) */
 export class Trail {
   constructor(scene, width, n = 16) {
     this.n = n;
@@ -112,8 +113,9 @@ export class Trail {
       const d = Math.hypot(dx, dz) || 1;
       dx /= d; dz /= d;
       const f = 1 - i / (this.n - 1), w = this.w * f;
-      pos.setXYZ(i * 2, p[0] - dz * w, 0.025, p[1] + dx * w);
-      pos.setXYZ(i * 2 + 1, p[0] + dz * w, 0.025, p[1] - dx * w);
+      const y = 0.025 + (this.lift ? this.lift(p[0], p[1]) : 0);
+      pos.setXYZ(i * 2, p[0] - dz * w, y, p[1] + dx * w);
+      pos.setXYZ(i * 2 + 1, p[0] + dz * w, y, p[1] - dx * w);
       const a = i < pts.length ? 0.75 * k * f : 0;
       col.setXYZW(i * 2, 1, 1, 1, a);
       col.setXYZW(i * 2 + 1, 1, 1, 1, a);

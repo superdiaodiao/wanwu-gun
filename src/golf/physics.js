@@ -1,6 +1,7 @@
-// The ball: a golf ball rolling on the flat green. Rolling slows it by a constant drag plus one
+// The ball: a golf ball rolling on the green. Rolling slows it by a constant drag plus one
 // that grows with speed (a hard shot runs out quickly at first, a soft putt creeps on), it bounces
-// off the course's walls and the things on it, fans blow it along, and near the hole a gentle pull
+// off the course's walls and the things on it, fans blow it along, slopes pull it downhill (one
+// gentle enough that the drag holds a ball still on it doesn't), and near the hole a gentle pull
 // curls a ball that is nearly there into it. A ball over the hole drops in unless it is too fast,
 // in which case it rattles over the lip and carries on, a little turned and slowed.
 //
@@ -8,7 +9,9 @@
 //   { kind: 'seg', ax, az, bx, bz }                  a wall face
 //   { kind: 'circle', x, z, r }                      a post, an animal
 //   { kind: 'box', x, z, hx, hz, rot }               anything boxy, turned by rot about y
-// each may carry e (bounciness, default the walls'), vx / vz (it is moving: it shoves the ball).
+// each may carry e (bounciness, default the walls'), vx / vz (it is moving: it shoves the ball), w (it
+// turns about its middle, w radians a second the way rot goes: it shoves the ball as it sweeps), off
+// (it isn't there just now: a windmill's sail that has swung up out of the way).
 export const BALL_R = 0.14, CUP_R = 0.3;
 export const PHYS = {
   a0: 0.75, // constant rolling drag, m/s²
@@ -18,6 +21,8 @@ export const PHYS = {
   wallE: 0.78, // how much speed a wall gives back
   capture: 3.0, // the hole takes a ball slower than this
   pull: 2.4, pullR: 0.5, // the hole's pull (m/s²) and its reach (m)
+  grav: 7, // m/s² downhill on a slope of 1 in 1 (5/7 of g: a ball rolls down, it doesn't slide)
+  hold: 1.0, // a ball that has all but stopped stays put on a slope pulling less than this (m/s²)
 };
 
 const CT = { nx: 0, nz: 0, depth: 0 };
@@ -77,25 +82,40 @@ function blow(b, w, h) {
 }
 /** the strongest wind at (x, z) */
 export const windAt = (course, x, z) => Math.max(0, ...course.winds.map(w => gust(w, x, z)));
+/** how hard the slope at (x, z) pulls downhill, m/s² (more than PHYS.hold, and a ball can't rest there) */
+export const slopeAt = (course, x, z) => {
+  if (!course.ground) return 0;
+  const g = course.ground.grad(x, z);
+  return PHYS.grav * Math.hypot(g[0], g[1]);
+};
 
 /**
  * Moves the ball b ({x, z, vx, vz, lip}) on for dt. Returns 'sunk' when it drops into the hole.
  * onHit(collider, speedInto) for each bounce worth hearing.
  */
 export function stepBall(b, course, dt, onHit) {
-  const cols = course.cols, winds = course.winds, cup = course.cup;
+  const cols = course.cols, winds = course.winds, cup = course.cup, gr = course.ground;
   const sp = Math.hypot(b.vx, b.vz);
   // small enough steps that the ball never jumps a wall
   const n = Math.min(24, Math.max(1, Math.ceil((sp * dt) / (BALL_R * 0.45))));
   const h = dt / n;
   for (let i = 0; i < n; i++) {
     for (const w of winds) blow(b, w, h);
+    let pull = 0;
+    if (gr) {
+      const g = gr.grad(b.x, b.z);
+      b.vx -= PHYS.grav * g[0] * h; b.vz -= PHYS.grav * g[1] * h;
+      pull = PHYS.grav * Math.hypot(g[0], g[1]);
+    }
     let s = Math.hypot(b.vx, b.vz);
     if (s > 0) {
       const ns = Math.max(0, s - (PHYS.a0 + PHYS.k * s) * h);
       b.vx *= ns / s; b.vz *= ns / s;
       s = ns;
     }
+    // (stopped on a gentle slope: it stays, rather than creeping off at a snail's pace while being aimed;
+    // a steep one gets it going again at once)
+    if (gr && s < 0.05 && pull < PHYS.hold) { b.vx = 0; b.vz = 0; s = 0; }
     // the hole: a pull towards it when close and not too quick, and in it goes if slow enough
     const cx = cup.x - b.x, cz = cup.z - b.z, cd = Math.hypot(cx, cz);
     // (only a rolling ball: one at rest beside the hole stays where it stopped)
@@ -119,10 +139,12 @@ export function stepBall(b, course, dt, onHit) {
       }
     }
     for (const c of cols) {
-      if (!contact(c, b.x, b.z, BALL_R)) continue;
+      if (c.off || !contact(c, b.x, b.z, BALL_R)) continue;
       b.x += CT.nx * CT.depth;
       b.z += CT.nz * CT.depth;
-      const rvx = b.vx - (c.vx || 0), rvz = b.vz - (c.vz || 0);
+      // (against something turning, how fast the bit of it that the ball meets is going)
+      const sx = c.w ? c.w * (b.z - c.z) : 0, sz = c.w ? -c.w * (b.x - c.x) : 0;
+      const rvx = b.vx - (c.vx || 0) - sx, rvz = b.vz - (c.vz || 0) - sz;
       const vn = rvx * CT.nx + rvz * CT.nz;
       if (vn < 0) {
         const e = c.e ?? PHYS.wallE;
@@ -159,7 +181,8 @@ export function simulate(course, x, z, ang, p, { maxT = 12, every = 0.3, stopAft
     run += d; since += d; lx = b.x; lz = b.z;
     if (since >= every) { pts.push([b.x, b.z]); since = 0; }
     if (hits > stopAfterHits || run > maxLen) break;
-    if (Math.hypot(b.vx, b.vz) < PHYS.rest) break;
+    // (stopped: unless it is only turning round on a slope too steep to rest on)
+    if (Math.hypot(b.vx, b.vz) < PHYS.rest && !(course.ground && slopeAt(course, b.x, b.z) > PHYS.hold)) break;
   }
   return { pts, sunk, x: b.x, z: b.z, hits };
 }

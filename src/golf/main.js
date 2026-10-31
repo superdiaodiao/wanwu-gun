@@ -3,12 +3,15 @@
 // Every hole has its own nuisance: rubber ducks and a seesaw in the way, fans blowing, cars crossing, a
 // goose guarding the hole, a cat swiping, tyres; until the first shot each says over it what it
 // does to the ball. Stars: one for sinking it, one for par or better, one for every coin on the
-// green picked up on the way. The nine holes make a round: the best strokes for each hole and for
-// a whole round are kept, and a hole opens once the one before it is done. The menu (top left, or
+// green picked up on the way. The holes are in yards of nine (the duck pond, then the pool party at
+// sundown, with slopes and things that turn), each yard a round: the best strokes for each hole and
+// for a whole round are kept, and a hole opens once the one before it is done (a yard's first hole
+// is always open). The menu (top left, or
 // Esc) pauses: start the hole again, sound and music, or pick a hole from the grid. On CrazyGames
 // (node build.mjs golf-crazygames) their SDK hears when a hole is being played (game/portal.js).
 import * as THREE from 'three';
 import '../catalog/index.js';
+import './models/index.js';
 import { CATALOG } from '../catalog/registry.js';
 import { buildAtlas, loadFonts, atlasTexture, withoutHanzi } from '../core/atlas.js';
 import { objectMaterial, U as MU } from '../core/materials.js';
@@ -18,10 +21,10 @@ import { FX } from '../game/fx.js';
 import { audio } from '../audio/audio.js';
 import { t, translateDom, EN } from '../i18n/index.js';
 import { applyContent } from '../i18n/apply.js';
-import { BALL_R, PHYS, stepBall, simulate, shotSpeed, windAt } from './physics.js';
+import { BALL_R, CUP_R, PHYS, stepBall, simulate, shotSpeed, windAt, slopeAt } from './physics.js';
 import { buildCourse } from './course.js';
 import { buildProps } from './props.js';
-import { HOLES } from './holes.js';
+import { HOLES, YARDS, PER } from './holes.js';
 import { golfBall, Trail } from './ball.js';
 import { Confetti } from './confetti.js';
 import { portalInit, portalLoaded, portalPlaying, portalOnMute } from '../game/portal.js';
@@ -65,7 +68,7 @@ function model(id, k = 1, size) {
 }
 
 const G = {
-  hole: 0, state: 'load', strokes: 0, got: 0, best: [], round: [], reached: 0, paused: false, course: null, props: [], cols: [], sweets: [],
+  hole: 0, state: 'load', strokes: 0, got: 0, best: [], rounds: [], paused: false, course: null, props: [], cols: [], sweets: [],
   ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, hitT: 0, t: 0, sinkT: 0, live: true,
   pushed() { if (G.state === 'aim') { G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
 };
@@ -92,22 +95,16 @@ async function boot() {
   material = objectMaterial(atlasTexture());
   engine = new Engine($('game'), matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
   const sc = engine.scene;
-  sc.background = sky();
-  sc.fog = new THREE.Fog(0xd4effc, 45, 95);
-  engine.hemi.color.set(0xeaf6ff);
-  engine.hemi.groundColor.set(0x9cc48a);
-  engine.hemi.intensity = 1.35;
-  engine.sun.intensity = 2.8;
-  engine.sunDir.set(-0.35, 1, 0.5).normalize();
+  sc.fog = new THREE.Fog(0xd4effc, 45, 95); // (each yard colours it and the sky and the light: lookOf)
   fx = new FX(sc);
   confetti = new Confetti($('confetti'));
   makeBall(sc);
   makeAim(sc);
   engine.camera.fov = 40;
-  addEventListener('resize', () => { aim(); fitHud(); hudBottom(); placeLogo(); G.redraw = true; });
+  addEventListener('resize', () => { aim(); fitHud(); hudBottom(); placeLogo(); dropBanner(); G.redraw = true; });
   // (the bars grow when the numbers' font arrives: what is placed under them moves down with them)
   if (window.ResizeObserver) {
-    const ro = new ResizeObserver(() => { fitHud(); hudBottom(); placeLogo(); });
+    const ro = new ResizeObserver(() => { fitHud(); hudBottom(); placeLogo(); dropBanner(); });
     for (const id of ['hole', 'score', 'stars']) ro.observe($(id));
   }
   const cv = $('game');
@@ -161,10 +158,22 @@ async function boot() {
   // (a hidden tab goes quiet; CrazyGames sees it is hidden for itself, so gameplay isn't stopped)
   document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else audio.resume(); });
   G.best = store.get('best', []);
-  G.round = store.get('round', []);
-  // (the holes open one after another: as far as has been reached, or played before this was kept)
-  G.reached = Math.max(store.get('reached', 0), G.best.length, store.get('hole', 0));
-  load(Math.min(store.get('hole', 0), HOLES.length - 1));
+  G.rounds = store.get('rounds', null);
+  if (!G.rounds) {
+    // (kept from before there were yards: the first yard's round, and how far it had been played, as
+    // holes played with no stars yet so that they stay open)
+    G.rounds = [store.get('round', [])];
+    const was = Math.min(PER, Math.max(store.get('reached', 0), store.get('hole', 0)));
+    for (let i = 0; i < was; i++) if (G.best[i] == null) G.best[i] = 0;
+    store.set('best', G.best);
+    // (one who had played the whole of it, back at its first hole, comes back to the new yard)
+    if (!store.get('hole', 0) && HOLES.slice(0, PER).every((h, i) => G.best[i] != null)) store.set('hole', PER);
+  }
+  for (let y = 0; y < YARDS.length; y++) G.rounds[y] = G.rounds[y] || [];
+  store.set('rounds', G.rounds);
+  // (back at a yard's first hole, its round starts again, as it does going there any other way)
+  const at = Math.min(store.get('hole', 0), HOLES.length - 1);
+  load(at, at % PER === 0);
   portalLoaded(); // (before the first frame, which says the hole is being played)
   requestAnimationFrame(loop);
   await nextFrame();
@@ -179,17 +188,35 @@ function playing() {
   portalPlaying(G.state !== 'card' && G.state !== 'load' && !G.paused);
 }
 
-/** the sky behind: deep blue overhead, paling to the haze at the horizon (as seen on the screen) */
-function sky() {
+/** the sky behind, top to horizon as seen on the screen */
+function sky(stops) {
   const c = document.createElement('canvas');
   c.width = 2; c.height = 256;
   const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
-  gr.addColorStop(0, '#4fb0f2'); gr.addColorStop(0.55, '#9fd8fa'); gr.addColorStop(1, '#d4effc');
+  for (const [at, col] of stops) gr.addColorStop(at, col);
   g.fillStyle = gr;
   g.fillRect(0, 0, 2, 256);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+// each yard's light: the duck pond at midday (deep blue overhead, paling to the haze), the pool party
+// at sundown (warm, low sun, a peach sky)
+const LOOKS = {
+  pond: { sky: [[0, '#4fb0f2'], [0.55, '#9fd8fa'], [1, '#d4effc']], fog: 0xd4effc, hemi: [0xeaf6ff, 0x9cc48a, 1.35], sun: [0xfff1dc, 2.8, [-0.35, 1, 0.5]] },
+  pool: { sky: [[0, '#5a7fd6'], [0.42, '#d99ab8'], [0.75, '#ffbf8f'], [1, '#ffe0b0']], fog: 0xffd9b0, hemi: [0xffe2c8, 0xa59a74, 1.5], sun: [0xffc98f, 3.3, [-0.75, 0.9, 0.4]] },
+};
+const skies = {};
+function lookOf(name) {
+  const L = LOOKS[name], e = engine, sc = e.scene;
+  sc.background = skies[name] || (skies[name] = sky(L.sky));
+  sc.fog.color.set(L.fog);
+  e.hemi.color.set(L.hemi[0]);
+  e.hemi.groundColor.set(L.hemi[1]);
+  e.hemi.intensity = L.hemi[2];
+  e.sun.color.set(L.sun[0]);
+  e.sun.intensity = L.sun[1];
+  e.sunDir.set(...L.sun[2]).normalize();
 }
 
 async function wake() {
@@ -197,10 +224,18 @@ async function wake() {
 }
 
 // ---- the ball and the aiming guide -----------------------------------------------------------------
-let ballG, ballSpin, trail, arrow, arrowMat, dots, ring;
+let ballG, ballSpin, ghost, trail, arrow, arrowMat, dots, ring;
 function makeBall(sc) {
   ballG = new THREE.Group();
   ballSpin = golfBall(BALL_R);
+  // (drawn with the see-through things, so that on a slope it can be drawn after the aiming arrow)
+  for (const m of [ballSpin.material, ballSpin.children[0].material]) m.transparent = true;
+  // and its ghost: a pale ball drawn only where something stands in front of it (a windmill, its
+  // tunnel), so it is never lost from sight; shown only on holes with something tall on them
+  ghost = new THREE.Mesh(ballSpin.geometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false, depthFunc: THREE.GreaterDepth }));
+  ghost.renderOrder = 20;
+  ghost.visible = false;
+  ballSpin.add(ghost);
   ballG.add(ballSpin);
   sc.add(ballG);
   trail = new Trail(sc, BALL_R * 0.8);
@@ -210,9 +245,11 @@ function makeAim(sc) {
   const shape = new THREE.Shape();
   shape.moveTo(-0.05, 0); shape.lineTo(0.05, 0); shape.lineTo(0.05, 0.75); shape.lineTo(0.14, 0.75);
   shape.lineTo(0, 1); shape.lineTo(-0.14, 0.75); shape.lineTo(-0.05, 0.75); shape.closePath();
-  arrowMat = new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.9, depthWrite: false });
+  // (drawn over everything: on a slope it would dip into the green)
+  arrowMat = new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.9, depthWrite: false, depthTest: false });
   arrow = new THREE.Mesh(new THREE.ShapeGeometry(shape), arrowMat);
   arrow.rotation.x = -Math.PI / 2;
+  arrow.renderOrder = 3;
   const holder = new THREE.Group();
   holder.add(arrow);
   arrow.userData.holder = holder;
@@ -221,8 +258,7 @@ function makeAim(sc) {
   dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), 40);
   dots.count = 0;
   sc.add(dots);
-  ring = new THREE.Mesh(new THREE.RingGeometry(BALL_R * 1.6, BALL_R * 1.9, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2;
+  ring = new THREE.Mesh(new THREE.RingGeometry(BALL_R * 1.6, BALL_R * 1.9, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }));
   sc.add(ring);
   showAim(false);
 }
@@ -231,6 +267,16 @@ function showAim(on) {
   dots.visible = on;
   $('power').hidden = !on;
   if (on) $('hint').hidden = true;
+}
+
+/** the green's height at (x, z), and which way is up from it there (into `out`) */
+const ground = (x, z) => G.course.Y(x, z);
+const UP = new THREE.Vector3(0, 1, 0);
+function upAt(x, z, out) {
+  const gr = G.course.ground;
+  if (!gr) return out.copy(UP);
+  const g = gr.grad(x, z);
+  return out.set(-g[0], 1, -g[1]).normalize();
 }
 
 // ---- a coin to pick up: gold, standing on its edge and turning, over a glow on the green ----------
@@ -278,23 +324,26 @@ function coin() {
 }
 
 // ---- a hole ----------------------------------------------------------------------------------------------
-/** play hole i (`fresh`: a new round starts with it, as at the first hole). A round is over once its
- *  last hole has been played: whatever is played next starts the next one, unless it is that hole
- *  again (a retry, which doesn't touch the round) */
+/** play hole i (`fresh`: a new round of its yard starts with it, as at a yard's first hole). A round
+ *  is over once its last hole has been played: whatever is played next in that yard starts the next
+ *  one, unless it is that hole again (a retry, which doesn't touch the round) */
 function load(i, fresh = false) {
   const retry = !!G.course && i === G.hole;
   if (G.course) G.course.dispose();
   for (const k of cardTimers.splice(0)) clearTimeout(k);
   G.hole = i;
-  const hole = HOLES[i];
+  const hole = HOLES[i], y = yardOf(i);
   const ctx = { model, spec, audio, fx };
-  G.course = buildCourse(hole, i, { scene: engine.scene, model, aniso: Math.min(8, engine.renderer.capabilities.getMaxAnisotropy()) });
+  if (G.yard !== y) { G.yard = y; lookOf(YARDS[y].look); }
+  G.course = buildCourse(hole, i, { scene: engine.scene, model, num: (i % PER) + 1, look: YARDS[y].look, aniso: Math.min(8, engine.renderer.capabilities.getMaxAnisotropy()) });
   G.props = buildProps(hole, G.course, ctx);
   G.cols = [...G.course.cols, ...G.props.flatMap(p => p.cols)];
   G.course.cols = G.cols; // what the ball meets: walls and everything on the green
   G.sweets = G.course.candies.map((p, k) => {
     const g = coin();
-    g.position.set(p.x, 0, p.z);
+    g.position.set(p.x, ground(p.x, p.z), p.z);
+    // (its glow lying along a slope, lifted a little clear of a curve in it)
+    if (G.course.ground) { g.children[1].quaternion.setFromUnitVectors(UP, upAt(p.x, p.z, tmpV)); g.children[1].position.y = 0.03; }
     G.course.group.add(g);
     return { x: p.x, z: p.z, g, got: false, t: k };
   });
@@ -304,15 +353,24 @@ function load(i, fresh = false) {
   ballG.visible = true;
   ballG.scale.setScalar(1);
   trail.reset();
+  trail.lift = G.course.ground ? ground : null;
+  // (on a slope the aiming arrow is drawn over the green, which it would dip into, and the ball after it;
+  // on the flat, as it always was)
+  const sloped = !!G.course.ground;
+  arrowMat.depthTest = !sloped;
+  ballSpin.renderOrder = sloped ? 5 : 0;
+  ballSpin.children[0].renderOrder = sloped ? 4 : 0;
+  ghost.visible = G.props.some(p => p.tall);
   G.strokes = 0; G.got = 0; G.still = 0; G.aim = null; G.state = 'aim'; G.live = true;
   showAim(false);
   $('card').hidden = true;
   $('hint').hidden = i > 0 || store.get('shot', false);
-  if (fresh || (!retry && G.round[HOLES.length - 1] != null)) { G.round = []; store.set('round', G.round); }
+  if (fresh || (!retry && G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set('rounds', G.rounds); }
   if (G.paused) unpause();
   hud();
   aim();
-  banner(t(hole.name), t(hole.tip), !G.titled); // (the game's name over the first hole played)
+  // (the game's name over the first hole played; a yard's name over its first hole)
+  banner(t(hole.name), t(hole.tip), !G.titled, i % PER ? '' : t(YARDS[y].name));
   G.titled = true;
   // what each nuisance does (one of each kind: the one lowest on the screen, so furthest from the
   // bars at the top), and on the first hole what the coins are for
@@ -357,8 +415,8 @@ function placeTags() {
   if (!tags.length) return;
   const cv = engine.renderer.domElement, w = cv.clientWidth, h = cv.clientHeight, placed = [];
   // the cup and the ball stay in sight: a tag that would cover them moves off as off another tag
-  for (const [x, z, rad] of [[G.course.cup.x, G.course.cup.z, 0.3], [G.ball.x, G.ball.z, 0.2]]) {
-    tagV.set(x, 0, z).project(engine.camera);
+  for (const [x, z, rad] of [[G.course.cup.x, G.course.cup.z, 0.3], [G.ball.x, G.ball.z, 0.2], ...G.sweets.filter(s => !s.got).map(s => [s.x, s.z, 0.25])]) {
+    tagV.set(x, ground(x, z), z).project(engine.camera);
     const cx = ((tagV.x + 1) / 2) * w, cy = ((1 - tagV.y) / 2) * h;
     tagV.set(x + rad, 0, z).project(engine.camera);
     const R = Math.max(10, Math.abs(((tagV.x + 1) / 2) * w - cx));
@@ -400,10 +458,29 @@ function makeMenu() {
     const tile = e.target.closest('.tile');
     if (!tile) return;
     const i = +tile.dataset.i;
-    if (i > G.reached) { tile.classList.remove('no'); void tile.offsetWidth; tile.classList.add('no'); audio.wall(0.3); return; }
+    if (!opened(i)) { tile.classList.remove('no'); void tile.offsetWidth; tile.classList.add('no'); audio.wall(0.3); return; }
     audio.tap();
-    load(i, i === 0);
+    load(i, i % PER === 0);
   });
+  // (the yards' tabs over the grid)
+  $('yard-tabs').addEventListener('click', e => {
+    const tab = e.target.closest('button');
+    if (!tab || +tab.dataset.y === shownYard) return;
+    audio.tap();
+    shownYard = +tab.dataset.y;
+    holesPage();
+    $('yard-tabs').querySelector('.on').focus({ preventScroll: true }); // (the tabs are made anew: the focus stays on the one chosen)
+  });
+}
+let shownYard = 0;
+/** the holes page: a tab for each yard, the yard's holes, and its round so far */
+function holesPage() {
+  const y = shownYard;
+  $('yard-tabs').innerHTML = YARDS.map((yd, k) => `<button class="${k === y ? 'on' : ''}" data-y="${k}" aria-pressed="${k === y}">`
+    + `<span>${t(yd.name)}</span><small><i>★</i>${starsIn(k)}/${PER * 3}</small></button>`).join('');
+  $('hole-grid').innerHTML = holeGrid(y);
+  $('h-stars').textContent = `${starsAll()}/${HOLES.length * 3}`;
+  $('h-round').innerHTML = G.rounds[y].some(s => s != null) ? `<div class="lbl">${t('这一轮')}</div>${scorecard(y)}` : '';
 }
 /** pause and show the menu's main page or the holes */
 function menu(page) {
@@ -417,11 +494,7 @@ function menu(page) {
   }
   $('menu-main').hidden = page !== 'main';
   $('menu-holes').hidden = page !== 'holes';
-  if (page === 'holes') {
-    $('hole-grid').innerHTML = holeGrid();
-    $('h-stars').textContent = `${starsAll()}/${HOLES.length * 3}`;
-    $('h-round').innerHTML = G.round.some(s => s != null) ? `<div class="lbl">${t('这一轮')}</div>${scorecard()}` : '';
-  }
+  if (page === 'holes') { shownYard = G.yard; holesPage(); }
   // (for the keys: Enter presses the first button)
   (page === 'main' ? $('m-resume') : $('hole-grid').querySelector('.cur') || $('h-back')).focus({ preventScroll: true });
 }
@@ -432,28 +505,33 @@ function unpause() {
   document.activeElement?.blur?.();
 }
 
-/** the holes, each with its stars and its fewest strokes; those not reached yet locked */
-function holeGrid() {
+const yardOf = i => Math.floor(i / PER);
+/** a hole can be played: the first of its yard, or the one before it has been played */
+const opened = i => i % PER === 0 || G.best[i - 1] != null;
+
+/** a yard's holes, each with its stars and its fewest strokes; those not reached yet locked */
+function holeGrid(y) {
   const fewest = store.get('strokes', []);
-  return HOLES.map((h, i) => {
-    const cls = 'tile' + (i === G.hole ? ' cur' : '');
-    if (i > G.reached) return `<button class="${cls} locked" data-i="${i}" aria-label="${t('第 {n} 洞', { n: i + 1 })} · ${t('还没打到这洞')}"><b>${i + 1}</b>${LOCK}</button>`;
+  return HOLES.slice(y * PER, y * PER + PER).map((h, k) => {
+    const i = y * PER + k, cls = 'tile' + (i === G.hole ? ' cur' : '');
+    if (!opened(i)) return `<button class="${cls} locked" data-i="${i}" aria-label="${t('第 {n} 洞', { n: k + 1 })} · ${t('还没打到这洞')}"><b>${k + 1}</b>${LOCK}</button>`;
     const st = G.best[i] || 0;
-    return `<button class="${cls}" data-i="${i}"><b>${i + 1}</b><span class="nm">${t(h.name)}</span>`
+    return `<button class="${cls}" data-i="${i}"><b>${k + 1}</b><span class="nm">${t(h.name)}</span>`
       + `<span class="ss">${[0, 1, 2].map(k => `<i${k < st ? ' class="on"' : ''}>★</i>`).join('')}</span>`
       + `<span class="bs">${fewest[i] ? t('最好 {n} 杆', { n: fewest[i] }) : t('标准 {n}', { n: h.par })}</span></button>`;
   }).join('');
 }
 
-/** this round's strokes, hole by hole, under each hole's par */
-function scorecard() {
-  const par = HOLES.reduce((a, h) => a + h.par, 0), played = G.round.filter(s => s != null);
+/** a yard's round so far: its strokes, hole by hole, under each hole's par */
+function scorecard(y) {
+  const holes = HOLES.slice(y * PER, y * PER + PER), round = G.rounds[y];
+  const par = holes.reduce((a, h) => a + h.par, 0), played = round.filter(s => s != null);
   const row = (cls, head, cells, sum) => `<tr class="${cls}"><th>${head}</th>${cells.join('')}<th class="sum">${sum}</th></tr>`;
   return '<table class="sc">'
-    + row('num', t('洞'), HOLES.map((h, i) => `<td>${i + 1}</td>`), t('合计'))
-    + row('par', t('标准杆'), HOLES.map(h => `<td>${h.par}</td>`), par)
-    + row('you', t('你'), HOLES.map((h, i) => {
-      const s = G.round[i], d = s - h.par;
+    + row('num', t('洞'), holes.map((h, i) => `<td>${i + 1}</td>`), t('合计'))
+    + row('par', t('标准杆'), holes.map(h => `<td>${h.par}</td>`), par)
+    + row('you', t('你'), holes.map((h, i) => {
+      const s = round[i], d = s - h.par;
       return s == null ? '<td></td>' : `<td><span${d < 0 ? ' class="under"' : d > 0 ? ' class="over"' : ''}>${s}</span></td>`;
     }), played.length ? played.reduce((a, b) => a + b, 0) : '')
     + '</table>';
@@ -462,14 +540,15 @@ function scorecard() {
 /** a hole that has taken par + 3 offers to be let off (counting the strokes it took) */
 const canSkip = () => G.state === 'aim' && !G.paused && G.strokes >= HOLES[G.hole].par + SKIP;
 
+/** on to the next hole; after a yard's last, the next yard's first (after the last yard's, the first's) */
 function next() {
-  if (G.hole + 1 < HOLES.length) load(G.hole + 1);
-  else load(0, true);
+  if ((G.hole + 1) % PER) load(G.hole + 1);
+  else load((G.hole + 1) % HOLES.length, true);
 }
 
 function hud() {
   const hole = HOLES[G.hole];
-  $('hole-num').textContent = t('{n}/{all} 洞', { n: G.hole + 1, all: HOLES.length });
+  $('hole-num').textContent = t('{n}/{all} 洞', { n: (G.hole % PER) + 1, all: PER });
   $('hole-name').textContent = t(hole.name);
   $('strokes-num').textContent = G.strokes;
   $('par').textContent = t('标准 {n}', { n: hole.par });
@@ -486,6 +565,7 @@ function fitHud() {
   if (s.top < h.bottom && h.right + 8 > s.left) hole.classList.add('tight');
 }
 const starsAll = () => G.best.reduce((a, b) => a + (b || 0), 0);
+const starsIn = y => G.best.slice(y * PER, y * PER + PER).reduce((a, b) => a + (b || 0), 0);
 
 /** the banner with the game's name hangs just under the bars at the top */
 function placeLogo() {
@@ -495,15 +575,27 @@ function placeLogo() {
   b.style.setProperty('--below-hud', tagTop + 8 + 'px');
 }
 
-function banner(title, sub, logo) {
+function banner(title, sub, logo, kick = '') {
   const b = $('banner');
   b.hidden = true;
   b.classList.toggle('logo', !!logo);
   placeLogo();
+  $('banner-kick').textContent = kick;
   $('banner-title').textContent = title;
   $('banner-sub').textContent = sub || '';
   void b.offsetWidth;
   b.hidden = false;
+  dropBanner();
+}
+/** on a short screen the banner in the middle would run up into the bars at the top (it drifts up to
+ *  62% of its height above its centre as it fades): it comes down below them, again whenever they grow */
+function dropBanner() {
+  const b = $('banner');
+  b.style.marginTop = '0px';
+  if (b.hidden || b.classList.contains('logo')) return;
+  hudBottom();
+  const top = b.offsetTop - b.offsetHeight * 0.62;
+  if (top < tagTop + 4) b.style.marginTop = `${tagTop + 4 - top}px`;
 }
 
 /** frame the whole hole from its near end, so the ball starts near the player and is hit away from
@@ -512,9 +604,17 @@ function aim() {
   const c = engine.camera, b = G.course.bounds;
   const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
   const dir = new THREE.Vector3(0, 0, 1); // (every hole is drawn with its tee at the near end, +z)
-  const pts = [];
+  const pts = [], C = G.course;
   for (const x of [b.x0, b.x1]) for (const z of [b.z0, b.z1]) pts.push(new THREE.Vector3(x, 0, z), new THREE.Vector3(x, 0.3, z));
-  pts.push(new THREE.Vector3(G.course.cup.x, 1.3, G.course.cup.z));
+  pts.push(new THREE.Vector3(C.cup.x, 1.3 + ground(C.cup.x, C.cup.z), C.cup.z));
+  // (where the ground rises, the rails' tops along the edges too)
+  if (C.ground) for (const t of C.tiles) {
+    const p = C.at(t.c, t.r);
+    for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
+      const x = p.x + dx, z = p.z + dz, y = ground(x, z);
+      if (y > 0.02) pts.push(new THREE.Vector3(x, y + 0.3, z));
+    }
+  }
   const target = new THREE.Vector3(cx, 0, cz);
   let tilt = 0.62; // from straight down
   const fits = d => {
@@ -546,10 +646,16 @@ function aim() {
     const a = new THREE.Vector3(cx, 0, z).project(c), e = new THREE.Vector3(cx + 1, 0, z).project(c);
     return Math.abs(e.x - a.x);
   };
+  // (something tall in front of the cup, a windmill, keeps it from looking any lower than still shows
+  // the near side of the cup over its top)
+  const talls = G.props.filter(p => p.tall && p.tall.z > C.cup.z).map(p => p.tall);
+  const rim = new THREE.Vector3(C.cup.x, ground(C.cup.x, C.cup.z), C.cup.z + CUP_R);
+  const hidden = () => talls.some(t => hides(t, rim));
   let best = 0.62, most = 0;
-  for (let a = 0.62; a <= 1.25; a += 0.03) {
+  for (let a = 0.62; a <= (HOLES[G.hole].tilt || 1.25); a += 0.03) {
     tilt = a;
     fit();
+    if (talls.length && a > 0.62 && hidden()) break;
     const near = metre(b.z1);
     if (metre(b.z0) < near * 0.4) break;
     if (near > most * 1.02) { most = near; best = a; }
@@ -593,13 +699,14 @@ function aim() {
 }
 
 // ---- aiming: hold anywhere, pull back, let go -----------------------------------------------------------
-const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-function groundAt(x, y) {
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), level = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function groundAt(x, y, h = 0) {
   const r = engine.renderer.domElement.getBoundingClientRect();
+  level.constant = -h;
   ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, engine.camera);
   const p = new THREE.Vector3();
-  return ray.ray.intersectPlane(ground, p) ? p : null;
+  return ray.ray.intersectPlane(level, p) ? p : null;
 }
 function onDown(e) {
   wake();
@@ -608,16 +715,16 @@ function onDown(e) {
   G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ang: 0, p: 0 };
   try { e.target.setPointerCapture(e.pointerId); } catch {}
 }
-const ballV = new THREE.Vector3();
+const ballV = new THREE.Vector3(), tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
 function onMove(e) {
   const a = G.aim;
   if (!a || e.pointerId !== a.id) return;
   // the pull is taken as if it started at the ball, wherever the press was: pulling straight down
   // the screen shoots straight up it (from the ground under the press, the camera's perspective
   // would bend a pull near the side of the screen by up to a quarter turn)
-  const r = engine.renderer.domElement.getBoundingClientRect(), b = G.ball;
-  ballV.set(b.x, 0, b.z).project(engine.camera);
-  const p = groundAt(r.left + ((ballV.x + 1) / 2) * r.width + e.clientX - a.sx, r.top + ((1 - ballV.y) / 2) * r.height + e.clientY - a.sy);
+  const r = engine.renderer.domElement.getBoundingClientRect(), b = G.ball, by = ground(b.x, b.z);
+  ballV.set(b.x, by, b.z).project(engine.camera);
+  const p = groundAt(r.left + ((ballV.x + 1) / 2) * r.width + e.clientX - a.sx, r.top + ((1 - ballV.y) / 2) * r.height + e.clientY - a.sy, by);
   if (!p) return;
   const px = Math.hypot(e.clientX - a.sx, e.clientY - a.sy);
   a.p = Math.max(0, Math.min(1, (px - 10) / (0.3 * Math.min(innerWidth, innerHeight))));
@@ -636,8 +743,9 @@ function onUp(e) {
 function drawAim() {
   const a = G.aim, b = G.ball;
   const holder = arrow.userData.holder;
-  holder.position.set(b.x, 0.02, b.z);
-  holder.rotation.y = -a.ang; // the shape points along local +y, which the flat turn makes -z
+  holder.position.set(b.x, 0.02 + ground(b.x, b.z), b.z);
+  // (the shape points along local +y, which the flat turn makes -z; on a slope it lies along it)
+  holder.quaternion.setFromUnitVectors(UP, upAt(b.x, b.z, tmpV)).multiply(tmpQ.setFromAxisAngle(UP, -a.ang));
   const L = 0.35 + a.p * 1.2;
   arrow.scale.set(1, L, 1);
   arrowMat.color.setHSL(0.14 - a.p * 0.14, 1, 0.55);
@@ -648,7 +756,7 @@ function drawAim() {
   const n = Math.min(40, sim.pts.length - 1);
   for (let i = 0; i < n; i++) {
     const [x, z] = sim.pts[i + 1];
-    m.makeTranslation(x, 0.05, z);
+    m.makeTranslation(x, 0.05 + ground(x, z), z);
     dots.setMatrixAt(i, m);
   }
   dots.count = n;
@@ -708,19 +816,23 @@ function step(dt, draw = true) {
     const C = G.course;
     if (G.state !== 'sink' && !G.green.has(Math.round(b.x + (C.W - 1) / 2) + ',' + Math.round(b.z + (C.H - 1) / 2))) {
       Object.assign(b, { x: G.from.x, z: G.from.z, vx: 0, vz: 0 });
-      fx.pickup(b.x, 0.2, b.z, 0.05, 0.25);
+      fx.pickup(b.x, 0.2 + ground(b.x, b.z), b.z, 0.05, 0.25);
       G.still = 0;
       if (G.state === 'roll') { if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false); else G.state = 'aim'; }
     }
     const sp = Math.hypot(b.vx, b.vz);
     if (G.state === 'aim' && sp > 0.3) G.pushed();
     if (G.state === 'roll') {
-      // (in a fan's wind it isn't held still: it drifts on until it is pinned against a wall)
-      const blown = G.course.winds.length && windAt(G.course, b.x, b.z) > PHYS.a0;
+      // (in a fan's wind or on a steep slope it isn't held still: it drifts on until it is pinned
+      // against a wall, or rolls back down)
+      const steep = slopeAt(G.course, b.x, b.z) > PHYS.hold;
+      const blown = (G.course.winds.length && windAt(G.course, b.x, b.z) > PHYS.a0) || steep;
       if (sp < PHYS.rest) { G.still += dt; if (!blown) { b.vx *= 0.5; b.vz *= 0.5; } } else G.still = 0;
       G.rollT += dt;
-      // (a safety net: nothing should keep a ball going this long, but if it does, it stops)
-      if (G.still > 0.2 || G.rollT > 25) {
+      // (one only turning round on a slope too steep to rest on, slow for a moment, isn't handed back;
+      // one held there, against a rail, is after a while. A safety net: nothing should keep a ball
+      // going this long, but if it does, it stops)
+      if ((G.still > 0.2 && !steep) || G.still > 1.5 || G.rollT > 25) {
         b.vx = 0; b.vz = 0;
         if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false);
         else G.state = 'aim';
@@ -731,20 +843,20 @@ function step(dt, draw = true) {
       s.got = true;
       G.got++;
       audio.sweet(G.got);
-      fx.pickup(s.x, 0.3, s.z, 0.1, 0.4);
+      fx.pickup(s.x, 0.3 + ground(s.x, s.z), s.z, 0.1, 0.4);
       hud();
     }
     // rolling: turn the ball about the axis across its path
     const d = sp * dt;
     if (d > 0) ballSpin.rotateOnWorldAxis(new THREE.Vector3(b.vz, 0, -b.vx).normalize(), d / BALL_R);
-    ballG.position.set(b.x, BALL_R, b.z);
+    ballG.position.set(b.x, BALL_R + ground(b.x, b.z), b.z);
     trail.update(b.x, b.z, sp, dt);
   } else trail.reset();
   if (G.state === 'sink') {
     // into the cup: slide to the middle and drop
     G.sinkT += dt;
     const k = Math.min(1, G.sinkT / 0.3), cup = G.course.cup;
-    ballG.position.set(b.x + (cup.x - b.x) * k, BALL_R - k * k * 0.35, b.z + (cup.z - b.z) * k);
+    ballG.position.set(b.x + (cup.x - b.x) * k, BALL_R - k * k * 0.35 + ground(cup.x, cup.z), b.z + (cup.z - b.z) * k);
     ballG.scale.setScalar(1 - k * 0.5);
     if (G.sinkT > 0.3) ballG.visible = false;
     if (G.sinkT > 0.9) finish(true);
@@ -761,11 +873,26 @@ function step(dt, draw = true) {
   cf.rim.color.setHSL((G.t * 0.15) % 1, 0.9, 0.6);
   cf.flag.rotation.y = Math.sin(G.t * 2.3) * 0.25;
   ring.visible = G.state === 'aim';
-  ring.position.set(b.x, 0.012, b.z);
+  ring.position.set(b.x, 0.012 + ground(b.x, b.z), b.z);
+  ring.quaternion.setFromUnitVectors(UP, upAt(b.x, b.z, tmpV));
   ring.material.opacity = 0.45 + Math.sin(G.t * 4) * 0.25;
   if (G.aim && G.state === 'aim') drawAim();
   fx.update(dt);
   if (draw) render();
+}
+
+/** whether something tall t (a windmill) hides the point p from the camera: p is behind its front, and
+ *  on the screen within the box round it */
+const box2 = new THREE.Box2(), corner = new THREE.Vector3(), flat = new THREE.Vector2();
+function hides(t, p) {
+  if (p.z > t.z + t.hz) return false;
+  box2.makeEmpty();
+  for (let i = 0; i < 8; i++) {
+    corner.set(t.x + (i & 1 ? t.hx : -t.hx), i & 2 ? t.y : t.y0, t.z + (i & 4 ? t.hz : -t.hz)).project(engine.camera);
+    box2.expandByPoint(flat.set(corner.x, corner.y));
+  }
+  corner.copy(p).project(engine.camera);
+  return box2.containsPoint(flat.set(corner.x, corner.y));
 }
 
 function render() {
@@ -793,9 +920,9 @@ function sink() {
   const cup = G.course.cup;
   audio.cup();
   // confetti thrown up out of the cup: the better the score, the more
-  const d = G.strokes - HOLES[G.hole].par, [sx, sy] = onScreen(cup.x, 0.3, cup.z);
+  const cy = ground(cup.x, cup.z), d = G.strokes - HOLES[G.hole].par, [sx, sy] = onScreen(cup.x, 0.3 + cy, cup.z);
   confetti.burst(sx, sy, G.strokes === 1 ? 200 : d < 0 ? 140 : d === 0 ? 90 : 35, { spread: 1.5, speed: innerHeight * (G.strokes === 1 ? 1.7 : 1.3) });
-  for (let i = 0; i < (G.strokes === 1 ? 6 : 3); i++) cardTimers.push(setTimeout(() => fx.firework(cup.x + (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, cup.z + (Math.random() - 0.5) * 0.6, 1.1), i * 160));
+  for (let i = 0; i < (G.strokes === 1 ? 6 : 3); i++) cardTimers.push(setTimeout(() => fx.firework(cup.x + (Math.random() - 0.5) * 0.6, 0.5 + cy + Math.random() * 0.6, cup.z + (Math.random() - 0.5) * 0.6, 1.1), i * 160));
   if (G.strokes === 1) audio.fireworks();
 }
 
@@ -840,12 +967,11 @@ function finish(sunk, skipped = false) {
   $('card-tip').hidden = !tip;
   $('card').classList.toggle('again', !!tip);
   $('card-sub').textContent = pl('{n} 杆 · 标准杆 {par} · 金币 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all });
-  const lastHole = G.hole + 1 >= HOLES.length;
-  $('card-btn').textContent = lastHole ? t('从第一洞再来') : t('下一洞');
-  if (lastHole) $('card-sub').textContent += ' · ' + pl('一共 {n} 颗星', starsAll());
-  // (the next hole opens)
-  G.reached = Math.max(G.reached, G.hole + 1);
-  store.set('reached', G.reached);
+  const y = yardOf(G.hole), k = G.hole % PER, lastHole = k === PER - 1, then = YARDS[y + 1];
+  // (after a yard's last hole: on to the next yard, or from the last back to the first, by name)
+  $('card-btn').textContent = !lastHole ? t('下一洞') : t('去{yard}', { yard: t((then || YARDS[0]).name) });
+  // (the yard's tally kept on one line: no break inside it)
+  if (lastHole) $('card-sub').textContent += ' · ' + t('{yard} ★ {n}/{all}', { yard: t(YARDS[y].name), n: starsIn(y), all: PER * 3 }).replace(/ /g, '\u00a0');
   // records: this hole's fewest strokes, and on the last hole the round's
   const lines = [];
   const holeBest = store.get('strokes', []), was = holeBest[G.hole];
@@ -856,20 +982,21 @@ function finish(sunk, skipped = false) {
   }
   // the round counts each hole's first go (a hole let off counts the strokes it took): a retry wins
   // stars and the hole's best, but doesn't remake the round's total, nor say it again
-  const first = G.round[G.hole] == null;
-  if (first) G.round[G.hole] = G.strokes;
-  store.set('round', G.round);
-  // (coming back later goes on to the next hole, or after the last starts a new round)
-  store.set('hole', lastHole ? 0 : G.hole + 1);
-  const roundDone = lastHole && first && HOLES.every((h, k) => G.round[k] > 0);
-  $('card-round').innerHTML = roundDone ? scorecard() : '';
+  const round = G.rounds[y], first = round[k] == null;
+  if (first) round[k] = G.strokes;
+  store.set('rounds', G.rounds);
+  // (coming back later goes on to the next hole, or after a yard's last to the next yard)
+  store.set('hole', (G.hole + 1) % HOLES.length);
+  const roundDone = lastHole && first && HOLES.slice(y * PER, y * PER + PER).every((h, j) => round[j] > 0);
+  $('card-round').innerHTML = roundDone ? scorecard(y) : '';
   if (roundDone) {
-    const total = G.round.reduce((a, b) => a + b, 0), par = HOLES.reduce((a, h) => a + h.par, 0);
-    const bestRound = store.get('bestRound', 0);
+    const total = round.reduce((a, b) => a + b, 0), par = HOLES.slice(y * PER, y * PER + PER).reduce((a, h) => a + h.par, 0);
+    // (each yard's best round; the first yard's kept from before there were yards)
+    const bests = store.get('bestRounds', null) || [store.get('bestRound', 0)], bestRound = bests[y] || 0;
     const line = pl('这一轮 {n} 杆 · 标准杆 {par}', total, { par });
     if (bestRound && total < bestRound) lines.push(`<b>${t('新纪录！')}</b> ${line}`);
     else lines.push(line + (bestRound ? ' · ' + t('最好一轮 {n} 杆', { n: bestRound }) : ''));
-    if (!bestRound || total < bestRound) store.set('bestRound', total);
+    if (!bestRound || total < bestRound) { bests[y] = total; store.set('bestRounds', bests); }
   }
   $('card-best').innerHTML = lines.map(l => `<div>${l}</div>`).join('');
   $('card-best').hidden = !lines.length;

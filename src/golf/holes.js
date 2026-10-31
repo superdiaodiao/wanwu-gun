@@ -1,7 +1,7 @@
 // The holes. Each is drawn in characters, one per square metre, the far end at the top (the tee
 // near the bottom: the hole is seen from that end, so the ball starts near the player):
 //   .  green        r  road (green to the ball, grey to look at)
-//   T  the tee      H  the hole      o  a coin lying on the green
+//   T  the tee      H  the hole      o  a coin lying on the green (more anywhere: coins, below)
 //   (anything else is not course: a wall runs along every edge of the green)
 // then what stands on it, at (column, row) — fractions allowed, 0 is the first square's middle:
 //   { t: 'obj', id, at, rot, s }        something in the way (a catalog model; rot in degrees)
@@ -14,6 +14,25 @@
 //   { t: 'tires', corner, leg }         tyres piled into a corner of the green (corner: where its
 //                                        rails meet, e.g. [8.5, -0.5]), a bank leg metres along each
 //   { t: 'watch', id, at }              stands beside the green watching the ball (does nothing to it)
+//   { t: 'goose', id: 'dog_shiba', … }  a dog doing what the goose does
+//   { t: 'windmill', at, s, fill, speed, phase }  the ball goes through the tunnel under it (at its
+//                                        middle; it is 2.4 s metres across, 1.4 s deep, flower troughs
+//                                        filling out to `fill` metres either side), its sails sweeping
+//                                        past the door; speed: radians a second
+//   { t: 'spinner', at, len, speed, phase } a lawn sprinkler, its arm len metres end to end turning
+// and the shape of the ground, where it isn't flat: ground: [ramps, hills, ridges] (see ground.js);
+// coins: more coins, at [c, r] each, or 'tops': one on top of every mound.
+// tilt: how low the camera may look along the hole at most (radians from straight down; a windmill in
+// front of the cup already keeps the camera high enough to see the cup over it).
+// The yards: nine holes each, played one after another, each a round of its own. The first is a duck
+// pond in a park at midday, everything flat; the second the pool in a back garden at sundown, where the
+// green has slopes and things on it turn.
+export const PER = 9;
+export const YARDS = [
+  { name: '鸭子池塘', look: 'pond' },
+  { name: '泳池派对', look: 'pool' },
+];
+
 export const HOLES = [
   {
     name: '热身', tip: '按住往后拉，松手击球；金币全捡到多一颗星', par: 2,
@@ -224,5 +243,204 @@ export const HOLES = [
       { t: 'goose', at: [4.8, 3.4], aggro: 1.7, leash: 2 },
       { t: 'obj', id: 'traffic_cone', at: [8.1, 4.2] },
     ],
+  },
+
+  // ---- the pool party: slopes, and things that turn ----
+  {
+    name: '上坡', tip: '坡道会把慢球送回来，打够劲', par: 2,
+    map: [
+      '.......',
+      '...H...',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '..o....',
+      '.......',
+      '.......',
+      '.......',
+      '...T...',
+      '.......',
+    ],
+    ground: [{ t: 'ramp', from: [3, 8.4], to: [3, 5.4], h: 0.55 }, { t: 'hill', at: [3, 1], r: 1.5, h: -0.16 }],
+    props: [{ t: 'watch', id: 'dog_shiba', at: [5.3, -1.25] }],
+  },
+  {
+    name: '小土包', tip: '土包会把球拐开，绕过去或冲过去', par: 3,
+    map: [
+      '.........',
+      '....H....',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '....T....',
+      '.........',
+    ],
+    ground: [
+      { t: 'hill', at: [4, 5.6], r: 1.7, h: 0.34 },
+      { t: 'hill', at: [1.4, 3], r: 1.3, h: 0.3 },
+      { t: 'hill', at: [6.6, 7.6], r: 1.3, h: 0.3 },
+      { t: 'hill', at: [4, 1], r: 1.4, h: -0.14 },
+    ],
+    props: [{ t: 'obj', id: 'garden_gnome', at: [8.2, 0.3], rot: -30, s: 1.2 }],
+    coins: 'tops',
+  },
+  {
+    name: '风车', tip: '等叶片转开再打进风车门', par: 3,
+    // (the cup off to one side behind it, in a bowl that brings the ball round to it: the windmill never
+    // stands in front of it, so the camera can look along the hole as low as on any other)
+    map: [
+      '  .....',
+      '  ...H.',
+      '  .....',
+      '  ...  ',
+      '  ...  ',
+      '.......',
+      '.......',
+      '..o....',
+      '.......',
+      '...T...',
+      '.......',
+    ],
+    ground: [{ t: 'hill', at: [5, 1], r: 2.7, h: -0.3 }],
+    props: [{ t: 'windmill', at: [3, 3.7], fill: 1.5, speed: 0.6 }],
+  },
+  {
+    name: '斜坡', tip: '球会往低处拐，往高处瞄', par: 3,
+    map: [
+      '........',
+      '.H......',
+      '........',
+      '........',
+      '...o....',
+      '........',
+      '........',
+      '........',
+      '........',
+      '........',
+      '.....o..',
+      '........',
+      '......T.',
+      '........',
+    ],
+    ground: [{ t: 'ramp', from: [7.5, 6], to: [-0.5, 6], h: 0.55 }, { t: 'hill', at: [1, 1], r: 1.2, h: -0.1 }],
+    props: [{ t: 'obj', id: 'lawn_flamingo', at: [5.2, 4.6], rot: 20, s: 1 }],
+  },
+  {
+    name: '洒水器', tip: '转臂会把球扫开，看准空当', par: 3,
+    map: [
+      '.........',
+      '....H....',
+      '.........',
+      '.........',
+      '..o......',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '....T....',
+      '.........',
+    ],
+    props: [{ t: 'spinner', at: [3.2, 5.6], len: 3.6, speed: 1.1 }],
+  },
+  {
+    name: '割草机', tip: '割草机会撞开球，等它开过去', par: 3,
+    map: [
+      '.......',
+      '...H...',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.....o.',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '...T...',
+      '.......',
+    ],
+    props: [
+      { t: 'bike', id: 'mower', from: [0.6, 3.6], to: [5.4, 3.6], speed: 1.1, phase: 0 },
+      { t: 'bike', id: 'mower', from: [5.4, 7.6], to: [0.6, 7.6], speed: 0.9, phase: 0.5 },
+    ],
+  },
+  {
+    name: '大碗', tip: '球会顺着碗边滚进洞', par: 2,
+    map: [
+      '...........',
+      '...........',
+      '...........',
+      '.....H.....',
+      '...........',
+      '...........',
+      '...........',
+      '...........',
+      '...........',
+      '...........',
+      '...........',
+      '.....T.....',
+      '...........',
+    ],
+    ground: [{ t: 'hill', at: [5, 3], r: 3.4, h: -0.65 }, { t: 'hill', at: [5, 7.6], r: 1.1, h: 0.22 }],
+    props: [{ t: 'obj', id: 'beach_ball', at: [1, 9.5], s: 1.2 }, { t: 'obj', id: 'beach_ball', at: [9.2, 8.8], s: 1.2 }],
+    coins: [[2.6, 3], [7.4, 3]],
+  },
+  {
+    name: '过山车', tip: '一上一下，快了冲过头，慢了滚回来', par: 2,
+    map: [
+      '.......',
+      '...H...',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '...T...',
+      '.......',
+    ],
+    ground: [
+      { t: 'ridge', from: [-0.5, 8.6], to: [6.5, 8.6], w: 2, h: 0.32 },
+      { t: 'ramp', from: [3, 5.2], to: [3, 3], h: 0.45 },
+      { t: 'hill', at: [3, 1], r: 1.4, h: -0.14 },
+    ],
+    props: [{ t: 'goose', id: 'dog_shiba', at: [1.4, 6.6], aggro: 2.2, leash: 2.2 }],
+    coins: [[5, 6.4]],
+  },
+  {
+    name: '大风车', tip: '先躲转臂，再穿风车', par: 4,
+    map: [
+      '.....  ',
+      '.H...  ',
+      '.....  ',
+      '  ...  ',
+      '  ...  ',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '...T...',
+      '.......',
+    ],
+    ground: [{ t: 'hill', at: [1, 1], r: 2.7, h: -0.3 }],
+    props: [
+      { t: 'windmill', at: [3, 3.7], fill: 1.5, speed: 0.75 },
+      { t: 'spinner', at: [1.3, 7.4], len: 2.6, speed: 1.0 }, // (off the line to the door: it guards a coin)
+    ],
+    coins: [[1.3, 6.1], [5, 8.6]],
   },
 ];
