@@ -11,6 +11,8 @@
 //   { t: 'goose', at, aggro, leash }    guards the ground around it: chases the ball, pecks it away
 //   { t: 'cat', at, face, period }      sits facing `face` (deg, 0 = up the hole) and swipes
 //   { t: 'tires', at, rot, s }          a wall of tyres: the ball bounces off it hard
+//   { t: 'tires', corner, leg }         tyres piled into a corner of the green (corner: where its
+//                                        rails meet, e.g. [8.5, -0.5]), a bank leg metres along each
 //   { t: 'watch', id, at }              stands beside the green watching the ball (does nothing to it)
 export const HOLES = [
   {
@@ -147,8 +149,8 @@ export const HOLES = [
       '.........',
     ],
     props: [
-      { t: 'tires', at: [7.75, 10.75], rot: 45, s: 1.7 },
-      { t: 'tires', at: [7.75, 0.25], rot: -45, s: 1.7 },
+      { t: 'tires', corner: [8.5, 11.5], leg: 2 }, // (the bank where the 45° block's front was)
+      { t: 'tires', corner: [8.5, -0.5], leg: 2 },
       { t: 'cat', id: 'cat_orange', at: [5.85, 5.2], face: 90, period: 2.4 },
       { t: 'obj', id: 'potted_plant', at: [3.6, -0.1] },
       { t: 'obj', id: 'potted_plant', at: [3.6, 2.1] },

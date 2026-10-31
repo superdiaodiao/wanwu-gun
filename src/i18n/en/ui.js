@@ -354,5 +354,18 @@ export const UI = {
   '从第一洞再来': 'Back to hole 1',
   '关掉声音': 'Sound off',
   '这个游戏只在 CrazyGames 上玩': 'Backyard Mini Golf is only on CrazyGames',
+  '{n}/{all} 洞': 'Hole {n}/{all}',
+  '暂停一下': 'Pause',
+  '接着打': 'Resume',
+  '从头打这洞': 'Restart hole',
+  '选洞': 'Holes',
+  '跳过这洞': 'Skip hole',
+  '还没打到这洞': 'Locked',
+  '这一轮': 'This round',
+  '洞': 'Hole',
+  '标准杆': 'Par',
+  '你': 'You',
+  '合计': 'Total',
+  '跳过的洞记 {n} 杆': 'A skipped hole counts as {n} strokes',
 };
 

@@ -239,6 +239,7 @@ const MAKERS = {
   },
 
   tires(d, course, ctx) {
+    if (d.corner) return cornerTires(d, course, ctx);
     const p = course.at(...d.at), rot = (d.rot || 0) * D, k = d.s || 1;
     // a block of tyres two high, red and white in turn, filling the box the ball bounces off (the
     // size of the folded quilts that stood here first, so the holes play the same)
@@ -282,6 +283,71 @@ const MAKERS = {
     return me;
   },
 };
+
+/** tyres piled into a corner of the green, their front a bank across it at 45° from rail to rail
+ *  (`leg` metres along each rail from the corner): the ball bounces round the corner off it and
+ *  can't get in behind, where a block of tyres standing across the corner left a pocket at each end */
+function cornerTires(d, course, ctx) {
+  const p = course.at(...d.corner), leg = d.leg || 2;
+  // the rails run from the corner towards the middle of the course
+  const b = course.bounds, sx = Math.sign((b.x0 + b.x1) / 2 - p.x), sz = Math.sign((b.z0 + b.z1) / 2 - p.z);
+  const h = leg / Math.SQRT2; // the corner's distance from the bank
+  const mx = (sx * Math.SQRT1_2), mz = (sz * Math.SQRT1_2); // out of the corner, square to the bank
+  const tx = -mz, tz = mx; // along the bank
+  const R = 0.2, t = R * 0.36;
+  // rows along the bank, the front one flush with it, each further one fitted into the hexagonal
+  // gaps of the one before and as long as the narrowing corner leaves room for (the end ones lean
+  // on the rails a little)
+  const spots = [];
+  let n0 = 0;
+  for (let row = 0, dep = R; dep < h - R * 0.5; row++, dep += R * 1.75) {
+    const a = h - dep, n = Math.max(1, Math.floor((a - R * 0.7) / R) + 1);
+    if (!row) n0 = n;
+    // (each row has one tyre fewer or more than the one before, so it sits half a tyre over)
+    const m = Math.max(1, n % 2 === (n0 + row) % 2 ? n : n - 1);
+    for (let i = 0; i < m; i++) {
+      const lat = (i - (m - 1) / 2) * 2 * R;
+      spots.push({ x: p.x + mx * a + tx * lat, z: p.z + mz * a + tz * lat, c: (row + i) % 2 });
+    }
+  }
+  const geo = new THREE.TorusGeometry(R - t, t, 8, 20).rotateX(Math.PI / 2);
+  const paint = [0xe8453c, 0xf6f2ea].map(c => new THREE.MeshLambertMaterial({ color: c }));
+  // (the pile squashes about the middle of its front when hit)
+  const fx0 = p.x + mx * h, fz0 = p.z + mz * h;
+  const g = new THREE.Group();
+  g.position.set(fx0, 0, fz0);
+  const m4 = new THREE.Matrix4();
+  for (const c of [0, 1]) {
+    const mine = spots.filter(s => s.c === c);
+    const im = new THREE.InstancedMesh(geo, paint[c], mine.length * 2);
+    mine.forEach((s, i) => {
+      for (let lv = 0; lv < 2; lv++) im.setMatrixAt(i * 2 + lv, m4.makeTranslation(s.x - fx0, t + lv * 2 * t * 0.95, s.z - fz0));
+    });
+    im.castShadow = true;
+    im.receiveShadow = true;
+    g.add(im);
+  }
+  course.group.add(g);
+  // the bank: from rail to rail, on into them a little so there is no gap at either end
+  const e = h + 0.3;
+  const col = { kind: 'seg', ax: fx0 + tx * e, az: fz0 + tz * e, bx: fx0 - tx * e, bz: fz0 - tz * e, e: 1.15 };
+  let sq = 0;
+  const me = {
+    cols: [col], tag: { text: '超级弹', at: () => [p.x + mx * h * 0.6, 4 * t + 0.25, p.z + mz * h * 0.6] },
+    hit(speed) {
+      if (speed < 0.3) return;
+      sq = Math.min(1, 0.4 + speed / 6);
+      ctx.audio.bump(Math.min(1, 0.35 + speed / 8));
+    },
+    update(dt) {
+      sq = Math.max(0, sq - dt * 3);
+      const s = Math.sin(sq * Math.PI) * 0.2;
+      g.scale.set(1 + s * 0.25, 1 - s, 1 + s * 0.25);
+    },
+  };
+  col.owner = me;
+  return me;
+}
 
 function angDiff(a, b) {
   let d = (b - a) % (Math.PI * 2);

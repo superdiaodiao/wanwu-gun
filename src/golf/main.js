@@ -4,8 +4,9 @@
 // goose guarding the hole, a cat swiping, tyres; until the first shot each says over it what it
 // does to the ball. Stars: one for sinking it, one for par or better, one for every coin on the
 // green picked up on the way. The nine holes make a round: the best strokes for each hole and for
-// a whole round are kept. On CrazyGames (node build.mjs golf-crazygames) their SDK hears when a
-// hole is being played (game/portal.js).
+// a whole round are kept, and a hole opens once the one before it is done. The menu (top left, or
+// Esc) pauses: start the hole again, sound and music, or pick a hole from the grid. On CrazyGames
+// (node build.mjs golf-crazygames) their SDK hears when a hole is being played (game/portal.js).
 import * as THREE from 'three';
 import '../catalog/index.js';
 import { CATALOG } from '../catalog/registry.js';
@@ -35,6 +36,7 @@ const $ = id => document.getElementById(id);
 const PLATFORM = typeof __PLATFORM__ !== 'undefined' ? __PLATFORM__ : 'site';
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 const GIVE_UP = 5; // strokes over par before the hole lets you off
+const SKIP = 3; // strokes over par before it offers to let you off
 const store = {
   get(k, d) { try { const v = localStorage.getItem('golf.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('golf.' + k, JSON.stringify(v)); } catch {} },
@@ -63,7 +65,7 @@ function model(id, k = 1, size) {
 }
 
 const G = {
-  hole: 0, state: 'load', strokes: 0, got: 0, best: [], round: [], course: null, props: [], cols: [], sweets: [],
+  hole: 0, state: 'load', strokes: 0, got: 0, best: [], round: [], reached: 0, paused: false, course: null, props: [], cols: [], sweets: [],
   ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, hitT: 0, t: 0, sinkT: 0, live: true,
   pushed() { if (G.state === 'aim') { G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
 };
@@ -102,10 +104,10 @@ async function boot() {
   makeBall(sc);
   makeAim(sc);
   engine.camera.fov = 40;
-  addEventListener('resize', () => { aim(); hudBottom(); placeLogo(); });
+  addEventListener('resize', () => { aim(); fitHud(); hudBottom(); placeLogo(); G.redraw = true; });
   // (the bars grow when the numbers' font arrives: what is placed under them moves down with them)
   if (window.ResizeObserver) {
-    const ro = new ResizeObserver(() => { hudBottom(); placeLogo(); });
+    const ro = new ResizeObserver(() => { fitHud(); hudBottom(); placeLogo(); });
     for (const id of ['hole', 'score', 'stars']) ro.observe($(id));
   }
   const cv = $('game');
@@ -115,27 +117,53 @@ async function boot() {
   addEventListener('pointerup', onUp);
   addEventListener('pointercancel', () => { G.aim = null; showAim(false); });
   // (once each: a second tap, or Enter on a focused button as well as the key below, does nothing)
-  $('card-btn').addEventListener('click', () => { if (G.state !== 'card') return; audio.tap(); next(); });
-  $('card-retry').addEventListener('click', () => { if (G.state !== 'card') return; audio.tap(); load(G.hole); });
+  $('card-btn').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); next(); });
+  $('card-retry').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); load(G.hole); });
+  $('card-holes').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); menu('holes'); });
+  $('skip').addEventListener('click', () => { if (!canSkip()) return; audio.tap(); finish(false, true); });
+  makeMenu();
   // (Enter and Space press a button that has the focus themselves; Cmd/Ctrl+R is the browser's)
   addEventListener('keydown', e => {
-    if (G.state !== 'card' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-    const onButton = document.activeElement?.tagName === 'BUTTON';
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || G.state === 'load') return;
+    // Esc (or P) opens the menu and backs out of it
+    if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+      if (!G.paused) menu('main');
+      else if (!$('menu-holes').hidden && menuFrom === 'main') menu('main');
+      else unpause();
+      return;
+    }
+    if (G.paused || G.state !== 'card') return;
+    // (a button keeps Enter for itself if it is on the card or was reached with Tab; one only clicked,
+    // like the speaker, doesn't)
+    const el = document.activeElement, onButton = el?.tagName === 'BUTTON' && ($('card').contains(el) || tabbed(el));
     if ((e.key === 'Enter' || e.key === ' ') && !onButton) { e.preventDefault(); $('card-btn').click(); }
     else if (e.key === 'r' || e.key === 'R') $('card-retry').click();
   });
   const mute = $('mute');
-  const showMute = () => { mute.classList.toggle('off', audio.muted); mute.setAttribute('aria-label', t(audio.muted ? '打开声音' : '关掉声音')); };
-  // muted by the button (kept) or by CrazyGames' own setting, which wins
+  const showMute = () => {
+    mute.classList.toggle('off', audio.muted);
+    mute.setAttribute('aria-label', t(audio.muted ? '打开声音' : '关掉声音'));
+    $('m-sound').classList.toggle('off', audio.muted);
+    $('m-music').classList.toggle('off', !audio.musicOn);
+  };
+  // muted by the button (kept) or by CrazyGames' own setting, which wins; the music can be turned
+  // off on its own in the menu
   let portalMute = false;
   const applyMute = () => { audio.setMuted(portalMute || store.get('muted', false)); showMute(); };
-  mute.addEventListener('click', () => { store.set('muted', !audio.muted); applyMute(); wake(); });
+  // (stores the opposite of what is heard: under CrazyGames' mute a tap never leaves it muted later)
+  const toggleSound = () => { store.set('muted', !audio.muted); applyMute(); wake(); };
+  mute.addEventListener('click', toggleSound);
+  $('m-sound').addEventListener('click', () => { toggleSound(); audio.tap(); });
+  $('m-music').addEventListener('click', () => { store.set('music', audio.toggleMusic()); showMute(); audio.tap(); wake(); });
+  if (!store.get('music', true) && audio.musicOn) audio.toggleMusic();
   portalOnMute(m => { portalMute = m; applyMute(); });
   showMute();
   // (a hidden tab goes quiet; CrazyGames sees it is hidden for itself, so gameplay isn't stopped)
   document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else audio.resume(); });
   G.best = store.get('best', []);
   G.round = store.get('round', []);
+  // (the holes open one after another: as far as has been reached, or played before this was kept)
+  G.reached = Math.max(store.get('reached', 0), G.best.length, store.get('hole', 0));
   load(Math.min(store.get('hole', 0), HOLES.length - 1));
   portalLoaded(); // (before the first frame, which says the hole is being played)
   requestAnimationFrame(loop);
@@ -144,9 +172,11 @@ async function boot() {
   window.__ready = true;
 }
 
+const tabbed = el => { try { return el.matches(':focus-visible'); } catch { return false; } };
+
 /** tell the portal whether a hole is being played (not while the card between holes is up) */
 function playing() {
-  portalPlaying(G.state !== 'card' && G.state !== 'load');
+  portalPlaying(G.state !== 'card' && G.state !== 'load' && !G.paused);
 }
 
 /** the sky behind: deep blue overhead, paling to the haze at the horizon (as seen on the screen) */
@@ -248,7 +278,11 @@ function coin() {
 }
 
 // ---- a hole ----------------------------------------------------------------------------------------------
-function load(i) {
+/** play hole i (`fresh`: a new round starts with it, as at the first hole). A round is over once its
+ *  last hole has been played: whatever is played next starts the next one, unless it is that hole
+ *  again (a retry, which doesn't touch the round) */
+function load(i, fresh = false) {
+  const retry = !!G.course && i === G.hole;
   if (G.course) G.course.dispose();
   for (const k of cardTimers.splice(0)) clearTimeout(k);
   G.hole = i;
@@ -274,8 +308,8 @@ function load(i) {
   showAim(false);
   $('card').hidden = true;
   $('hint').hidden = i > 0 || store.get('shot', false);
-  // a round starts at the first hole
-  if (i === 0) { G.round = []; store.set('round', G.round); }
+  if (fresh || (!retry && G.round[HOLES.length - 1] != null)) { G.round = []; store.set('round', G.round); }
+  if (G.paused) unpause();
   hud();
   aim();
   banner(t(hole.name), t(hole.tip), !G.titled); // (the game's name over the first hole played)
@@ -351,20 +385,107 @@ function placeTags() {
   }
 }
 
+// ---- the menu: paused, or picking a hole ---------------------------------------------------------------
+let menuFrom = 'main'; // (the page it was opened at: Back from the holes goes there, or closes it)
+const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>';
+function makeMenu() {
+  $('menu-btn').addEventListener('click', () => { if (G.state === 'load' || G.paused) return; wake(); audio.tap(); menu('main'); });
+  $('m-resume').addEventListener('click', () => { audio.tap(); unpause(); });
+  $('m-restart').addEventListener('click', () => { audio.tap(); load(G.hole); });
+  $('m-holes').addEventListener('click', () => { audio.tap(); menu('holes'); });
+  const back = () => { if (!$('menu-holes').hidden && menuFrom === 'main') menu('main'); else unpause(); };
+  $('h-back').addEventListener('click', () => { audio.tap(); back(); });
+  $('menu').addEventListener('click', e => { if (e.target === $('menu')) back(); }); // (around the panel)
+  $('hole-grid').addEventListener('click', e => {
+    const tile = e.target.closest('.tile');
+    if (!tile) return;
+    const i = +tile.dataset.i;
+    if (i > G.reached) { tile.classList.remove('no'); void tile.offsetWidth; tile.classList.add('no'); audio.wall(0.3); return; }
+    audio.tap();
+    load(i, i === 0);
+  });
+}
+/** pause and show the menu's main page or the holes */
+function menu(page) {
+  if (!G.paused) {
+    G.paused = true;
+    menuFrom = page;
+    G.aim = null;
+    showAim(false);
+    $('menu').hidden = false;
+    $('hud').inert = $('card').inert = true; // (Tab stays in the menu)
+  }
+  $('menu-main').hidden = page !== 'main';
+  $('menu-holes').hidden = page !== 'holes';
+  if (page === 'holes') {
+    $('hole-grid').innerHTML = holeGrid();
+    $('h-stars').textContent = `${starsAll()}/${HOLES.length * 3}`;
+    $('h-round').innerHTML = G.round.some(s => s != null) ? `<div class="lbl">${t('这一轮')}</div>${scorecard()}` : '';
+  }
+  // (for the keys: Enter presses the first button)
+  (page === 'main' ? $('m-resume') : $('hole-grid').querySelector('.cur') || $('h-back')).focus({ preventScroll: true });
+}
+function unpause() {
+  G.paused = false;
+  $('menu').hidden = true;
+  $('hud').inert = $('card').inert = false;
+  document.activeElement?.blur?.();
+}
+
+/** the holes, each with its stars and its fewest strokes; those not reached yet locked */
+function holeGrid() {
+  const fewest = store.get('strokes', []);
+  return HOLES.map((h, i) => {
+    const cls = 'tile' + (i === G.hole ? ' cur' : '');
+    if (i > G.reached) return `<button class="${cls} locked" data-i="${i}" aria-label="${t('第 {n} 洞', { n: i + 1 })} · ${t('还没打到这洞')}"><b>${i + 1}</b>${LOCK}</button>`;
+    const st = G.best[i] || 0;
+    return `<button class="${cls}" data-i="${i}"><b>${i + 1}</b><span class="nm">${t(h.name)}</span>`
+      + `<span class="ss">${[0, 1, 2].map(k => `<i${k < st ? ' class="on"' : ''}>★</i>`).join('')}</span>`
+      + `<span class="bs">${fewest[i] ? t('最好 {n} 杆', { n: fewest[i] }) : t('标准 {n}', { n: h.par })}</span></button>`;
+  }).join('');
+}
+
+/** this round's strokes, hole by hole, under each hole's par */
+function scorecard() {
+  const par = HOLES.reduce((a, h) => a + h.par, 0), played = G.round.filter(s => s != null);
+  const row = (cls, head, cells, sum) => `<tr class="${cls}"><th>${head}</th>${cells.join('')}<th class="sum">${sum}</th></tr>`;
+  return '<table class="sc">'
+    + row('num', t('洞'), HOLES.map((h, i) => `<td>${i + 1}</td>`), t('合计'))
+    + row('par', t('标准杆'), HOLES.map(h => `<td>${h.par}</td>`), par)
+    + row('you', t('你'), HOLES.map((h, i) => {
+      const s = G.round[i], d = s - h.par;
+      return s == null ? '<td></td>' : `<td><span${d < 0 ? ' class="under"' : d > 0 ? ' class="over"' : ''}>${s}</span></td>`;
+    }), played.length ? played.reduce((a, b) => a + b, 0) : '')
+    + '</table>';
+}
+
+/** a hole that has taken par + 3 offers to be let off (counting the strokes it took) */
+const canSkip = () => G.state === 'aim' && !G.paused && G.strokes >= HOLES[G.hole].par + SKIP;
+
 function next() {
   if (G.hole + 1 < HOLES.length) load(G.hole + 1);
-  else load(0);
+  else load(0, true);
 }
 
 function hud() {
   const hole = HOLES[G.hole];
-  $('hole-num').textContent = t('第 {n} 洞', { n: G.hole + 1 });
+  $('hole-num').textContent = t('{n}/{all} 洞', { n: G.hole + 1, all: HOLES.length });
   $('hole-name').textContent = t(hole.name);
   $('strokes-num').textContent = G.strokes;
   $('par').textContent = t('标准 {n}', { n: hole.par });
   $('sweets-num').textContent = `${G.got}/${G.sweets.length}`;
-  $('stars-num').textContent = G.best.reduce((a, b) => a + (b || 0), 0);
+  $('stars-num').textContent = `${starsAll()}/${HOLES.length * 3}`;
+  fitHud();
 }
+/** where the hole's name would run into the strokes in the middle (a middling width), it is left
+ *  out: the number stays (measured with the name in, so the bars end up the same size each time) */
+function fitHud() {
+  const hole = $('hole'), score = $('score');
+  hole.classList.remove('tight');
+  const h = hole.getBoundingClientRect(), s = score.getBoundingClientRect();
+  if (s.top < h.bottom && h.right + 8 > s.left) hole.classList.add('tight');
+}
+const starsAll = () => G.best.reduce((a, b) => a + (b || 0), 0);
 
 /** the banner with the game's name hangs just under the bars at the top */
 function placeLogo() {
@@ -557,9 +678,13 @@ function loop() {
   const now = performance.now();
   const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
-  step(dt);
+  // (held still under the menu: drawn again only if the window changes)
+  if (!G.paused) step(dt);
+  else if (G.redraw) { G.redraw = false; render(); }
   confetti.update(dt);
   playing();
+  const skip = canSkip() && $('power').hidden; // (not over the power bar while pulling back)
+  if (skip === $('skip').hidden) $('skip').hidden = !skip;
 }
 
 function onHit(c, s) {
@@ -640,7 +765,10 @@ function step(dt, draw = true) {
   ring.material.opacity = 0.45 + Math.sin(G.t * 4) * 0.25;
   if (G.aim && G.state === 'aim') drawAim();
   fx.update(dt);
-  if (!draw) return;
+  if (draw) render();
+}
+
+function render() {
   MU.time.value = G.t;
   const r = engine.renderer, cam = engine.camera;
   fx.setViewport(r.domElement.clientHeight, cam.fov);
@@ -667,21 +795,23 @@ function sink() {
   // confetti thrown up out of the cup: the better the score, the more
   const d = G.strokes - HOLES[G.hole].par, [sx, sy] = onScreen(cup.x, 0.3, cup.z);
   confetti.burst(sx, sy, G.strokes === 1 ? 200 : d < 0 ? 140 : d === 0 ? 90 : 35, { spread: 1.5, speed: innerHeight * (G.strokes === 1 ? 1.7 : 1.3) });
-  for (let i = 0; i < (G.strokes === 1 ? 6 : 3); i++) setTimeout(() => fx.firework(cup.x + (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, cup.z + (Math.random() - 0.5) * 0.6, 1.1), i * 160);
+  for (let i = 0; i < (G.strokes === 1 ? 6 : 3); i++) cardTimers.push(setTimeout(() => fx.firework(cup.x + (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, cup.z + (Math.random() - 0.5) * 0.6, 1.1), i * 160));
   if (G.strokes === 1) audio.fireworks();
 }
 
-// the card's sounds still to come (cleared if the next hole is started first)
+// the card's sounds and the cup's fireworks still to come (cleared if another hole is started first)
 const cardTimers = [];
 
 /** the card between holes: the result in a big word (HOLE IN ONE!, BIRDIE!, PAR, BOGEY…), the
  *  three stars popping in one by one — one for sinking it, one for par or better, one for every coin
  *  or for beating par (so a hole in one always has all three) — what would earn the next, the
  *  records, and Retry / Next */
-function finish(sunk) {
+function finish(sunk, skipped = false) {
   if (G.state === 'card') return;
   G.state = 'card';
   G.live = false;
+  // (a hole skipped counts the most it can, as one the game lets off: skipping never beats sinking it)
+  if (skipped) G.strokes = Math.max(G.strokes, HOLES[G.hole].par + GIVE_UP);
   const hole = HOLES[G.hole], all = G.sweets.length, s = G.strokes, d = s - hole.par;
   const on = [sunk, sunk && d <= 0, sunk && (d < 0 || G.got >= all)];
   const stars = on.filter(Boolean).length;
@@ -705,15 +835,17 @@ function finish(sunk) {
     confetti.burst(innerWidth, innerHeight, 90, { angle: -Math.PI + 1.2, spread: 0.45, speed: innerHeight * 3.4 });
   }, at(2) * 1000 + 380));
   // what the next star would take, if there is one to have: then Retry is the button to press
-  const tip = !sunk ? '' : !on[1] ? t('下一颗星：{par} 杆内进洞', { par: hole.par }) : !on[2] ? t('再拿一颗星：捡齐金币，或 {n} 杆内进洞', { n: hole.par - 1 }) : '';
+  const tip = skipped ? t('跳过的洞记 {n} 杆', { n: s }) : !sunk ? '' : !on[1] ? t('下一颗星：{par} 杆内进洞', { par: hole.par }) : !on[2] ? t('再拿一颗星：捡齐金币，或 {n} 杆内进洞', { n: hole.par - 1 }) : '';
   $('card-tip').textContent = tip;
   $('card-tip').hidden = !tip;
   $('card').classList.toggle('again', !!tip);
   $('card-sub').textContent = pl('{n} 杆 · 标准杆 {par} · 金币 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all });
   const lastHole = G.hole + 1 >= HOLES.length;
   $('card-btn').textContent = lastHole ? t('从第一洞再来') : t('下一洞');
-  const starsAll = G.best.reduce((a, b) => a + (b || 0), 0);
-  if (lastHole) $('card-sub').textContent += ' · ' + pl('一共 {n} 颗星', starsAll);
+  if (lastHole) $('card-sub').textContent += ' · ' + pl('一共 {n} 颗星', starsAll());
+  // (the next hole opens)
+  G.reached = Math.max(G.reached, G.hole + 1);
+  store.set('reached', G.reached);
   // records: this hole's fewest strokes, and on the last hole the round's
   const lines = [];
   const holeBest = store.get('strokes', []), was = holeBest[G.hole];
@@ -729,7 +861,9 @@ function finish(sunk) {
   store.set('round', G.round);
   // (coming back later goes on to the next hole, or after the last starts a new round)
   store.set('hole', lastHole ? 0 : G.hole + 1);
-  if (lastHole && first && HOLES.every((h, k) => G.round[k] > 0)) {
+  const roundDone = lastHole && first && HOLES.every((h, k) => G.round[k] > 0);
+  $('card-round').innerHTML = roundDone ? scorecard() : '';
+  if (roundDone) {
     const total = G.round.reduce((a, b) => a + b, 0), par = HOLES.reduce((a, h) => a + h.par, 0);
     const bestRound = store.get('bestRound', 0);
     const line = pl('这一轮 {n} 杆 · 标准杆 {par}', total, { par });
