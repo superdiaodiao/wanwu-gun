@@ -113,10 +113,18 @@ function asciiHtml(html) {
   return out;
 }
 
+// the golf page's own name and description in English, for CrazyGames (the page says them before
+// the game has started, and the game is English there for nearly everyone)
+const GOLF_EN = { title: 'Backyard Mini Golf', description: 'Mini golf round a park pond: putt past fans, traffic, a goose and a pair of cats, pick up the coins and sink it in as few strokes as you can.' };
 function assembleCrazyGames(name) {
   fs.rmSync(`dist/${name}`, { recursive: true, force: true });
   fs.mkdirSync(`dist/${name}`);
-  fs.writeFileSync(`dist/${name}/index.html`, asciiHtml(fs.readFileSync(`dist/${name}.html`, 'utf8')));
+  let html = fs.readFileSync(`dist/${name}.html`, 'utf8');
+  if (name === 'crazygames-golf') {
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${GOLF_EN.title}</title>`)
+      .replace(/(<meta name="description" content=")[^"]*/, `$1${GOLF_EN.description}`);
+  }
+  fs.writeFileSync(`dist/${name}/index.html`, asciiHtml(html));
   fs.rmSync(`dist/${name}.html`);
   fs.rmSync(`dist/${name}.zip`, { force: true });
   execFileSync('zip', ['-q', '-9', `../${name}.zip`, 'index.html'], { cwd: `dist/${name}` });

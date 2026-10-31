@@ -32,7 +32,19 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #stars b { font: 800 22px var(--num); }
 #banner { left: 50%; top: 22%; width: max-content; max-width: calc(100vw - 32px); transform: translate(-50%, -50%); text-align: center; color: #fff; text-shadow: 0 3px 0 rgba(47, 58, 51, 0.3); white-space: nowrap; animation: pop 2.6s ease-out forwards; }
 #banner-title { font: 800 46px var(--body); }
-#banner-sub { font: 700 18px var(--body); margin-top: 4px; white-space: normal; }
+/* with the game's name over it (the first hole played): hung from just under the bars at the top,
+   everything in it sized to the screen's height as well as its width, so it never reaches them */
+#banner.logo { top: var(--below-hud, 80px); transform: translate(-50%, 0); transform-origin: 50% 0; animation: pop-top 3.4s ease-out forwards; }
+#logo { display: none; margin-bottom: 8px; line-height: 0.92; }
+#banner.logo #logo { display: block; }
+#banner.logo #banner-title { font-size: clamp(20px, 5vh, 30px); }
+#banner.logo #banner-sub { font-size: clamp(13px, 3vh, 18px); }
+/* the name: chunky white letters in a thick green edge, a golf ball for the o */
+#logo .l1 { font: 800 clamp(16px, min(4.3vh, 6vw), 30px) var(--num); color: #ffd24a; letter-spacing: 1px; text-shadow: 0 0 0 transparent, 2px 2px 0 #2c7a3a, -2px 2px 0 #2c7a3a, 2px -2px 0 #2c7a3a, -2px -2px 0 #2c7a3a, 0 5px 0 #1f5a2a; }
+#logo .l2 { font: 800 clamp(36px, min(11vh, 14vw), 76px) var(--num); color: #fff; text-shadow: 3px 3px 0 #2c7a3a, -3px 3px 0 #2c7a3a, 3px -3px 0 #2c7a3a, -3px -3px 0 #2c7a3a, 0 3px 0 #2c7a3a, 0 -3px 0 #2c7a3a, 3px 0 0 #2c7a3a, -3px 0 0 #2c7a3a, 0 8px 0 #1f5a2a; }
+#logo .l2 i { display: inline-block; width: 0.56em; height: 0.56em; margin: 0 0.03em; overflow: hidden; color: transparent; text-shadow: none; font-style: normal; line-height: 0.56em; border-radius: 50%; vertical-align: -0.04em; background: radial-gradient(circle at 35% 30%, #fff 0 30%, #e9eef0 55%, #c7d0d4 100%); box-shadow: 0 0 0 3px #2c7a3a, 0 6px 0 3px #1f5a2a; }
+#banner-sub { font: 700 18px var(--body); margin-top: 6px; white-space: normal; text-wrap: balance; text-shadow: 0 2px 0 rgba(31, 70, 40, 0.6), 0 0 8px rgba(31, 70, 40, 0.65), 0 0 2px rgba(31, 70, 40, 0.8); }
+#banner-sub:empty { display: none; }
 #hint { left: 50%; bottom: 26px; transform: translateX(-50%); padding: 8px 16px; border-radius: 14px; background: rgba(47, 58, 51, 0.7); color: #fff; font-size: 15px; white-space: nowrap; }
 #power { left: 50%; bottom: 30px; transform: translateX(-50%); width: 200px; height: 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.85); box-shadow: 0 3px 0 rgba(47, 58, 51, 0.12); overflow: hidden; }
 #hud > #mute { position: absolute; right: 14px; bottom: 14px; width: 42px; height: 42px; padding: 9px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); pointer-events: auto; cursor: pointer; }
@@ -42,18 +54,40 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #mute.off .no { display: inline; }
 #power-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #ffd34d, #ff7a3d 60%, #ff3d3d); }
 #card { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(47, 58, 51, 0.28); }
-#card .inner { min-width: 290px; padding: 24px 36px; border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.35s ease-out; }
-#card .title { font: 800 34px var(--body); }
-#card .stars { margin: 6px 0 2px; font-size: 40px; letter-spacing: 6px; }
-#card .stars i { font-style: normal; color: #dde3df; }
-#card .stars i.on { color: var(--gold); text-shadow: 0 3px 0 #e0a10f; }
-#card .sub { font-size: 15px; color: var(--dim); margin: 6px 0 18px; }
-#card .best { margin: -8px 0 18px; font-size: 15px; color: var(--ink); line-height: 1.6; }
+#card .inner { min-width: 300px; max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); overflow: hidden auto; padding: clamp(14px, 3vh, 24px) clamp(18px, 4vw, 34px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.35s ease-out; }
+/* the result, big: HOLE IN ONE! / BIRDIE! / PAR / BOGEY…, white in a thick edge of its colour */
+#card .title { --edge: #2c7a3a; font: 800 clamp(28px, min(8vh, 10vw), 50px) var(--num); line-height: 1.05; color: #fff; text-wrap: balance; animation: word-pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  text-shadow: 3px 3px 0 var(--edge), -3px 3px 0 var(--edge), 3px -3px 0 var(--edge), -3px -3px 0 var(--edge), 0 3px 0 var(--edge), 0 -3px 0 var(--edge), 3px 0 0 var(--edge), -3px 0 0 var(--edge), 0 7px 0 rgba(47, 58, 51, 0.25); }
+html[lang="en"] #card .title:not(.none) { text-transform: uppercase; }
+#card .title.ace { --edge: #d9541a; color: #ffd84a; }
+#card .title.under { --edge: #1f86d1; }
+#card .title.over { --edge: #6f8596; }
+#card .title.none { color: var(--ink); text-shadow: none; font: 800 clamp(22px, 5vh, 30px) var(--body); animation: rise 0.35s ease-out; }
+#card .stars { display: flex; justify-content: center; gap: clamp(8px, 2vw, 16px); margin: clamp(4px, 1.5vh, 10px) 0 2px; }
+#card .st { position: relative; width: 88px; }
+#card .st i, #card .st b { display: block; font-style: normal; font-size: clamp(34px, 7vh, 46px); line-height: 1.1; color: #dde3df; }
+#card .st b { position: absolute; left: 0; right: 0; top: 0; color: var(--gold); text-shadow: 0 3px 0 #e0a10f; animation: star-pop 0.45s cubic-bezier(0.2, 1.7, 0.4, 1) both; animation-delay: var(--d); }
+#card .st small { display: block; font-size: 11px; line-height: 1.25; color: #a3ada6; }
+#card .st.on small { color: var(--ink); }
+#card .sub { font-size: 15px; color: var(--dim); margin: clamp(4px, 1.2vh, 8px) 0 clamp(8px, 2.2vh, 16px); }
+#card .best { margin: -6px 0 clamp(8px, 2vh, 14px); font-size: 15px; color: var(--ink); line-height: 1.6; }
 #card .best b { color: #e0670f; }
-#card button { font: 800 19px var(--body); padding: 12px 40px; border: 0; border-radius: 999px; background: var(--green); color: #fff; box-shadow: 0 5px 0 #2a8f50; cursor: pointer; }
+#card .tip { margin: -4px auto clamp(8px, 2vh, 14px); max-width: 320px; padding: 6px 12px; border-radius: 12px; background: #fff6d6; color: #8a6a12; font: 700 14px var(--body); }
+#card .btns { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+#card button { font: 800 19px var(--body); padding: 12px 34px; border: 0; border-radius: 999px; background: var(--green); color: #fff; box-shadow: 0 5px 0 #2a8f50; cursor: pointer; }
 #card button:active { transform: translateY(3px); box-shadow: 0 2px 0 #2a8f50; }
+#card button.retry { display: inline-flex; align-items: center; gap: 6px; padding: 12px 20px; background: #fff; color: var(--ink); box-shadow: inset 0 0 0 2px #d9e2dc, 0 5px 0 #d9e2dc; }
+#card button.retry:active { box-shadow: inset 0 0 0 2px #d9e2dc, 0 2px 0 #d9e2dc; }
+#card button.retry svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+/* (a stroke short of the next star: the retry button is the one to press) */
+#card.again button.retry { background: #fff6d6; box-shadow: inset 0 0 0 2px #f2c94c, 0 5px 0 #f2c94c; }
+/* (under the bars and the card, so they stay readable while it falls; hidden while there is none) */
+canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #cfeaf5; transition: opacity 0.6s; font: 700 18px var(--body); color: var(--dim); }
 #loading.done { opacity: 0; pointer-events: none; }
+@keyframes word-pop { 0% { transform: scale(0.3) rotate(-6deg); opacity: 0; } 60% { transform: scale(1.06) rotate(2deg); opacity: 1; } 100% { transform: none; } }
+@keyframes star-pop { 0% { transform: scale(0) rotate(-40deg); opacity: 0; } 70% { transform: scale(1.2) rotate(8deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
 @keyframes rise { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pop-top { 0% { transform: translate(-50%, 0) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, 0) scale(1.05); opacity: 1; } 20% { transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { transform: translate(-50%, -4px); opacity: 0; } }
 @keyframes pop { 0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(-50%, -62%); opacity: 0; } }
 @media (max-width: 560px) { #score { top: 62px; left: 14px; transform: none; } #hint { bottom: 70px; } #banner-title { font-size: 36px; } #banner-sub { font-size: 15px; } }

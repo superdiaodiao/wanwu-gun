@@ -13,8 +13,9 @@ import * as THREE from 'three';
 import { BALL_R } from './physics.js';
 
 const D = Math.PI / 180;
+const GOOSE = 1.3, CAT = 1.7; // (bigger than life, to be seen from where the hole is watched)
 // round things get a round collider (and how much of their footprint it covers)
-const ROUND = { traffic_cone: 0.9, fire_hydrant: 0.8, rose_pot: 0.9, potted_plant: 0.8, flower_bed: 1 };
+const ROUND = { traffic_cone: 0.9, fire_hydrant: 0.8, rose_pot: 0.9, potted_plant: 0.8, flower_bed: 1, rubber_duck: 0.85 };
 
 export function buildProps(hole, course, ctx) {
   return hole.props.map(d => MAKERS[d.t](d, course, ctx));
@@ -46,8 +47,9 @@ const MAKERS = {
   fan(d, course, ctx) {
     const p = course.at(...d.at), [dx, dz] = d.dir, yaw = Math.atan2(dx, dz);
     const g = ctx.model('electric_fan', 1.6);
-    g.position.set(p.x, -0.12, p.z);
+    g.position.set(p.x, -0.03, p.z);
     course.group.add(g);
+    course.pad(p.x, p.z, 1.2, 1.2); // (it stands beside the green, over the pond: on a block of its own)
     const wind = { x: p.x, z: p.z, dx, dz, len: d.len, w: d.w, a: d.a };
     course.winds.push(wind);
     // streaks of air drifting along the strip
@@ -61,7 +63,7 @@ const MAKERS = {
     }
     let t = Math.random() * 6;
     return {
-      cols: [], wind, tag: tag(ctx, '会吹偏球', 'electric_fan', 1.6, () => [p.x, -0.12, p.z]),
+      cols: [], wind, tag: tag(ctx, '会吹偏球', 'electric_fan', 1.6, () => [p.x, -0.03, p.z]),
       update(dt) {
         t += dt;
         g.rotation.y = yaw + Math.sin(t * 1.1) * 0.22; // an oscillating fan
@@ -110,15 +112,39 @@ const MAKERS = {
     return me;
   },
 
+  // stands beside the green on a block of its own and keeps an eye on the ball, turning after it;
+  // a ball rolling close makes it hop and honk (no more than once a stroke)
+  watch(d, course, ctx) {
+    const p = course.at(...d.at), k = d.s || GOOSE;
+    course.pad(p.x, p.z, 1.1, 1.1);
+    const g = ctx.model(d.id, k);
+    course.group.add(g);
+    let yaw = 0, hop = 0, heard = -1;
+    return {
+      cols: [],
+      update(dt, ball, game) {
+        yaw += angDiff(yaw, Math.atan2(ball.x - p.x, ball.z - p.z)) * Math.min(1, dt * 3);
+        hop = Math.max(0, hop - dt * 2.5);
+        if (game.state === 'roll' && heard !== game.strokes && Math.hypot(ball.x - p.x, ball.z - p.z) < 1.6) {
+          heard = game.strokes;
+          hop = 1;
+          ctx.audio.voice('honk');
+        }
+        g.position.set(p.x, -0.03 + Math.sin(hop * Math.PI) * 0.25, p.z);
+        g.rotation.y = yaw;
+      },
+    };
+  },
+
   goose(d, course, ctx) {
     const home = course.at(...d.at);
-    const g = ctx.model('goose', 1.15);
+    const g = ctx.model('goose', GOOSE);
     g.rotation.order = 'YXZ'; // so the peck dips its head forward, whichever way it faces
     course.group.add(g);
     const col = { kind: 'circle', x: home.x, z: home.z, r: 0.24, e: 0.4, vx: 0, vz: 0 };
     let x = home.x, z = home.z, yaw = Math.PI, cd = 0, peck = 0, walk = 0, honkCd = 0, t = Math.random() * 5;
     const me = {
-      cols: [col], tag: tag(ctx, '会追着啄球', 'goose', 1.15, () => [x, 0, z]),
+      cols: [col], tag: tag(ctx, '会追着啄球', 'goose', GOOSE, () => [x, 0, z]),
       hit(speed) { if (honkCd <= 0 && speed > 0.5) { ctx.audio.voice('honk'); honkCd = 1; } },
       update(dt, ball, game) {
         t += dt; cd -= dt; peck -= dt; honkCd -= dt;
@@ -165,7 +191,7 @@ const MAKERS = {
 
   cat(d, course, ctx) {
     const p = course.at(...d.at), f = d.face * D, fx = Math.sin(f), fz = -Math.cos(f);
-    const g = ctx.model(d.id || 'cat_orange', 1.7);
+    const g = ctx.model(d.id || 'cat_orange', CAT);
     g.position.set(p.x, 0, p.z);
     g.rotation.y = Math.atan2(fx, fz);
     course.group.add(g);
@@ -184,7 +210,7 @@ const MAKERS = {
     // swiped again every time it did could keep the player from ever getting a shot off)
     let t = (d.phase || 0) * P, batted = false, swiped = -1;
     return {
-      cols: [col], tag: tag(ctx, '会拍球', d.id || 'cat_orange', 1.7, () => [p.x, 0, p.z]),
+      cols: [col], tag: tag(ctx, '会拍球', d.id || 'cat_orange', CAT, () => [p.x, 0, p.z]),
       update(dt, ball, game) {
         t += dt;
         const T = t % P;

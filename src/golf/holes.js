@@ -1,7 +1,7 @@
 // The holes. Each is drawn in characters, one per square metre, the far end at the top (the tee
 // near the bottom: the hole is seen from that end, so the ball starts near the player):
 //   .  green        r  road (green to the ball, grey to look at)
-//   T  the tee      H  the hole      o  a sweet lying on the green
+//   T  the tee      H  the hole      o  a coin lying on the green
 //   (anything else is not course: a wall runs along every edge of the green)
 // then what stands on it, at (column, row) — fractions allowed, 0 is the first square's middle:
 //   { t: 'obj', id, at, rot, s }        something in the way (a catalog model; rot in degrees)
@@ -11,9 +11,10 @@
 //   { t: 'goose', at, aggro, leash }    guards the ground around it: chases the ball, pecks it away
 //   { t: 'cat', at, face, period }      sits facing `face` (deg, 0 = up the hole) and swipes
 //   { t: 'tires', at, rot, s }          a wall of tyres: the ball bounces off it hard
+//   { t: 'watch', id, at }              stands beside the green watching the ball (does nothing to it)
 export const HOLES = [
   {
-    name: '热身', tip: '按住往后拉，松手击球；糖全捡到多一颗星', par: 2,
+    name: '热身', tip: '按住往后拉，松手击球；金币全捡到多一颗星', par: 2,
     map: [
       '.....',
       '..H..',
@@ -30,8 +31,9 @@ export const HOLES = [
       '.....',
     ],
     props: [
-      { t: 'obj', id: 'traffic_cone', at: [1.1, 6] },
-      { t: 'obj', id: 'traffic_cone', at: [2.9, 6] },
+      { t: 'obj', id: 'rubber_duck', at: [1.1, 6], rot: 90, s: 6 }, // (face to face: from the tee the
+      { t: 'obj', id: 'rubber_duck', at: [2.9, 6], rot: -90, s: 6 }, // ball meets a duck's round side)
+      { t: 'watch', id: 'goose', at: [-1.25, 2.4] },
     ],
   },
   {

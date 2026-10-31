@@ -1,8 +1,8 @@
 // 小区高尔夫 (working title) — mini golf through a 小区, built from 万物皆可滚's models: a golf ball,
 // and each hole ends in a cup with a glowing rim. Hold and pull back anywhere, let go to putt (a dotted line shows where it will run, up to the first bounce).
-// Every hole has its own nuisance: cones and a seesaw in the way, fans blowing, cars crossing, a
+// Every hole has its own nuisance: rubber ducks and a seesaw in the way, fans blowing, cars crossing, a
 // goose guarding the hole, a cat swiping, tyres; until the first shot each says over it what it
-// does to the ball. Stars: one for sinking it, one for par or better, one for every sweet on the
+// does to the ball. Stars: one for sinking it, one for par or better, one for every coin on the
 // green picked up on the way. The nine holes make a round: the best strokes for each hole and for
 // a whole round are kept. On CrazyGames (node build.mjs golf-crazygames) their SDK hears when a
 // hole is being played (game/portal.js).
@@ -22,6 +22,7 @@ import { buildCourse } from './course.js';
 import { buildProps } from './props.js';
 import { HOLES } from './holes.js';
 import { golfBall, Trail } from './ball.js';
+import { Confetti } from './confetti.js';
 import { portalInit, portalLoaded, portalPlaying, portalOnMute } from '../game/portal.js';
 import { strayHost } from '../game/guard.js';
 
@@ -39,7 +40,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('golf.' + k, JSON.stringify(v)); } catch {} },
 };
 
-let engine, material, fx;
+let engine, material, fx, confetti;
 const specs = new Map();
 const spec = id => {
   if (!specs.has(id)) { const def = CATALOG.get(id); if (!def) throw new Error('no model ' + id); specs.set(id, buildSpec(def)); }
@@ -51,6 +52,7 @@ function model(id, k = 1, size) {
   const s = spec(id);
   if (size) k = size / s.maxDim;
   const mesh = new THREE.Mesh(s.geometry, material);
+  mesh.userData.keep = true; // (its geometry and material are shared: see course.dispose)
   mesh.scale.setScalar(k);
   mesh.position.set(-s.center.x * k, -s.bbox.min.y * k, -s.center.z * k);
   mesh.castShadow = true;
@@ -69,6 +71,7 @@ const G = {
 async function boot() {
   translateDom();
   if (EN) document.title = t('小区高尔夫');
+  else $('logo').innerHTML = '<div class="l2">小区高尔夫</div>';
   // the CrazyGames build plays on CrazyGames only (and opened from disk or this machine): a copy
   // put up anywhere else says so instead
   if (PLATFORM === 'crazygames' && strayHost()) {
@@ -87,25 +90,40 @@ async function boot() {
   material = objectMaterial(atlasTexture());
   engine = new Engine($('game'), matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
   const sc = engine.scene;
-  sc.background = new THREE.Color(0xcfeaf5);
-  sc.fog = new THREE.Fog(0xcfeaf5, 40, 90);
-  engine.hemi.color.set(0xf4fbff);
-  engine.hemi.groundColor.set(0xb9d6a8);
-  engine.hemi.intensity = 1.6;
-  engine.sun.intensity = 2.5;
+  sc.background = sky();
+  sc.fog = new THREE.Fog(0xd4effc, 45, 95);
+  engine.hemi.color.set(0xeaf6ff);
+  engine.hemi.groundColor.set(0x9cc48a);
+  engine.hemi.intensity = 1.35;
+  engine.sun.intensity = 2.8;
   engine.sunDir.set(-0.35, 1, 0.5).normalize();
   fx = new FX(sc);
+  confetti = new Confetti($('confetti'));
   makeBall(sc);
   makeAim(sc);
   engine.camera.fov = 40;
-  addEventListener('resize', () => { aim(); hudBottom(); });
+  addEventListener('resize', () => { aim(); hudBottom(); placeLogo(); });
+  // (the bars grow when the numbers' font arrives: what is placed under them moves down with them)
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => { hudBottom(); placeLogo(); });
+    for (const id of ['hole', 'score', 'stars']) ro.observe($(id));
+  }
   const cv = $('game');
   cv.addEventListener('pointerdown', onDown);
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('pointermove', onMove);
   addEventListener('pointerup', onUp);
   addEventListener('pointercancel', () => { G.aim = null; showAim(false); });
-  $('card-btn').addEventListener('click', () => { audio.tap(); next(); });
+  // (once each: a second tap, or Enter on a focused button as well as the key below, does nothing)
+  $('card-btn').addEventListener('click', () => { if (G.state !== 'card') return; audio.tap(); next(); });
+  $('card-retry').addEventListener('click', () => { if (G.state !== 'card') return; audio.tap(); load(G.hole); });
+  // (Enter and Space press a button that has the focus themselves; Cmd/Ctrl+R is the browser's)
+  addEventListener('keydown', e => {
+    if (G.state !== 'card' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const onButton = document.activeElement?.tagName === 'BUTTON';
+    if ((e.key === 'Enter' || e.key === ' ') && !onButton) { e.preventDefault(); $('card-btn').click(); }
+    else if (e.key === 'r' || e.key === 'R') $('card-retry').click();
+  });
   const mute = $('mute');
   const showMute = () => { mute.classList.toggle('off', audio.muted); mute.setAttribute('aria-label', t(audio.muted ? '打开声音' : '关掉声音')); };
   // muted by the button (kept) or by CrazyGames' own setting, which wins
@@ -129,6 +147,19 @@ async function boot() {
 /** tell the portal whether a hole is being played (not while the card between holes is up) */
 function playing() {
   portalPlaying(G.state !== 'card' && G.state !== 'load');
+}
+
+/** the sky behind: deep blue overhead, paling to the haze at the horizon (as seen on the screen) */
+function sky() {
+  const c = document.createElement('canvas');
+  c.width = 2; c.height = 256;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#4fb0f2'); gr.addColorStop(0.55, '#9fd8fa'); gr.addColorStop(1, '#d4effc');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 2, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 async function wake() {
@@ -172,19 +203,64 @@ function showAim(on) {
   if (on) $('hint').hidden = true;
 }
 
+// ---- a coin to pick up: gold, standing on its edge and turning, over a glow on the green ----------
+let coinParts;
+function coin() {
+  if (!coinParts) {
+    const star = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? 0.055 : 0.13, a = (i / 10) * Math.PI * 2 + Math.PI / 2;
+      star[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+    }
+    const glow = document.createElement('canvas');
+    glow.width = glow.height = 64;
+    const gg = glow.getContext('2d'), gr = gg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255, 230, 120, 0.9)'); gr.addColorStop(1, 'rgba(255, 230, 120, 0)');
+    gg.fillStyle = gr;
+    gg.fillRect(0, 0, 64, 64);
+    coinParts = {
+      disc: new THREE.CylinderGeometry(0.2, 0.2, 0.06, 28).rotateX(Math.PI / 2),
+      rim: new THREE.TorusGeometry(0.2, 0.02, 6, 28),
+      star: new THREE.ShapeGeometry(star),
+      gold: new THREE.MeshLambertMaterial({ color: 0xffc22e, emissive: 0x6a4200 }),
+      edge: new THREE.MeshLambertMaterial({ color: 0xffdf6e, emissive: 0x6a4a00 }),
+      face: new THREE.MeshBasicMaterial({ color: 0xfff1a8 }),
+      glowGeo: new THREE.PlaneGeometry(0.8, 0.8).rotateX(-Math.PI / 2),
+      glow: new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(glow), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    };
+  }
+  const P = coinParts, g = new THREE.Group(), spin = new THREE.Group();
+  const disc = new THREE.Mesh(P.disc, P.gold);
+  disc.castShadow = true;
+  spin.add(disc, new THREE.Mesh(P.rim, P.edge));
+  for (const s of [1, -1]) {
+    const st = new THREE.Mesh(P.star, P.face);
+    st.position.z = s * 0.032;
+    st.rotation.y = s > 0 ? 0 : Math.PI;
+    spin.add(st);
+  }
+  spin.position.y = 0.3;
+  g.add(spin, new THREE.Mesh(P.glowGeo, P.glow));
+  g.children[1].position.y = 0.012;
+  g.traverse(o => { o.userData.keep = true; }); // (all its parts are shared by every coin)
+  g.userData.spin = spin;
+  return g;
+}
+
 // ---- a hole ----------------------------------------------------------------------------------------------
 function load(i) {
-  if (G.course) engine.scene.remove(G.course.group);
+  if (G.course) G.course.dispose();
+  for (const k of cardTimers.splice(0)) clearTimeout(k);
   G.hole = i;
   const hole = HOLES[i];
   const ctx = { model, spec, audio, fx };
-  G.course = buildCourse(hole, i, { scene: engine.scene, model });
+  G.course = buildCourse(hole, i, { scene: engine.scene, model, aniso: Math.min(8, engine.renderer.capabilities.getMaxAnisotropy()) });
   G.props = buildProps(hole, G.course, ctx);
   G.cols = [...G.course.cols, ...G.props.flatMap(p => p.cols)];
   G.course.cols = G.cols; // what the ball meets: walls and everything on the green
   G.sweets = G.course.candies.map((p, k) => {
-    const g = model(['candy', 'lollipop', 'ice_pop'][k % 3], 1, 0.5);
-    g.position.set(p.x, 0.16, p.z);
+    const g = coin();
+    g.position.set(p.x, 0, p.z);
     G.course.group.add(g);
     return { x: p.x, z: p.z, g, got: false, t: k };
   });
@@ -202,9 +278,10 @@ function load(i) {
   if (i === 0) { G.round = []; store.set('round', G.round); }
   hud();
   aim();
-  banner(t(hole.name), t(hole.tip));
+  banner(t(hole.name), t(hole.tip), !G.titled); // (the game's name over the first hole played)
+  G.titled = true;
   // what each nuisance does (one of each kind: the one lowest on the screen, so furthest from the
-  // bars at the top), and on the first hole what the sweets are for
+  // bars at the top), and on the first hole what the coins are for
   const pick = new Map();
   for (const p of G.props) if (p.tag) {
     tagV.set(...p.tag.at()).project(engine.camera);
@@ -235,7 +312,8 @@ function showTags(list) {
   // (they come in once the hole's name, which they would sit under, has gone)
   clearTimeout(tagsTimer);
   const hole = G.hole;
-  tagsTimer = setTimeout(() => { if (G.hole === hole && G.strokes === 0 && G.state !== 'card') box.classList.remove('out'); }, 2100);
+  const wait = $('banner').classList.contains('logo') ? 3200 : 2100; // (the banner with the name stays longer)
+  tagsTimer = setTimeout(() => { if (G.hole === hole && G.strokes === 0 && G.state !== 'card') box.classList.remove('out'); }, wait);
 }
 /** where the bars at the top end */
 function hudBottom() {
@@ -288,9 +366,19 @@ function hud() {
   $('stars-num').textContent = G.best.reduce((a, b) => a + (b || 0), 0);
 }
 
-function banner(title, sub) {
+/** the banner with the game's name hangs just under the bars at the top */
+function placeLogo() {
+  const b = $('banner');
+  if (!b.classList.contains('logo')) return;
+  hudBottom();
+  b.style.setProperty('--below-hud', tagTop + 8 + 'px');
+}
+
+function banner(title, sub, logo) {
   const b = $('banner');
   b.hidden = true;
+  b.classList.toggle('logo', !!logo);
+  placeLogo();
   $('banner-title').textContent = title;
   $('banner-sub').textContent = sub || '';
   void b.offsetWidth;
@@ -331,7 +419,7 @@ function aim() {
   c.updateProjectionMatrix();
   // how steeply to look down: lower, more from behind the ball, when that shows the near end of the
   // hole clearly bigger (a long hole on a wide screen, which from above would be a thin strip down
-  // the middle), but not so low that the far end comes out less than half the size of the near end
+  // the middle), but not so low that the far end comes out less than 0.4 the size of the near end
   // (a wide hole on a tall screen gains nothing from it, only flattens, so stays as seen from above)
   const metre = z => {
     const a = new THREE.Vector3(cx, 0, z).project(c), e = new THREE.Vector3(cx + 1, 0, z).project(c);
@@ -342,17 +430,26 @@ function aim() {
     tilt = a;
     fit();
     const near = metre(b.z1);
-    if (metre(b.z0) < near * 0.5) break;
+    if (metre(b.z0) < near * 0.4) break;
     if (near > most * 1.02) { most = near; best = a; }
   }
   tilt = best;
   fit();
-  // nudge the target so the course sits in the middle of the free band
-  let minY = 1, maxY = -1;
-  for (const p of pts) { const v = p.clone().project(c); minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y); }
-  const shift = ((maxY + minY) / 2 - 0.02) * 0.5;
-  target.addScaledVector(dir, -shift * (b.z1 - b.z0) * 0.5);
-  fit();
+  // any room left over up and down (a wide hole on a tall screen) goes over the far end, where it is
+  // sky and park: the course is moved down the screen as far as it goes without coming out smaller
+  const lowest = () => Math.min(...pts.map(p => p.clone().project(c).y));
+  if (lowest() > -0.72) {
+    const base = target.clone();
+    let lo = 0, hi = b.z1 - b.z0;
+    for (let i = 0; i < 18; i++) {
+      const m = (lo + hi) / 2;
+      target.copy(base).addScaledVector(dir, -m);
+      fit();
+      if (lowest() > -0.72) lo = m; else hi = m;
+    }
+    target.copy(base).addScaledVector(dir, -lo);
+    fit();
+  }
   // yard things standing in front of the course (between it and the camera) are left out: any
   // whose box, seen from here, reaches into the course (or the fans standing just outside it)
   for (const w of G.course.winds) pts.push(new THREE.Vector3(w.x, -0.1, w.z), new THREE.Vector3(w.x, 1.8, w.z));
@@ -461,6 +558,7 @@ function loop() {
   const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
   step(dt);
+  confetti.update(dt);
   playing();
 }
 
@@ -503,7 +601,7 @@ function step(dt, draw = true) {
         else G.state = 'aim';
       }
     }
-    // sweets on the way
+    // coins on the way
     for (const s of G.sweets) if (!s.got && Math.hypot(s.x - b.x, s.z - b.z) < 0.4) {
       s.got = true;
       G.got++;
@@ -527,10 +625,12 @@ function step(dt, draw = true) {
     if (G.sinkT > 0.9) finish(true);
   }
   for (const s of G.sweets) {
-    if (s.got) { s.g.position.y += dt * 3; s.g.scale.multiplyScalar(Math.max(0, 1 - dt * 6)); continue; }
-    s.g.rotation.y += dt * 1.6;
-    s.g.position.y = 0.16 + Math.sin(G.t * 3 + s.t) * 0.05;
+    const spin = s.g.userData.spin;
+    if (s.got) { spin.position.y += dt * 3; spin.rotation.y += dt * 14; s.g.scale.multiplyScalar(Math.max(0, 1 - dt * 5)); continue; }
+    spin.rotation.y += dt * 2.4;
+    spin.position.y = 0.3 + Math.sin(G.t * 3 + s.t) * 0.05;
   }
+  G.course.update(G.t, b);
   // the hole's glow cycles through the five colours; the flag flutters
   const cf = G.course.cupFx;
   cf.rim.color.setHSL((G.t * 0.15) % 1, 0.9, 0.6);
@@ -552,27 +652,64 @@ function step(dt, draw = true) {
   r.render(engine.scene, cam);
 }
 
+/** where a point in the world is on the screen, in CSS pixels */
+function onScreen(x, y, z) {
+  tagV.set(x, y, z).project(engine.camera);
+  const r = engine.renderer.domElement.getBoundingClientRect();
+  return [r.left + ((tagV.x + 1) / 2) * r.width, r.top + ((1 - tagV.y) / 2) * r.height];
+}
+
 function sink() {
   G.state = 'sink';
   G.sinkT = 0;
   const cup = G.course.cup;
   audio.cup();
+  // confetti thrown up out of the cup: the better the score, the more
+  const d = G.strokes - HOLES[G.hole].par, [sx, sy] = onScreen(cup.x, 0.3, cup.z);
+  confetti.burst(sx, sy, G.strokes === 1 ? 200 : d < 0 ? 140 : d === 0 ? 90 : 35, { spread: 1.5, speed: innerHeight * (G.strokes === 1 ? 1.7 : 1.3) });
   for (let i = 0; i < (G.strokes === 1 ? 6 : 3); i++) setTimeout(() => fx.firework(cup.x + (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, cup.z + (Math.random() - 0.5) * 0.6, 1.1), i * 160);
   if (G.strokes === 1) audio.fireworks();
 }
 
+// the card's sounds still to come (cleared if the next hole is started first)
+const cardTimers = [];
+
+/** the card between holes: the result in a big word (HOLE IN ONE!, BIRDIE!, PAR, BOGEY…), the
+ *  three stars popping in one by one — one for sinking it, one for par or better, one for every coin
+ *  or for beating par (so a hole in one always has all three) — what would earn the next, the
+ *  records, and Retry / Next */
 function finish(sunk) {
   if (G.state === 'card') return;
   G.state = 'card';
   G.live = false;
-  const hole = HOLES[G.hole], all = G.sweets.length;
-  const stars = !sunk ? 0 : 1 + (G.strokes <= hole.par ? 1 : 0) + (G.got >= all ? 1 : 0);
+  const hole = HOLES[G.hole], all = G.sweets.length, s = G.strokes, d = s - hole.par;
+  const on = [sunk, sunk && d <= 0, sunk && (d < 0 || G.got >= all)];
+  const stars = on.filter(Boolean).length;
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
   store.set('best', G.best);
-  if (sunk && stars === 3) audio.fanfare();
-  $('card-title').textContent = !sunk ? t('这洞先放过你') : G.strokes === 1 ? t('一杆进洞！') : t('进洞！');
-  $('card-stars').innerHTML = [0, 1, 2].map(i => `<i class="${i < stars ? 'on' : ''}">★</i>`).join('');
-  $('card-sub').textContent = pl('{n} 杆 · 标准杆 {par} · 糖 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all });
+  const [word, kind] = !sunk ? ['这洞先放过你', 'none'] : s === 1 ? ['一杆进洞！', 'ace'] : d <= -3 ? ['信天翁！', 'ace']
+    : d === -2 ? ['老鹰球！', 'ace'] : d === -1 ? ['小鸟球！', 'under'] : d === 0 ? ['标准杆！', ''] : d === 1 ? ['多了一杆', 'over']
+      : d === 2 ? ['多了两杆', 'over'] : ['进洞了', 'over'];
+  $('card-title').textContent = t(word);
+  $('card-title').className = 'title ' + kind;
+  // the stars come in one after another, each with a note higher than the last; all three, a fanfare
+  // and confetti from both corners
+  const at = i => 0.3 + i * 0.32;
+  $('card-stars').innerHTML = ['进洞', '标准杆内', '金币全捡或小鸟球'].map((c, i) =>
+    `<span class="st${on[i] ? ' on' : ''}" style="--d:${at(i)}s"><i>★</i>${on[i] ? '<b>★</b>' : ''}<small>${t(c)}</small></span>`).join('');
+  let n = 0;
+  on.forEach((o, i) => { if (o) { const k = ++n; cardTimers.push(setTimeout(() => audio.sweet(k), at(i) * 1000 + 120)); } });
+  if (stars === 3) cardTimers.push(setTimeout(() => {
+    audio.fanfare();
+    confetti.burst(0, innerHeight, 90, { angle: -1.2, spread: 0.45, speed: innerHeight * 3.4 });
+    confetti.burst(innerWidth, innerHeight, 90, { angle: -Math.PI + 1.2, spread: 0.45, speed: innerHeight * 3.4 });
+  }, at(2) * 1000 + 380));
+  // what the next star would take, if there is one to have: then Retry is the button to press
+  const tip = !sunk ? '' : !on[1] ? t('下一颗星：{par} 杆内进洞', { par: hole.par }) : !on[2] ? t('再拿一颗星：捡齐金币，或 {n} 杆内进洞', { n: hole.par - 1 }) : '';
+  $('card-tip').textContent = tip;
+  $('card-tip').hidden = !tip;
+  $('card').classList.toggle('again', !!tip);
+  $('card-sub').textContent = pl('{n} 杆 · 标准杆 {par} · 金币 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all });
   const lastHole = G.hole + 1 >= HOLES.length;
   $('card-btn').textContent = lastHole ? t('从第一洞再来') : t('下一洞');
   const starsAll = G.best.reduce((a, b) => a + (b || 0), 0);
@@ -585,11 +722,14 @@ function finish(sunk) {
     else if (was) lines.push(t('最好 {n} 杆', { n: was }));
     if (!was || G.strokes < was) { holeBest[G.hole] = G.strokes; store.set('strokes', holeBest); }
   }
-  G.round[G.hole] = G.strokes; // (a hole let off counts the strokes it took)
+  // the round counts each hole's first go (a hole let off counts the strokes it took): a retry wins
+  // stars and the hole's best, but doesn't remake the round's total, nor say it again
+  const first = G.round[G.hole] == null;
+  if (first) G.round[G.hole] = G.strokes;
   store.set('round', G.round);
   // (coming back later goes on to the next hole, or after the last starts a new round)
   store.set('hole', lastHole ? 0 : G.hole + 1);
-  if (lastHole && HOLES.every((h, k) => G.round[k] > 0)) {
+  if (lastHole && first && HOLES.every((h, k) => G.round[k] > 0)) {
     const total = G.round.reduce((a, b) => a + b, 0), par = HOLES.reduce((a, h) => a + h.par, 0);
     const bestRound = store.get('bestRound', 0);
     const line = pl('这一轮 {n} 杆 · 标准杆 {par}', total, { par });
