@@ -18,6 +18,9 @@
 //           page is in front and something was pressed in the last minute)
 //   leave   h<n>/<how long played by then>: the page put away (another tab, the phone locked)
 //   fps     touch|desk/<frames a second over the first 20 s>
+//   load    <where the game's file came from>/<how long it took>: cn-gcore, cn-testingcf, cn-fastly, cn-cdn,
+//           cn-local (in mainland China, by the time zone), local, gcore, cdn (elsewhere); 0-3s … 30s+
+//           (the page's loader says: tools/cdn-loader.mjs)
 
 const BAIDU_ID = '051ce4949c1654e14647eaa86d5ce5df';
 const CATEGORY = 'golf';
@@ -70,6 +73,8 @@ export function trackBoot(store, en, hole) {
     track('visit', days <= 0 ? 'same-day' : days >= 7 ? 'day-7+' : `day-${days}`);
   }
   track('lang', en ? 'en' : 'zh');
+  const ld = window.__golfLoad;
+  if (ld) track('load', `${ld.from}/${ld.ms < 3000 ? '0-3s' : ld.ms < 7000 ? '3-7s' : ld.ms < 15000 ? '7-15s' : ld.ms < 30000 ? '15-30s' : '30s+'}`);
   // the time played: a second at a time, while the page is in front and someone is there
   lastInput = performance.now();
   const touched = () => { lastInput = performance.now(); };
