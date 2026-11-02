@@ -191,7 +191,7 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 @media (max-width: 560px) { #stars .lv { display: none; } #lv-top:not(:empty) { display: block; } #score { top: 62px; left: 14px; transform: none; padding: 7px 12px; gap: 6px; } #score .sep { margin-left: 2px; padding-left: 8px; } #stars { top: 62px; padding: 7px 12px; } #hint { bottom: 70px; } #banner-title { font-size: 36px; } #banner-sub { font-size: 15px; } }
 @media (max-width: 374px) { #score, #stars { padding: 7px 10px; } }
 @media (max-width: 359px) { #score, #stars { padding: 6px 9px; } #score { gap: 4px; } #score .sep { margin-left: 0; padding-left: 6px; } #score span { font-size: 12px; } #score b { font-size: 20px; } #score b.small { font-size: 16px; } #stars b { font-size: 19px; } #stars i { font-size: 17px; } }
-@media (max-width: 359px) { table.sc th, table.sc td { min-width: 19px; padding: 0; } table.sc td span { min-width: 18px; } #menu .grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } #menu-holes .head { flex-direction: column; gap: 0; } }
+@media (max-width: 359px) { table.sc th, table.sc td { min-width: 19px; padding: 0; } table.sc td span { min-width: 18px; } #menu .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } #menu-holes .head { flex-direction: column; gap: 0; } }
 /* short screens (a phone on its side): the scorecard without its par row (the rings and boxes say
    how each hole went against par), the holes without their names, everything a little tighter */
 @media (max-height: 420px) {
@@ -214,4 +214,4 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 @media (max-height: 360px) { #menu-main .head { display: none; } } /* (the green 接着打 says it is paused) */
 @media (max-height: 310px) { #menu .lv-note { display: none; } }
 @media (max-height: 340px) { #card .st small { display: none; } #card .st i, #card .st b { font-size: 30px; } #card .sub { margin: 2px 0 6px; } }
-@media (orientation: landscape) { #menu .grid { grid-template-columns: repeat(5, 1fr); } } /* (two rows, whatever the width) */
+@media (orientation: landscape) { #menu .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } } /* (two rows, whatever the width) */

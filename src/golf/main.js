@@ -383,7 +383,7 @@ function load(i, fresh = false, quiet = false) {
   const hole = HOLES[i], y = yardOf(i);
   const ctx = { model, spec, audio, fx };
   if (G.yard !== y) { G.yard = y; lookOf(YARDS[y].look); }
-  G.course = buildCourse(hole, i, { scene: engine.scene, model, num: (i % PER) + 1, look: YARDS[y].look, aniso: Math.min(8, engine.renderer.capabilities.getMaxAnisotropy()) });
+  G.course = buildCourse(hole, i, { scene: engine.scene, model, look: YARDS[y].look, aniso: Math.min(8, engine.renderer.capabilities.getMaxAnisotropy()) });
   G.props = buildProps(hole, G.course, ctx);
   G.cols = [...G.course.cols, ...G.props.flatMap(p => p.cols)];
   G.course.cols = G.cols; // what the ball meets: walls and everything on the green
@@ -581,9 +581,9 @@ function holeGrid(y) {
   const fewest = store.get(rec('strokes'), []);
   return HOLES.slice(y * PER, y * PER + PER).map((h, k) => {
     const i = y * PER + k, cls = 'tile' + (i === G.hole ? ' cur' : '');
-    if (!opened(i)) return `<button class="${cls} locked" data-i="${i}" aria-label="${t('第 {n} 洞', { n: k + 1 })} · ${t('还没打到这洞')}"><b>${k + 1}</b>${LOCK}</button>`;
+    if (!opened(i)) return `<button class="${cls} locked" data-i="${i}" aria-label="${t('第 {n} 洞', { n: i + 1 })} · ${t('还没打到这洞')}"><b>${i + 1}</b>${LOCK}</button>`;
     const st = G.best[i] || 0;
-    return `<button class="${cls}" data-i="${i}"><b>${k + 1}</b><span class="nm">${t(h.name)}</span>`
+    return `<button class="${cls}" data-i="${i}"><b>${i + 1}</b><span class="nm">${t(h.name)}</span>`
       + `<span class="ss">${[0, 1, 2].map(k => `<i${k < st ? ' class="on"' : ''}>★</i>`).join('')}</span>`
       + `<span class="bs">${fewest[i] ? t('最好 {n} 杆', { n: fewest[i] }) : t('标准 {n}', { n: h.par })}</span></button>`;
   }).join('');
@@ -595,7 +595,7 @@ function scorecard(y) {
   const par = holes.reduce((a, h) => a + h.par, 0), played = round.filter(s => s != null);
   const row = (cls, head, cells, sum) => `<tr class="${cls}"><th>${head}</th>${cells.join('')}<th class="sum">${sum}</th></tr>`;
   return '<table class="sc">'
-    + row('num', t('洞'), holes.map((h, i) => `<td>${i + 1}</td>`), t('合计'))
+    + row('num', t('洞'), holes.map((h, i) => `<td>${y * PER + i + 1}</td>`), t('合计'))
     + row('par', t('标准杆'), holes.map(h => `<td>${h.par}</td>`), par)
     + row('you', t('你'), holes.map((h, i) => {
       const s = round[i], d = s - h.par;
@@ -615,7 +615,8 @@ function next() {
 
 function hud() {
   const hole = HOLES[G.hole];
-  $('hole-num').textContent = t('{n}/{all} 洞', { n: (G.hole % PER) + 1, all: PER });
+  // (numbered through both yards, 1-18: from the first hole on, there are more than nine to play)
+  $('hole-num').textContent = t('{n}/{all} 洞', { n: G.hole + 1, all: HOLES.length });
   $('hole-name').textContent = t(hole.name);
   $('strokes-num').textContent = G.strokes;
   $('par').textContent = t('标准 {n}', { n: hole.par });

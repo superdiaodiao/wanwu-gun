@@ -628,7 +628,7 @@ export function buildCourse(hole, index, { scene, model, num = index + 1, look =
   fg.font = '800 62px "Baloo 2", "Arial Rounded MT Bold", Arial, sans-serif';
   fg.textAlign = 'center';
   fg.textBaseline = 'middle';
-  fg.fillText(String(num), 58, 40);
+  fg.fillText(String(num), 58, 40, 108);
   const flagGeo = new THREE.PlaneGeometry(0.52, 0.34, 6, 1).translate(0.26, -0.17, 0);
   const flagTex = texture(fc);
   M.flag.map = flagTex;
