@@ -10,7 +10,9 @@
 //   lang    zh / en
 //   hole    h<n>: hole n begun, the first time since the page was opened (how far people get)
 //   retry   h<n>: hole n begun again
-//   done    h<n>/ace|under|par|over|skip|let-off (value: strokes)
+//   done    h<n>/ace|under|par|over|skip|let-off, then /normal or /hard when not played easy (value:
+//           strokes)
+//   level   easy|normal|hard: the difficulty changed in the menu
 //   yard    <n>: yard n's whole round played
 //   time    1m 3m 5m 10m 15m 20m 30m: playing that long since the page was opened (counted while the
 //           page is in front and something was pressed in the last minute)
@@ -97,8 +99,8 @@ export function trackHole(i, again) {
   else if (!seen.has(i)) { seen.add(i); track('hole', `h${i + 1}`); }
 }
 
-/** a hole over: sunk (in strokes, d over par), let off, or skipped */
-export function trackDone(i, sunk, skipped, strokes, d) {
+/** a hole over: sunk (in strokes, d over par), let off, or skipped; at a difficulty */
+export function trackDone(i, sunk, skipped, strokes, d, level) {
   const how = skipped ? 'skip' : !sunk ? 'let-off' : strokes === 1 ? 'ace' : d < 0 ? 'under' : d === 0 ? 'par' : 'over';
-  track('done', `h${i + 1}/${how}`, strokes);
+  track('done', `h${i + 1}/${how}` + (level === 'easy' ? '' : `/${level}`), strokes);
 }

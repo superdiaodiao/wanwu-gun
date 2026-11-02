@@ -69,10 +69,39 @@ function model(id, k = 1, size) {
 }
 
 const G = {
-  hole: 0, state: 'load', strokes: 0, got: 0, best: [], rounds: [], paused: false, course: null, props: [], cols: [], sweets: [],
+  hole: 0, level: 'easy', state: 'load', strokes: 0, got: 0, best: [], rounds: [], paused: false, course: null, props: [], cols: [], sweets: [],
   ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, hitT: 0, t: 0, sinkT: 0, live: true,
   pushed() { if (G.state === 'aim') { G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
 };
+
+// the difficulty: how far along a shot's run the dotted guide shows it (no further than its first
+// bounce; at the hardest, not at all: the arrow alone), and how slowly a ball must reach the cup to drop
+// (faster, it runs over the lip). Each has its
+// own stars, records and rounds; a hole opened at one is open at all of them.
+const LEVELS = {
+  easy: { name: '简单', note: '虚线一直画到第一次撞墙', guide: 7, capture: 3 },
+  normal: { name: '普通', note: '虚线只画一小段，进洞要轻一点', guide: 1.5, capture: 2.2 },
+  hard: { name: '困难', note: '没有虚线，只看箭头；进洞要很轻', guide: 0, capture: 1.6 },
+};
+/** a record's key at the difficulty being played (the easy one's as it always was) */
+const rec = (k, l = G.level) => (l === 'easy' ? k : `${k}.${l}`);
+/** play at this difficulty from now on: its records, its guide and its cup */
+function useLevel(l) {
+  G.level = LEVELS[l] ? l : 'easy';
+  store.set('level', G.level);
+  PHYS.capture = LEVELS[G.level].capture;
+  G.best = store.get(rec('best'), []);
+  G.rounds = store.get(rec('rounds'), []);
+  for (let y = 0; y < YARDS.length; y++) G.rounds[y] = G.rounds[y] || [];
+}
+/** the difficulty shown: chosen in the menu (with what it means), named by the stars (unless it's the
+ *  easy one) */
+function showLevel() {
+  for (const b of $('m-level').querySelectorAll('button')) { const on = b.dataset.l === G.level; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
+  $('m-level-note').textContent = t(LEVELS[G.level].note);
+  const name = G.level === 'easy' ? '' : t(LEVELS[G.level].name);
+  for (const id of ['stars-lv', 'h-lv', 'lv-top']) { $(id).textContent = name; $(id).className = 'lv ' + G.level; }
+}
 
 async function boot() {
   translateDom();
@@ -172,6 +201,8 @@ async function boot() {
   }
   for (let y = 0; y < YARDS.length; y++) G.rounds[y] = G.rounds[y] || [];
   store.set('rounds', G.rounds);
+  useLevel(store.get('level', 'easy'));
+  showLevel();
   trackBoot(store, EN, () => G.hole);
   // (back at a yard's first hole, its round starts again, as it does going there any other way)
   const at = Math.min(store.get('hole', 0), HOLES.length - 1);
@@ -256,9 +287,22 @@ function makeAim(sc) {
   holder.add(arrow);
   arrow.userData.holder = holder;
   sc.add(holder);
-  // dots along where it will run
-  dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), 40);
-  dots.count = 0;
+  // dots along where it will run: round white marks with a dark edge, the same size on the screen
+  // however far off the green is (on a phone a dot a few centimetres across would be a speck)
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.beginPath(); g.arc(32, 32, 27, 0, Math.PI * 2);
+  g.fillStyle = '#fff'; g.fill();
+  g.lineWidth = 7; g.strokeStyle = 'rgba(28, 56, 36, 0.6)'; g.stroke();
+  const dotTex = new THREE.CanvasTexture(c);
+  dotTex.colorSpace = THREE.SRGBColorSpace;
+  const dg = new THREE.BufferGeometry();
+  dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(40 * 3), 3));
+  dots = new THREE.Points(dg, new THREE.PointsMaterial({ size: 10, sizeAttenuation: false, map: dotTex, transparent: true, depthWrite: false }));
+  dots.frustumCulled = false;
+  dots.renderOrder = 4; // (over the arrow, which runs along the first of them)
+  dg.setDrawRange(0, 0);
   sc.add(dots);
   ring = new THREE.Mesh(new THREE.RingGeometry(BALL_R * 1.6, BALL_R * 1.9, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }));
   sc.add(ring);
@@ -328,10 +372,11 @@ function coin() {
 // ---- a hole ----------------------------------------------------------------------------------------------
 /** play hole i (`fresh`: a new round of its yard starts with it, as at a yard's first hole). A round
  *  is over once its last hole has been played: whatever is played next in that yard starts the next
- *  one, unless it is that hole again (a retry, which doesn't touch the round) */
-function load(i, fresh = false) {
+ *  one, unless it is that hole again (a retry, which doesn't touch the round). `quiet`: not the
+ *  player's own retry (the difficulty changed), so not counted as one */
+function load(i, fresh = false, quiet = false) {
   const retry = !!G.course && i === G.hole;
-  trackHole(i, retry);
+  if (!quiet) trackHole(i, retry);
   if (G.course) G.course.dispose();
   for (const k of cardTimers.splice(0)) clearTimeout(k);
   G.hole = i;
@@ -357,6 +402,7 @@ function load(i, fresh = false) {
   ballG.scale.setScalar(1);
   trail.reset();
   trail.lift = G.course.ground ? ground : null;
+  ring.userData.x = NaN; // (its room to the rails, worked out again)
   // (on a slope the aiming arrow is drawn over the green, which it would dip into, and the ball after it;
   // on the flat, as it always was)
   const sloped = !!G.course.ground;
@@ -368,7 +414,7 @@ function load(i, fresh = false) {
   showAim(false);
   $('card').hidden = true;
   $('hint').hidden = i > 0 || store.get('shot', false);
-  if (fresh || (!retry && G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set('rounds', G.rounds); }
+  if (fresh || (!retry && G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
   if (G.paused) unpause();
   hud();
   aim();
@@ -454,6 +500,24 @@ function makeMenu() {
   $('m-resume').addEventListener('click', () => { audio.tap(); unpause(); });
   $('m-restart').addEventListener('click', () => { audio.tap(); load(G.hole); });
   $('m-holes').addEventListener('click', () => { audio.tap(); menu('holes'); });
+  $('m-level').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.dataset.l === G.level) return;
+    audio.tap();
+    // (the ball already in: the hole counts at the difficulty it was played at)
+    if (G.state === 'sink') finish(true);
+    useLevel(b.dataset.l);
+    track('level', G.level);
+    showLevel();
+    // (a hole is played at one difficulty: one under way starts again. And the new difficulty's round
+    // goes by load()'s rule: a yard's first hole, or any after its last, starts a new one)
+    if (G.state !== 'card') {
+      const y = yardOf(G.hole);
+      if (G.hole % PER === 0 || G.rounds[y][PER - 1] != null) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
+      if (G.strokes > 0) load(G.hole, false, true);
+    }
+    hud();
+  });
   const back = () => { if (!$('menu-holes').hidden && menuFrom === 'main') menu('main'); else unpause(); };
   $('h-back').addEventListener('click', () => { audio.tap(); back(); });
   $('menu').addEventListener('click', e => { if (e.target === $('menu')) back(); }); // (around the panel)
@@ -510,11 +574,11 @@ function unpause() {
 
 const yardOf = i => Math.floor(i / PER);
 /** a hole can be played: the first of its yard, or the one before it has been played */
-const opened = i => i % PER === 0 || G.best[i - 1] != null;
+const opened = i => i % PER === 0 || Object.keys(LEVELS).some(l => (l === G.level ? G.best : store.get(rec('best', l), []))[i - 1] != null);
 
 /** a yard's holes, each with its stars and its fewest strokes; those not reached yet locked */
 function holeGrid(y) {
-  const fewest = store.get('strokes', []);
+  const fewest = store.get(rec('strokes'), []);
   return HOLES.slice(y * PER, y * PER + PER).map((h, k) => {
     const i = y * PER + k, cls = 'tile' + (i === G.hole ? ' cur' : '');
     if (!opened(i)) return `<button class="${cls} locked" data-i="${i}" aria-label="${t('第 {n} 洞', { n: k + 1 })} · ${t('还没打到这洞')}"><b>${k + 1}</b>${LOCK}</button>`;
@@ -559,13 +623,21 @@ function hud() {
   $('stars-num').textContent = `${starsAll()}/${HOLES.length * 3}`;
   fitHud();
 }
-/** where the hole's name would run into the strokes in the middle (a middling width), it is left
- *  out: the number stays (measured with the name in, so the bars end up the same size each time) */
+/** where the hole's name would run into the strokes in the middle (a middling width), or into the
+ *  difficulty at the top right (a narrow one), it is left out: the number stays (measured with the name
+ *  in, so the bars end up the same size each time) */
 function fitHud() {
-  const hole = $('hole'), score = $('score');
+  const hole = $('hole'), stars = $('stars');
   hole.classList.remove('tight');
-  const h = hole.getBoundingClientRect(), s = score.getBoundingClientRect();
-  if (s.top < h.bottom && h.right + 8 > s.left) hole.classList.add('tight');
+  stars.classList.remove('tight');
+  const h = hole.getBoundingClientRect(), sc = $('score').getBoundingClientRect();
+  for (const id of ['score', 'lv-top']) {
+    const s = $(id).getBoundingClientRect();
+    if (s.width && s.top < h.bottom && s.bottom > h.top && h.right + 8 > s.left) hole.classList.add('tight');
+  }
+  // (and the difficulty by the stars, where they'd run into the strokes: it's in the menu)
+  const st = stars.getBoundingClientRect();
+  if (st.top < sc.bottom && sc.top < st.bottom && sc.right + 8 > st.left) stars.classList.add('tight');
 }
 const starsAll = () => G.best.reduce((a, b) => a + (b || 0), 0);
 const starsIn = y => G.best.slice(y * PER, y * PER + PER).reduce((a, b) => a + (b || 0), 0);
@@ -764,21 +836,63 @@ function drawAim() {
   holder.position.set(b.x, 0.02 + ground(b.x, b.z), b.z);
   // (the shape points along local +y, which the flat turn makes -z; on a slope it lies along it)
   holder.quaternion.setFromUnitVectors(UP, upAt(b.x, b.z, tmpV)).multiply(tmpQ.setFromAxisAngle(UP, -a.ang));
-  const L = 0.35 + a.p * 1.2;
-  arrow.scale.set(1, L, 1);
+  // (where the green is small on the screen, a phone's, the arrow is made wider to stay as easy to see
+  // as on a computer's, and a little longer: though not on over the cup, as if the ball would get there)
+  const ppm = pxPerM(), len = 0.35 + a.p * 1.2, room = Math.hypot(G.course.cup.x - b.x, G.course.cup.z - b.z) - 0.25;
+  dots.material.size = Math.min(14, Math.max(10, Math.min(innerWidth, innerHeight) / 38));
+  arrow.scale.set(Math.max(1, 100 / ppm), Math.max(len, Math.min(len * Math.max(1, 55 / ppm), room)), 1);
   arrowMat.color.setHSL(0.14 - a.p * 0.14, 1, 0.55);
   $('power-fill').style.width = Math.round(a.p * 100) + '%';
-  // the run, until just past its first bounce
-  const sim = simulate(G.course, b.x, b.z, a.ang, a.p, { every: 0.28, stopAfterHits: 1, maxLen: 7 });
-  const m = new THREE.Matrix4();
-  const n = Math.min(40, sim.pts.length - 1);
-  for (let i = 0; i < n; i++) {
-    const [x, z] = sim.pts[i + 1];
-    m.makeTranslation(x, 0.05 + ground(x, z), z);
-    dots.setMatrixAt(i, m);
+  // the run, until just past its first bounce: a dot every 18 px or so, measured on the screen (a run up
+  // it, seen from low, comes out much shorter than one across it), and one where it ends
+  const guide = LEVELS[G.level].guide;
+  const sim = guide ? simulate(G.course, b.x, b.z, a.ang, a.p, { every: 0.05, stopAfterHits: 1, maxLen: guide }) : null;
+  const pts = sim ? sim.pts.slice(1) : [];
+  if (sim && !sim.sunk) pts.push([sim.x, sim.z]);
+  const pos = dots.geometry.attributes.position, cam = engine.camera, size = dots.material.size, gap = Math.max(18, size + 6);
+  const w = engine.renderer.domElement.clientWidth / 2, h = engine.renderer.domElement.clientHeight / 2, tanF = Math.tan((cam.fov * Math.PI) / 360);
+  tmpV.set(b.x, ground(b.x, b.z), b.z).project(cam);
+  let n = 0, lx = tmpV.x * w, ly = tmpV.y * h;
+  for (let i = 0; i < pts.length && n < 40; i++) {
+    const [x, z] = pts[i], y = 0.05 + ground(x, z);
+    tmpV.set(x, y, z).project(cam);
+    const sx = tmpV.x * w, sy = tmpV.y * h, far = Math.hypot(sx - lx, sy - ly);
+    let k = n;
+    // (the end closer: the last dot moved onto it, if it would cover the one before)
+    if (far < gap) {
+      if (i < pts.length - 1) continue;
+      if (far < size) { if (!n) break; k = n - 1; }
+    }
+    // (moved toward the camera along its line of sight: the same place on the screen, but in front of the
+    // green under its lower half, which is nearer than its middle; by twice what that takes, which is
+    // more the lower the camera looks across the green)
+    const c = cam.position, low = Math.hypot(c.x - x, c.z - z) / Math.max(0.1, c.y - y);
+    tmpV.set(x, y, z).lerp(c, Math.min(0.08, ((size + 2) * tanF * low) / h));
+    pos.setXYZ(k, tmpV.x, tmpV.y, tmpV.z);
+    if (k === n) n++;
+    lx = sx; ly = sy;
   }
-  dots.count = n;
-  dots.instanceMatrix.needsUpdate = true;
+  pos.needsUpdate = true;
+  dots.geometry.setDrawRange(0, n);
+}
+
+/** how far the green runs from (x, z) to its edge (the rails' inner face), the least of 12 ways, up to 1 m */
+function roomAt(x, z) {
+  const C = G.course;
+  let d = 1;
+  for (let k = 0; k < 12; k++) {
+    const dx = Math.cos((k * Math.PI) / 6), dz = Math.sin((k * Math.PI) / 6);
+    for (let t = 0.05; t < d; t += 0.05)
+      if (!G.green.has(Math.round(x + dx * t + (C.W - 1) / 2) + ',' + Math.round(z + dz * t + (C.H - 1) / 2))) { d = t; break; }
+  }
+  return d;
+}
+
+/** how many pixels of the screen a metre of the green at the ball comes to */
+function pxPerM() {
+  const b = G.ball, c = engine.camera;
+  const d = Math.hypot(c.position.x - b.x, c.position.y - ground(b.x, b.z), c.position.z - b.z);
+  return engine.renderer.domElement.clientHeight / (2 * d * Math.tan((c.fov * Math.PI) / 360));
 }
 
 function shoot(ang, p) {
@@ -891,7 +1005,24 @@ function step(dt, draw = true) {
   cf.rim.color.setHSL((G.t * 0.15) % 1, 0.9, 0.6);
   cf.flag.rotation.y = Math.sin(G.t * 2.3) * 0.25;
   ring.visible = G.state === 'aim';
-  ring.position.set(b.x, 0.012 + ground(b.x, b.z), b.z);
+  let lift = 0;
+  if (ring.visible) {
+    // (bigger where the green is small on the screen, but not out past the rails. And on a curve in the
+    // green, a hollow or the foot of a slope, lifted by the most the green rises round its edge above
+    // the slope at the ball: laid flat there, it would sink into it)
+    const r = ring.userData;
+    if (r.x !== b.x || r.z !== b.z) Object.assign(r, { x: b.x, z: b.z, room: roomAt(b.x, b.z) });
+    const s = Math.max(1, Math.min(80 / pxPerM(), (r.room + 0.2) / (BALL_R * 1.9)));
+    ring.scale.setScalar(s);
+    if (G.course.ground) {
+      const [gx, gz] = G.course.ground.grad(b.x, b.z), y0 = ground(b.x, b.z), R = BALL_R * 1.9 * s;
+      for (let k = 0; k < 12; k++) {
+        const dx = Math.cos((k * Math.PI) / 6) * R, dz = Math.sin((k * Math.PI) / 6) * R;
+        lift = Math.max(lift, ground(b.x + dx, b.z + dz) - y0 - gx * dx - gz * dz);
+      }
+    }
+  }
+  ring.position.set(b.x, 0.012 + lift + ground(b.x, b.z), b.z);
   ring.quaternion.setFromUnitVectors(UP, upAt(b.x, b.z, tmpV));
   ring.material.opacity = 0.45 + Math.sin(G.t * 4) * 0.25;
   if (G.aim && G.state === 'aim') drawAim();
@@ -958,11 +1089,11 @@ function finish(sunk, skipped = false) {
   // (a hole skipped counts the most it can, as one the game lets off: skipping never beats sinking it)
   if (skipped) G.strokes = Math.max(G.strokes, HOLES[G.hole].par + GIVE_UP);
   const hole = HOLES[G.hole], all = G.sweets.length, s = G.strokes, d = s - hole.par;
-  trackDone(G.hole, sunk, skipped, s, d);
+  trackDone(G.hole, sunk, skipped, s, d, G.level);
   const on = [sunk, sunk && d <= 0, sunk && (d < 0 || G.got >= all)];
   const stars = on.filter(Boolean).length;
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
-  store.set('best', G.best);
+  store.set(rec('best'), G.best);
   const [word, kind] = !sunk ? ['这洞先放过你', 'none'] : s === 1 ? ['一杆进洞！', 'ace'] : d <= -3 ? ['信天翁！', 'ace']
     : d === -2 ? ['老鹰球！', 'ace'] : d === -1 ? ['小鸟球！', 'under'] : d === 0 ? ['标准杆！', ''] : d === 1 ? ['多了一杆', 'over']
       : d === 2 ? ['多了两杆', 'over'] : ['进洞了', 'over'];
@@ -993,17 +1124,17 @@ function finish(sunk, skipped = false) {
   if (lastHole) $('card-sub').textContent += ' · ' + t('{yard} ★ {n}/{all}', { yard: t(YARDS[y].name), n: starsIn(y), all: PER * 3 }).replace(/ /g, '\u00a0');
   // records: this hole's fewest strokes, and on the last hole the round's
   const lines = [];
-  const holeBest = store.get('strokes', []), was = holeBest[G.hole];
+  const holeBest = store.get(rec('strokes'), []), was = holeBest[G.hole];
   if (sunk) {
     if (was && G.strokes < was) lines.push(`<b>${t('新纪录！')}</b> ${t('最好 {n} 杆', { n: G.strokes })}`);
     else if (was) lines.push(t('最好 {n} 杆', { n: was }));
-    if (!was || G.strokes < was) { holeBest[G.hole] = G.strokes; store.set('strokes', holeBest); }
+    if (!was || G.strokes < was) { holeBest[G.hole] = G.strokes; store.set(rec('strokes'), holeBest); }
   }
   // the round counts each hole's first go (a hole let off counts the strokes it took): a retry wins
   // stars and the hole's best, but doesn't remake the round's total, nor say it again
   const round = G.rounds[y], first = round[k] == null;
   if (first) round[k] = G.strokes;
-  store.set('rounds', G.rounds);
+  store.set(rec('rounds'), G.rounds);
   // (coming back later goes on to the next hole, or after a yard's last to the next yard)
   store.set('hole', (G.hole + 1) % HOLES.length);
   const roundDone = lastHole && first && HOLES.slice(y * PER, y * PER + PER).every((h, j) => round[j] > 0);
@@ -1012,11 +1143,13 @@ function finish(sunk, skipped = false) {
     track('yard', String(y + 1));
     const total = round.reduce((a, b) => a + b, 0), par = HOLES.slice(y * PER, y * PER + PER).reduce((a, h) => a + h.par, 0);
     // (each yard's best round; the first yard's kept from before there were yards)
-    const bests = store.get('bestRounds', null) || [store.get('bestRound', 0)], bestRound = bests[y] || 0;
+    const bests = store.get(rec('bestRounds'), null) || (G.level === 'easy' ? [store.get('bestRound', 0)] : []), bestRound = bests[y] || 0;
     const line = pl('这一轮 {n} 杆 · 标准杆 {par}', total, { par });
     if (bestRound && total < bestRound) lines.push(`<b>${t('新纪录！')}</b> ${line}`);
     else lines.push(line + (bestRound ? ' · ' + t('最好一轮 {n} 杆', { n: bestRound }) : ''));
-    if (!bestRound || total < bestRound) { bests[y] = total; store.set('bestRounds', bests); }
+    if (!bestRound || total < bestRound) { bests[y] = total; store.set(rec('bestRounds'), bests); }
+    // (a yard all but swept at the easy difficulty: there are harder ones)
+    if (G.level === 'easy' && starsIn(y) >= PER * 3 - 4) lines.push(t('嫌简单？暂停菜单里可以换难度'));
   }
   $('card-best').innerHTML = lines.map(l => `<div>${l}</div>`).join('');
   $('card-best').hidden = !lines.length;
