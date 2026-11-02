@@ -1195,17 +1195,97 @@ html[lang="en"] .eyebrow, html[lang="en"] #res-eyebrow { letter-spacing: 1.5px; 
   <div class="panel"><h2>无法启动 3D</h2><p>当前浏览器不支持 WebGL2。请换用新版 Chrome、Edge 或 Safari 打开。</p></div>
 </div>
 <script>(function () {
-  var file = 'wanwu.4a9ffca3.js', cos = 'https://wan-wu-gun-1318514885.cos.ap-guangzhou.myqcloud.com/' + file, cn = false, i = 0;
+  // (written by tools/cdn-loader.mjs, which says how it works)
+  var FILE = "wanwu.4a9ffca3.js", SIZE = 1398348, SRI = 'OsG43wGIdsRQh17DrANZKhYJIcXRxI48xzto1fVu/6NfyFgauyC9gssQl2PoU5md', BOOT = '__wanwuBoot', REPORT = '__wanwuLoad', TEXT = "#loading-text";
+  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@7fcdb1f39ee4524f5bd9bf7a54fb6dbecd88f714/wanwu.4a9ffca3.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@7fcdb1f39ee4524f5bd9bf7a54fb6dbecd88f714/wanwu.4a9ffca3.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@7fcdb1f39ee4524f5bd9bf7a54fb6dbecd88f714/wanwu.4a9ffca3.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@7fcdb1f39ee4524f5bd9bf7a54fb6dbecd88f714/wanwu.4a9ffca3.js"]], STALL = 6000;
+  var cn = false, en = false;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
-  var order = cn ? [cos, file] : [file, cos];
-  function next() {
-    if (window.__wanwuBoot || i >= order.length) return;
-    var s = document.createElement('script');
-    s.src = order[i++];
-    s.onerror = next;
-    document.body.appendChild(s);
-    setTimeout(next, 12000);
+  try {
+    var q = new URLSearchParams(location.search).get('lang'), st = JSON.parse(localStorage.getItem('wanwu.lang'));
+    en = q === 'en' || q === 'zh' ? q === 'en' : st === 'en' || st === 'zh' ? st === 'en' : !/^zh/i.test(navigator.language || '');
+  } catch (e) {}
+  var here = ['local', FILE];
+  var order = cn ? CDN.concat([here]) : [here].concat(CDN.filter(function (c) { return c[0] === 'gcore' || c[0] === 'cdn'; }));
+  var streams = !!(window.fetch && window.AbortController && window.ReadableStream && window.Blob && window.URL && URL.createObjectURL && window.crypto && crypto.subtle);
+  var t0 = Date.now(), i = 0, ctl = null, cur = null, began = 0, last = 0, got = 0, tick = t0, moved = false, base = null, dog = 0;
+  function el() { return document.querySelector(TEXT); }
+  function show(p) {
+    var e = el();
+    if (!e) return;
+    if (base === null) base = e.textContent;
+    e.textContent = base + ' ' + Math.min(99, Math.floor(p * 100)) + '%';
   }
+  function from(c) { window[REPORT] = { from: (cn ? 'cn-' : '') + c[0], ms: Date.now() - t0 }; }
+  function fail() {
+    clearInterval(dog);
+    var e = el();
+    if (e) e.textContent = en ? 'The game didn\'t load. Tap to try again' : '没加载出来，点一下再试';
+    document.addEventListener('pointerdown', function () { if (!window[BOOT]) location.reload(); });
+  }
+  function next() {
+    if (window[BOOT]) return;
+    if (i >= order.length) return fail();
+    var c = order[i++];
+    if (streams) get(c); else tag(c);
+  }
+  function hash(buf) {
+    return crypto.subtle.digest('SHA-384', buf).then(function (h) {
+      var a = new Uint8Array(h), s = '';
+      for (var k = 0; k < a.length; k++) s += String.fromCharCode(a[k]);
+      return btoa(s);
+    });
+  }
+  // one place: the bytes as they come (the watch below stops it if they don't), checked, then run
+  function get(c) {
+    var me = ctl = new AbortController(), parts = [], n = 0;
+    cur = c; got = 0; began = last = Date.now();
+    fetch(c[1], { signal: me.signal, credentials: 'omit' }).then(function (r) {
+      if (!r.ok || !r.body) throw new Error(r.status);
+      var rd = r.body.getReader();
+      function pump() {
+        return rd.read().then(function (x) {
+          if (x.done) return;
+          parts.push(x.value); n += x.value.length;
+          if (me === ctl) { got = n; last = Date.now(); show(n / SIZE); }
+          return pump();
+        });
+      }
+      return pump();
+    }).then(function () {
+      var buf = new Uint8Array(n), o = 0;
+      for (var k = 0; k < parts.length; k++) { buf.set(parts[k], o); o += parts[k].length; }
+      return hash(buf).then(function (h) {
+        if (h !== SRI) throw new Error('integrity');
+        if (me !== ctl) return;
+        ctl = null;
+        clearInterval(dog);
+        from(c);
+        var s = document.createElement('script');
+        s.src = URL.createObjectURL(new Blob([buf], { type: 'text/javascript;charset=utf-8' }));
+        document.body.appendChild(s);
+      });
+    }).catch(function () { if (me === ctl) { ctl = null; next(); } });
+  }
+  function tag(c) {
+    var s = document.createElement('script'), at = i;
+    s.src = c[1];
+    s.integrity = 'sha384-' + SRI;
+    s.crossOrigin = 'anonymous';
+    s.onload = function () { if (window[BOOT] && !window[REPORT]) from(c); };
+    s.onerror = function () { if (i === at) next(); };
+    document.body.appendChild(s);
+    if (i < order.length) setTimeout(function () { if (i === at) next(); }, 30000);
+  }
+  if (streams) dog = setInterval(function () {
+    var now = Date.now(), asleep = now - tick - 500;
+    if (asleep > 1500) { last += asleep; began += asleep; } // (the page wasn't running: that time doesn't count)
+    if (document.hidden) last = now;
+    tick = now;
+    if (!ctl) return;
+    var more = i < order.length;
+    if (now - last > (!more ? 30000 : got ? 15000 : STALL)) return ctl.abort();
+    if (more && !moved && got && now - began > 8000 && (SIZE - got) * (now - began) > 30000 * got) { moved = true; order.push(cur); ctl.abort(); }
+  }, 500);
   next();
 })();</script>
 </body>

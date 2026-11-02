@@ -66,11 +66,17 @@ npm run gallery       # 模型图鉴：dist/gallery.html（?filter=cat 只看某
 
 看数时主要看三个比例：`intro/skip-…` 占 `intro` 的多少；`game_n/2` ÷ `game_n/1`（打完一局接着开第二局的比例）；`visit/day-1` ÷ `visit/new`（次日回来的比例）。`end/quick/…`、`leave/…`、`quit/…` 看一局在第几分钟结束、怎么结束。
 
-线上的 GitHub Pages 只放一个 30 KB 的页面，游戏脚本单独一个文件：国内（按时区判断）从腾讯云 COS 广州的
-`wan-wu-gun-1318514885` 桶加载，github.io 在国内太慢；其他地方从页面旁边加载，任何一边失败或超过 12 秒就换另一边。
-每次构建脚本名字都会变，所以发版时要把 `dist/cos/` 里压缩好的同名文件传到桶的根目录，并设置
-`Content-Encoding: gzip`、`Content-Type: application/javascript; charset=utf-8`、
-`Cache-Control: public, max-age=31536000, immutable`。国内的字体走 Google 自己的国内镜像 fonts.googleapis.cn。
+线上的 GitHub Pages 只放一个几十 KB 的页面，游戏脚本单独一个文件（`wanwu.<hash>.js`，名字随内容变）：github.io 在国内
+很慢，所以国内（按时区判断）从 jsDelivr 加载，它直接从这个 GitHub 仓库取文件，不用另外上传；其他地方从页面旁边加载。
+一次只下一份，哪里失败或 6 秒没收到数据就换下一处，加载文字后面显示百分比，全都失败就提示点一下再试。
+具体见 [`tools/cdn-loader.mjs`](tools/cdn-loader.mjs)。国内的字体走 Google 自己的国内镜像 fonts.googleapis.cn。
+
+jsDelivr 要按「加了这个文件的那次提交」来取（按分支名取会缓存好几个小时），所以发版分两步：
+
+1. `npm run build`，只把新的 `wanwu.<hash>.js` 提交到 main 并推上去（旧的先留着，线上的页面还要用）；
+2. 再 `npm run build` 一次（它会在 origin/main 上找到那次提交，脚本内容不变），提交 `index.html` 和删掉的旧文件，推上去。
+
+第一步构建出来的页面还不走 jsDelivr，构建时会提示。
 
 ## 目录
 
