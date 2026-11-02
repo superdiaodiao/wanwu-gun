@@ -16,7 +16,8 @@ export const BALL_R = 0.14, CUP_R = 0.3;
 export const PHYS = {
   a0: 0.75, // constant rolling drag, m/s²
   k: 0.36, // drag per m/s of speed, 1/s
-  vmin: 0.7, vmax: 9, // shot speed at the least and the most power
+  vmin: 0.35, vmax: 9, // shot speed at the least and the most power
+  curve: 1.6, // and in between it grows as the power to this (short putts take longer pulls, which aim steadier)
   rest: 0.08, // below this the ball has stopped
   wallE: 0.78, // how much speed a wall gives back
   capture: 3.0, // the hole takes a ball slower than this
@@ -162,7 +163,7 @@ export function stepBall(b, course, dt, onHit) {
 }
 
 /** the speed a shot of power p (0..1) sends the ball off at */
-export const shotSpeed = p => PHYS.vmin + (PHYS.vmax - PHYS.vmin) * p;
+export const shotSpeed = p => PHYS.vmin + (PHYS.vmax - PHYS.vmin) * p ** PHYS.curve;
 
 /**
  * Plays a shot out on the course as it stands (moving things where they are now, held still):

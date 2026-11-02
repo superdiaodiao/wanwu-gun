@@ -712,7 +712,7 @@ function onDown(e) {
   wake();
   // one finger, the main mouse button; a second touch doesn't take the shot over
   if (G.state !== 'aim' || G.aim || !e.isPrimary || e.button !== 0) return;
-  G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ang: 0, p: 0 };
+  G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ang: 0, p: 0, was: [], touch: e.pointerType === 'touch' };
   try { e.target.setPointerCapture(e.pointerId); } catch {}
 }
 const ballV = new THREE.Vector3(), tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
@@ -730,6 +730,10 @@ function onMove(e) {
   a.p = Math.max(0, Math.min(1, (px - 10) / (0.3 * Math.min(innerWidth, innerHeight))));
   const dx = b.x - p.x, dz = b.z - p.z;
   if (Math.hypot(dx, dz) > 1e-3) a.ang = Math.atan2(dx, -dz);
+  // (the aim a moment ago, for the finger lifting off: see onUp)
+  const was = a.was;
+  while (was.length > 1 && e.timeStamp - was[1].t > 300) was.shift();
+  was.push({ t: e.timeStamp, x: e.clientX, y: e.clientY, ang: a.ang, p: a.p });
   showAim(a.p > 0);
   drawAim();
 }
@@ -738,7 +742,18 @@ function onUp(e) {
   if (!a || e.pointerId !== a.id) return;
   G.aim = null;
   showAim(false);
-  if (a.p > 0.04 && G.state === 'aim') shoot(a.ang, a.p);
+  // a finger lifting off the glass rolls the touch point a few pixels, and on a short pull that turns the
+  // shot: if the last moment's moving came to no more than that, the shot goes as aimed just before it
+  // (a mouse button lets go where it is; and this never decides whether there is a shot at all)
+  const was = a.was, end = was[was.length - 1];
+  let { ang, p } = a;
+  if (a.touch && p > 0.04 && e.timeStamp - end.t < 70)
+    for (let i = was.length - 2; i >= 0; i--) {
+      if (e.timeStamp - was[i].t < 70) continue;
+      if (was[i].p > 0.04 && Math.hypot(end.x - was[i].x, end.y - was[i].y) < 6) ({ ang, p } = was[i]);
+      break;
+    }
+  if (p > 0.04 && G.state === 'aim') shoot(ang, p);
 }
 function drawAim() {
   const a = G.aim, b = G.ball;
@@ -772,7 +787,7 @@ function shoot(ang, p) {
   G.state = 'roll';
   G.still = 0;
   G.rollT = 0;
-  audio.putt(p);
+  audio.putt((v - PHYS.vmin) / (PHYS.vmax - PHYS.vmin));
   if (!store.get('shot', false)) { store.set('shot', true); }
   $('hint').hidden = true;
   $('tags').classList.add('out');
@@ -1005,7 +1020,7 @@ function finish(sunk, skipped = false) {
 }
 
 window.__golf = {
-  get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES, audio,
+  get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES, audio, PHYS,
 };
 
 boot();
