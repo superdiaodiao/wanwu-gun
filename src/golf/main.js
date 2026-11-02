@@ -29,6 +29,7 @@ import { golfBall, Trail } from './ball.js';
 import { Confetti } from './confetti.js';
 import { portalInit, portalLoaded, portalPlaying, portalOnMute } from '../game/portal.js';
 import { strayHost } from '../game/guard.js';
+import { track, trackBoot, trackHole, trackDone } from './track.js';
 
 // counted things in English: '{n} stroke{s}'
 const pl = (zh, n, vars) => t(zh, { n, s: n === 1 ? '' : 's', ...vars });
@@ -171,6 +172,7 @@ async function boot() {
   }
   for (let y = 0; y < YARDS.length; y++) G.rounds[y] = G.rounds[y] || [];
   store.set('rounds', G.rounds);
+  trackBoot(store, EN, () => G.hole);
   // (back at a yard's first hole, its round starts again, as it does going there any other way)
   const at = Math.min(store.get('hole', 0), HOLES.length - 1);
   load(at, at % PER === 0);
@@ -329,6 +331,7 @@ function coin() {
  *  one, unless it is that hole again (a retry, which doesn't touch the round) */
 function load(i, fresh = false) {
   const retry = !!G.course && i === G.hole;
+  trackHole(i, retry);
   if (G.course) G.course.dispose();
   for (const k of cardTimers.splice(0)) clearTimeout(k);
   G.hole = i;
@@ -955,6 +958,7 @@ function finish(sunk, skipped = false) {
   // (a hole skipped counts the most it can, as one the game lets off: skipping never beats sinking it)
   if (skipped) G.strokes = Math.max(G.strokes, HOLES[G.hole].par + GIVE_UP);
   const hole = HOLES[G.hole], all = G.sweets.length, s = G.strokes, d = s - hole.par;
+  trackDone(G.hole, sunk, skipped, s, d);
   const on = [sunk, sunk && d <= 0, sunk && (d < 0 || G.got >= all)];
   const stars = on.filter(Boolean).length;
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
@@ -1005,6 +1009,7 @@ function finish(sunk, skipped = false) {
   const roundDone = lastHole && first && HOLES.slice(y * PER, y * PER + PER).every((h, j) => round[j] > 0);
   $('card-round').innerHTML = roundDone ? scorecard(y) : '';
   if (roundDone) {
+    track('yard', String(y + 1));
     const total = round.reduce((a, b) => a + b, 0), par = HOLES.slice(y * PER, y * PER + PER).reduce((a, h) => a + h.par, 0);
     // (each yard's best round; the first yard's kept from before there were yards)
     const bests = store.get('bestRounds', null) || [store.get('bestRound', 0)], bestRound = bests[y] || 0;
