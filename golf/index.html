@@ -91,8 +91,12 @@ html[lang="en"] #card .title:not(.none) { text-transform: uppercase; }
 #card .st small { display: block; font-size: 13px; line-height: 1.25; color: #849088; text-wrap: balance; }
 #card .st.on small { color: var(--ink); }
 #card .sub { font-size: 16px; color: var(--dim); margin: clamp(4px, 1.2vh, 8px) 0 clamp(8px, 2.2vh, 16px); }
-#card .best { margin: -6px 0 clamp(8px, 2vh, 14px); font-size: 15px; color: var(--ink); line-height: 1.6; }
+#card .best { margin: -6px 0 clamp(8px, 2vh, 14px); font-size: 15px; color: var(--ink); line-height: 1.6; text-wrap: balance; }
 #card .best b { color: #e0670f; }
+/* ("too easy?": a tap opens the menu) */
+#card .best button.harder { margin-top: 2px; padding: 7px 14px 7px 16px; font: 700 15px var(--body); background: #eef3ef; color: var(--ink); box-shadow: none; }
+#card .best button.harder::after { content: '\203A'; margin-left: 6px; font-size: 18px; line-height: 0; color: var(--dim); }
+#card .best button.harder:active { transform: translateY(1px); box-shadow: none; }
 #card .tip { margin: -4px auto clamp(8px, 2vh, 14px); max-width: 320px; padding: 6px 12px; border-radius: 12px; background: #fff6d6; color: #8a6a12; font: 700 15px var(--body); }
 /* (kept in sight at the bottom when the card is taller than the screen, the rest scrolling under them) */
 #card .btns { position: sticky; bottom: 0; z-index: 1; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding-bottom: 6px; background: #fff; }
@@ -292,8 +296,8 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 </script>
 <script>(function () {
   // (written by tools/cdn-loader.mjs, which says how it works)
-  var FILE = "golf.4c8b88cc.js", SIZE = 1342794, SRI = 'Pr3R/8Epxtk7dl9el1MCzD71VPo08XK5Iuc5uwthzYrP6f7J3w9TUJlmPsmEkS8S', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
-  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@53561a9371cf525e4381aa6a72c5a976720cff74/golf/golf.4c8b88cc.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@53561a9371cf525e4381aa6a72c5a976720cff74/golf/golf.4c8b88cc.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@53561a9371cf525e4381aa6a72c5a976720cff74/golf/golf.4c8b88cc.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@53561a9371cf525e4381aa6a72c5a976720cff74/golf/golf.4c8b88cc.js"]], STALL = 6000;
+  var FILE = "golf.f8f6ec8c.js", SIZE = 1343388, SRI = 'uoJ3EBMvmrDwUPy1YoKJVWrY5tX8EOpApKRJUQZpQJo5z5bMaYboiN7jgqP6C/5P', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
+  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"]], STALL = 6000;
   var cn = false, en = false;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   try {
