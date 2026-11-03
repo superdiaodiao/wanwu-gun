@@ -13,6 +13,9 @@
 //   done    h<n>/ace|under|par|over|skip|let-off, then /normal or /hard when not played easy (value:
 //           strokes)
 //   level   easy|normal|hard: the difficulty changed in the menu
+//   tip     under|yard: the card offered a harder difficulty, at the easy one (after a hole under par, not
+//           the warm-up, once a visit on the first three visits; after a yard all but swept); open: that
+//           offer tapped (it opens the menu)
 //   yard    <n>: yard n's whole round played
 //   time    1m 3m 5m 10m 15m 20m 30m: playing that long since the page was opened (counted while the
 //           page is in front and something was pressed in the last minute)

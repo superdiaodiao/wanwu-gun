@@ -83,6 +83,8 @@ const LEVELS = {
   normal: { name: '普通', note: '虚线只画一小段，进洞要轻一点', guide: 1.5, capture: 2.2 },
   hard: { name: '困难', note: '没有虚线，只看箭头；进洞要很轻', guide: 0, capture: 1.6 },
 };
+const LEVEL_TIPS = 3; // (on how many visits a hole under par at the easy one says there are harder: see finish)
+let levelTold = false; // (and whether it has on this one)
 /** a record's key at the difficulty being played (the easy one's as it always was) */
 const rec = (k, l = G.level) => (l === 'easy' ? k : `${k}.${l}`);
 /** play at this difficulty from now on: its records, its guide and its cup */
@@ -147,6 +149,8 @@ async function boot() {
   $('card-btn').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); next(); });
   $('card-retry').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); load(G.hole); });
   $('card-holes').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); menu('holes'); });
+  // ("too easy?" on the card: the menu, where the difficulty is picked)
+  $('card-best').addEventListener('click', e => { if (!e.target.closest('.harder') || G.state !== 'card' || G.paused) return; audio.tap(); track('tip', 'open'); menu('main'); });
   $('skip').addEventListener('click', () => { if (!canSkip()) return; audio.tap(); finish(false, true); });
   makeMenu();
   // (Enter and Space press a button that has the focus themselves; Cmd/Ctrl+R is the browser's)
@@ -203,6 +207,8 @@ async function boot() {
   store.set('rounds', G.rounds);
   useLevel(store.get('level', 'easy'));
   showLevel();
+  // (a difficulty picked before there was the levelPicked to say so: see finish)
+  if (G.level !== 'easy' || ['normal', 'hard'].some(l => ['best', 'rounds', 'strokes'].some(k => store.get(rec(k, l), null)))) store.set('levelPicked', true);
   trackBoot(store, EN, () => G.hole);
   // (back at a yard's first hole, its round starts again, as it does going there any other way)
   const at = Math.min(store.get('hole', 0), HOLES.length - 1);
@@ -504,6 +510,7 @@ function makeMenu() {
     const b = e.target.closest('button');
     if (!b || b.dataset.l === G.level) return;
     audio.tap();
+    store.set('levelPicked', true); // (and so no more saying there are harder ones: see finish)
     // (the ball already in: the hole counts at the difficulty it was played at)
     if (G.state === 'sink') finish(true);
     useLevel(b.dataset.l);
@@ -515,6 +522,10 @@ function makeMenu() {
       const y = yardOf(G.hole);
       if (G.hole % PER === 0 || G.rounds[y][PER - 1] != null) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
       if (G.strokes > 0) load(G.hole, false, true);
+    } else {
+      // (picked from the card: it no longer offers one)
+      $('card-best').querySelector('.harder')?.parentElement.remove();
+      $('card-best').hidden = !$('card-best').childElementCount;
     }
     hud();
   });
@@ -1149,8 +1160,16 @@ function finish(sunk, skipped = false) {
     if (bestRound && total < bestRound) lines.push(`<b>${t('新纪录！')}</b> ${line}`);
     else lines.push(line + (bestRound ? ' · ' + t('最好一轮 {n} 杆', { n: bestRound }) : ''));
     if (!bestRound || total < bestRound) { bests[y] = total; store.set(rec('bestRounds'), bests); }
-    // (a yard all but swept at the easy difficulty: there are harder ones)
-    if (G.level === 'easy' && starsIn(y) >= PER * 3 - 4) lines.push(t('嫌简单？暂停菜单里可以换难度'));
+  }
+  // at the easy difficulty, there are harder ones (a tap opens the menu to pick one): said after a yard
+  // all but swept, and after a hole under par (not the warm-up) once a visit for the first few visits,
+  // until a difficulty is picked
+  const swept = roundDone && starsIn(y) >= PER * 3 - 4, told = store.get('levelTips', 0);
+  const under = sunk && d < 0 && G.hole > 0 && !levelTold && told < LEVEL_TIPS && !store.get('levelPicked', false);
+  if (G.level === 'easy' && (swept || under)) {
+    lines.push(`<button class="harder" type="button">${t('嫌简单？换个难度')}</button>`);
+    if (!swept) { levelTold = true; store.set('levelTips', told + 1); }
+    track('tip', swept ? 'yard' : 'under');
   }
   $('card-best').innerHTML = lines.map(l => `<div>${l}</div>`).join('');
   $('card-best').hidden = !lines.length;

@@ -366,7 +366,7 @@ export const UI = {
   '虚线一直画到第一次撞墙': 'The guide runs to the first bounce',
   '虚线只画一小段，进洞要轻一点': 'A short guide; putt gentler to drop in',
   '没有虚线，只看箭头；进洞要很轻': 'No guide, just the arrow; putt softly to drop in',
-  '嫌简单？暂停菜单里可以换难度': 'Too easy? Pick a harder difficulty in the pause menu',
+  '嫌简单？换个难度': 'Too easy? Change the difficulty',
   '跳过这洞': 'Skip hole',
   '还没打到这洞': 'Locked',
   '这一轮': 'This round',

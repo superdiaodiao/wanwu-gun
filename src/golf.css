@@ -82,8 +82,12 @@ html[lang="en"] #card .title:not(.none) { text-transform: uppercase; }
 #card .st small { display: block; font-size: 13px; line-height: 1.25; color: #849088; text-wrap: balance; }
 #card .st.on small { color: var(--ink); }
 #card .sub { font-size: 16px; color: var(--dim); margin: clamp(4px, 1.2vh, 8px) 0 clamp(8px, 2.2vh, 16px); }
-#card .best { margin: -6px 0 clamp(8px, 2vh, 14px); font-size: 15px; color: var(--ink); line-height: 1.6; }
+#card .best { margin: -6px 0 clamp(8px, 2vh, 14px); font-size: 15px; color: var(--ink); line-height: 1.6; text-wrap: balance; }
 #card .best b { color: #e0670f; }
+/* ("too easy?": a tap opens the menu) */
+#card .best button.harder { margin-top: 2px; padding: 7px 14px 7px 16px; font: 700 15px var(--body); background: #eef3ef; color: var(--ink); box-shadow: none; }
+#card .best button.harder::after { content: '\203A'; margin-left: 6px; font-size: 18px; line-height: 0; color: var(--dim); }
+#card .best button.harder:active { transform: translateY(1px); box-shadow: none; }
 #card .tip { margin: -4px auto clamp(8px, 2vh, 14px); max-width: 320px; padding: 6px 12px; border-radius: 12px; background: #fff6d6; color: #8a6a12; font: 700 15px var(--body); }
 /* (kept in sight at the bottom when the card is taller than the screen, the rest scrolling under them) */
 #card .btns { position: sticky; bottom: 0; z-index: 1; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding-bottom: 6px; background: #fff; }
