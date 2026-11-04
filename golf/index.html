@@ -37,9 +37,33 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #tags .tag { position: absolute; left: 0; top: 0; padding: 5px 12px; border-radius: 11px; background: #fff; color: var(--ink); font: 800 16px var(--body); white-space: nowrap; box-shadow: 0 3px 0 rgba(47, 58, 51, 0.15); }
 #tags .tag::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
 #tags .tag.below::after { bottom: auto; top: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: #fff; }
-#stars { right: 14px; }
+/* the yard's stars (a tap: the map of the yards), the yard's name by them where there is room */
+#hud > #stars { position: absolute; right: 14px; border: 0; font-family: var(--body); color: var(--ink); pointer-events: auto; cursor: pointer; }
 #stars i { font-style: normal; color: var(--gold); font-size: 20px; }
 #stars b { font: 800 22px var(--num); }
+#stars small { align-self: center; font: 700 14px var(--body); color: var(--dim); }
+#stars.tight small { display: none; }
+/* the difficulty, always in sight (a tap: pick another): its colour's dot and its name; left of the
+   stars on a wide screen (placed there by fitHud), at the top right on a narrow one */
+#hud > #lv-chip { position: absolute; top: 14px; right: 14px; display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 15px 0 13px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); color: var(--ink); font: 800 16px var(--body); white-space: nowrap; pointer-events: auto; cursor: pointer; }
+#lv-chip i { width: 12px; height: 12px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(61, 187, 108, 0.22); }
+#lv-chip.normal i { background: #1f86d1; box-shadow: 0 0 0 3px rgba(31, 134, 209, 0.22); }
+#lv-chip.hard i { background: #e0524a; box-shadow: 0 0 0 3px rgba(224, 82, 74, 0.22); }
+#lv-chip.tight { padding: 0 14px; }
+#lv-chip.tight span { display: none; }
+#hud > #lv-chip.low { top: 72px; }
+/* a yard's holes as dots: hollow till played, grey let off, then pale, green, gold by the stars got */
+.dots { display: inline-flex; align-items: center; gap: 3px; }
+.dots i { flex: none; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 2px #c3cdc6; }
+.dots i.s0 { background: #c3cdc6; }
+.dots i.s1 { background: #a6dcb6; box-shadow: none; }
+.dots i.s2 { background: var(--green); box-shadow: none; }
+.dots i.s3 { background: var(--gold); box-shadow: none; }
+.dots i.cur { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+.dots i.cur.sn { box-shadow: inset 0 0 0 2px #c3cdc6, 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+.dots i.now { animation: star-pop 0.45s cubic-bezier(0.2, 1.7, 0.4, 1) 1.1s both; }
+#hole-dots { align-self: center; display: flex; margin-left: 2px; }
+#hole.tighter #hole-dots { display: none; }
 #banner { left: 50%; top: 22%; width: max-content; max-width: calc(100vw - 32px); transform: translate(-50%, -50%); text-align: center; color: #fff; text-shadow: 0 3px 0 rgba(47, 58, 51, 0.3); white-space: nowrap; animation: pop 2.6s ease-out forwards; }
 #banner-title { font: 800 46px var(--body); }
 #banner-kick { display: inline-block; margin-bottom: 4px; padding: 3px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--ink); text-shadow: none; font: 800 17px var(--body); }
@@ -125,8 +149,33 @@ table.sc tr.par, table.sc tr.par th { border-bottom: 2px solid #e3e8e4; }
 table.sc td span { display: inline-block; min-width: 20px; line-height: 18px; }
 table.sc td span.under { border: 2px solid #1f86d1; border-radius: 50%; color: #1f86d1; }
 table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6f8596; }
-#card .round { margin: 0 0 clamp(6px, 1.6vh, 12px); }
-#card .round:empty { display: none; }
+/* the yard's holes as dots on the card, the one just played popping in, and what is left to do */
+#card .prog { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 10px; margin: calc(-1 * clamp(2px, 1vh, 8px)) 0 clamp(8px, 2vh, 14px); font: 700 14px var(--body); color: var(--dim); text-wrap: balance; }
+#card .prog .dots i { width: 11px; height: 11px; }
+/* the difficulties in a row, on the first card */
+#card .best .lvrow { display: inline-flex; align-items: center; gap: 8px; }
+#card .best .levels { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: #f1f3f2; }
+#card .best .levels button { padding: 5px 13px; font: 700 15px var(--body); background: transparent; color: var(--dim); box-shadow: none; }
+#card .best .levels button:active { transform: none; box-shadow: none; }
+#card .best .levels button.on { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 2px #f2c94c; }
+#card .best small.lvhint { display: block; font-size: 13px; line-height: 1.4; color: var(--dim); }
+/* a yard's page, after its last hole: the hole's own parts give way to the medal dropping in, the
+   yard's stars and round, and what is next */
+#card:not(.yd-page) .yard { display: none; }
+#card.yd-page .stars, #card.yd-page .sub, #card.yd-page .prog, #card.yd-page .best, #card.yd-page .tip, #card.yd-page #card-retry { display: none; }
+#card .yard .ym { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: clamp(2px, 1vh, 8px) 0 4px; }
+#card .yard .ym .medal svg { animation: medal-drop 0.75s cubic-bezier(0.2, 1.4, 0.4, 1) 0.25s both; }
+#card .yard .ym b { font: 800 18px var(--body); }
+#card .yard .ym b small { margin-left: 8px; color: #e0670f; font-size: 15px; }
+#card .yard .sum { margin: 0 0 clamp(6px, 1.6vh, 10px); font: 700 16px var(--body); color: var(--ink); }
+#card .yard .sum i { font-style: normal; color: var(--gold); }
+#card .yard .sum b { color: #e0670f; }
+#card .yard .lines { margin: clamp(6px, 1.6vh, 12px) 0 clamp(8px, 2vh, 14px); font: 700 15px var(--body); color: var(--dim); line-height: 1.65; text-wrap: balance; }
+#card .yard .lines .goal { display: inline-block; padding: 3px 12px; border-radius: 12px; background: #fff6d6; color: #8a6a12; }
+#card .yard .lines .unlock { color: var(--ink); font-weight: 800; }
+#card .yard .lines .fin { color: #e0670f; font-size: 18px; font-weight: 800; }
+#card .yard .lines button.harder { margin-top: 4px; padding: 7px 14px 7px 16px; font: 700 15px var(--body); background: #eef3ef; color: var(--ink); box-shadow: none; }
+#card .yard .lines button.harder::after { content: '\203A'; margin-left: 6px; font-size: 18px; line-height: 0; color: var(--dim); }
 /* the menu: paused over the hole, or picking a hole */
 #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(47, 58, 51, 0.38); }
 #menu .panel { display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); overflow: hidden auto; padding: clamp(14px, 3vh, 22px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.25s ease-out; }
@@ -158,22 +207,54 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #menu .lv-note { margin: -4px 0 0; font: 700 14px var(--body); color: var(--dim); }
 html[lang="en"] #menu .lv-note { min-height: 2lh; text-wrap: balance; } /* (two lines for each, so the menu doesn't jump) */
 #menu .levels button.on { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 3px #f2c94c; cursor: default; }
-.lv { align-self: center; padding: 1px 8px; border-radius: 999px; color: #fff; font: 800 13px var(--body); white-space: nowrap; }
-.lv:empty { display: none; }
-.lv.normal { background: #1f86d1; }
-.lv.hard { background: #e0524a; }
-/* (on a narrow screen, where the stars go down to the second row, it stands on its own at the top) */
-#stars.tight .lv { display: none; }
-#lv-top { display: none; top: 20px; right: 14px; padding: 4px 12px; font-size: 15px; }
-/* (and under the stars, wherever there is no room for it in them) */
-@media (min-width: 561px) { #stars.tight ~ #lv-top:not(:empty) { display: block; top: 72px; } }
-/* the yards, one tab each over their holes */
-#menu .tabs { display: flex; gap: 8px; }
-#menu .tabs button { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 7px 6px 6px; border-radius: 16px; background: #f1f3f2; color: var(--dim); font-size: 16px; box-shadow: inset 0 0 0 2px #e0e5e2; }
-#menu .tabs button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#menu .tabs button small { font: 800 14px var(--num); }
-#menu .tabs button small i { font-style: normal; color: var(--gold); margin-right: 2px; }
-#menu .tabs button.on { background: #fff6d6; color: var(--ink); box-shadow: inset 0 0 0 3px #f2c94c; cursor: default; }
+/* the difficulty's own page: the three, each with what it means, the one played lit */
+#menu .lvopts { display: flex; flex-direction: column; gap: 8px; }
+#menu .lvopts button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 16px 11px; border-radius: 18px; background: #f1f3f2; text-align: left; box-shadow: inset 0 0 0 2px #e0e5e2; }
+#menu .lvopts button b { display: flex; align-items: center; gap: 8px; font: 800 18px var(--body); }
+#menu .lvopts button b::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--green); }
+#menu .lvopts button[data-l="normal"] b::before { background: #1f86d1; }
+#menu .lvopts button[data-l="hard"] b::before { background: #e0524a; }
+#menu .lvopts button small { font: 700 14px var(--body); color: var(--dim); }
+#menu .lvopts button.on { background: #fff6d6; box-shadow: inset 0 0 0 3px #f2c94c; }
+/* the map: a card for each yard, its sky over its name and medal, then its holes as dots and its stars;
+   one not open yet greyed, with what opens it */
+#menu .played { margin: -6px 0 0; font: 700 14px var(--body); color: var(--dim); }
+#menu .yards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+#menu button.yd { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0 0 10px; overflow: hidden; border-radius: 20px; background: #fff; box-shadow: inset 0 0 0 2px #d9e2dc, 0 4px 0 #d9e2dc; }
+#menu button.yd:active { transform: translateY(2px); box-shadow: inset 0 0 0 2px #d9e2dc, 0 2px 0 #d9e2dc; }
+#menu button.yd.cur { box-shadow: inset 0 0 0 3px #f2c94c, 0 4px 0 #f2c94c; }
+#menu .yd .sky { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 62px; padding: 0 40px; background: linear-gradient(#7fc2ee, #cfeaf5); }
+#menu .yd.pond .sky { background: linear-gradient(#4fb0f2, #9fd8fa 58%, #bfe9c9); }
+#menu .yd.pool .sky { background: linear-gradient(#5a7fd6, #d99ab8 48%, #ffc48f); }
+#menu .yd .sky b { font: 800 20px var(--body); color: #fff; white-space: nowrap; text-shadow: 0 2px 0 rgba(31, 60, 40, 0.45), 0 0 6px rgba(31, 60, 40, 0.35); }
+#menu .yd svg.ic { flex: none; width: 34px; height: 28px; stroke: none; }
+#menu .yd .sky .medal { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+#menu .yd .meta { margin-top: 8px; font: 700 13px var(--body); color: var(--dim); }
+#menu .yd .dots { justify-content: center; margin: 7px 0 3px; }
+#menu .yd .ys { font: 800 16px var(--num); }
+#menu .yd .ys i { font-style: normal; color: var(--gold); margin-right: 3px; }
+#menu .yd .ys small { font: 700 13px var(--body); color: var(--dim); }
+#menu .yd.locked { background: #f6f7f6; cursor: default; }
+#menu .yd.locked:active { transform: none; }
+#menu .yd.locked .sky { filter: grayscale(0.9) brightness(1.05); opacity: 0.7; }
+#menu .yd .lk { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 14px 8px 4px; font: 700 14px var(--body); color: var(--dim); }
+#menu .yd .lk svg { flex: none; width: 18px; height: 18px; stroke: #a3ada6; }
+#menu .yd.no { animation: shake 0.3s; }
+/* a yard's medal: bronze, silver, gold on a red ribbon; not won yet, a dashed ring */
+.medal { display: inline-block; vertical-align: middle; }
+.medal svg { display: block; width: 26px; height: 32px; stroke: none; }
+#menu .medal svg { stroke: none; }
+.medal circle { fill: rgba(255, 255, 255, 0.5); stroke: rgba(255, 255, 255, 0.9); stroke-width: 2; stroke-dasharray: 3 3; }
+.medal .rb, .medal .st { display: none; }
+.medal:not(.m0) .rb { display: inline; fill: #e0524a; }
+.medal:not(.m0) .st { display: inline; fill: rgba(255, 255, 255, 0.88); }
+.medal.m1 circle { fill: #e2975a; stroke: #b5672c; stroke-dasharray: none; }
+.medal.m2 circle { fill: #d9e1e6; stroke: #95a4ae; stroke-dasharray: none; }
+.medal.m2 .st { fill: #fff; }
+.medal.m3 circle { fill: #ffd24a; stroke: #e0a10f; stroke-dasharray: none; }
+.medal.small svg { width: 18px; height: 22px; }
+.medal.small { margin-right: 4px; vertical-align: -5px; }
+.medal.big svg { width: 58px; height: 72px; }
 /* the holes: each with its stars and best, the ones not reached yet locked */
 #menu .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 #menu .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px 7px; border-radius: 16px; background: #eef8f1; box-shadow: inset 0 0 0 2px #bfe5cc, 0 4px 0 #bfe5cc; }
@@ -198,10 +279,11 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 @keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes word-pop { 0% { transform: scale(0.3) rotate(-6deg); opacity: 0; } 60% { transform: scale(1.06) rotate(2deg); opacity: 1; } 100% { transform: none; } }
 @keyframes star-pop { 0% { transform: scale(0) rotate(-40deg); opacity: 0; } 70% { transform: scale(1.2) rotate(8deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes medal-drop { 0% { transform: translateY(-46px) scale(0.6) rotate(-12deg); opacity: 0; } 65% { transform: translateY(4px) scale(1.1) rotate(4deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
 @keyframes rise { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes pop-top { 0% { transform: translate(-50%, 0) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, 0) scale(1.05); opacity: 1; } 20% { transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { transform: translate(-50%, -4px); opacity: 0; } }
 @keyframes pop { 0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(-50%, -62%); opacity: 0; } }
-@media (max-width: 560px) { #stars .lv { display: none; } #lv-top:not(:empty) { display: block; } #score { top: 62px; left: 14px; transform: none; padding: 7px 12px; gap: 6px; } #score .sep { margin-left: 2px; padding-left: 8px; } #stars { top: 62px; padding: 7px 12px; } #hint { bottom: 70px; } #banner-title { font-size: 36px; } #banner-sub { font-size: 15px; } }
+@media (max-width: 560px) { #stars small { display: none; } #hole { padding: 7px 12px; gap: 6px; } #hole-dots .dots { gap: 2px; } #hole-dots .dots i { width: 8px; height: 8px; } #score { top: 62px; left: 14px; transform: none; padding: 7px 12px; gap: 6px; } #score .sep { margin-left: 2px; padding-left: 8px; } #stars { top: 62px; padding: 7px 12px; } #hint { bottom: 70px; } #banner-title { font-size: 36px; } #banner-sub { font-size: 15px; } }
 @media (max-width: 374px) { #score, #stars { padding: 7px 10px; } }
 @media (max-width: 359px) { #score, #stars { padding: 6px 9px; } #score { gap: 4px; } #score .sep { margin-left: 0; padding-left: 6px; } #score span { font-size: 12px; } #score b { font-size: 20px; } #score b.small { font-size: 16px; } #stars b { font-size: 19px; } #stars i { font-size: 17px; } }
 @media (max-width: 359px) { table.sc th, table.sc td { min-width: 19px; padding: 0; } table.sc td span { min-width: 18px; } #menu .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } #menu-holes .head { flex-direction: column; gap: 0; } }
@@ -237,10 +319,10 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 <div id="hud">
   <div id="tags"></div>
   <button id="menu-btn" type="button" aria-label="暂停一下"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg></button>
-  <div id="hole"><span id="hole-num"></span><b id="hole-name"></b></div>
+  <div id="hole"><span id="hole-num"></span><b id="hole-name"></b><span id="hole-dots" aria-hidden="true"></span></div>
   <div id="score"><span>杆数</span><b id="strokes-num">0</b><span id="par"></span><span class="sep">金币</span><b id="sweets-num" class="small">0/0</b></div>
-  <div id="stars"><small id="stars-lv"></small><i>★</i><b id="stars-num">0</b></div>
-  <div id="lv-top"></div>
+  <button id="stars" type="button" aria-label="选院子"><small id="stars-yard"></small><i>★</i><b id="stars-num">0</b></button>
+  <button id="lv-chip" type="button" aria-label="换难度"><i></i><span id="lv-name"></span></button>
   <div id="banner" hidden><div id="logo"><div class="l1">Backyard</div><div class="l2">Mini G<i>o</i>lf</div></div><div id="banner-kick"></div><div id="banner-title"></div><div id="banner-sub"></div></div>
   <div id="hint">在哪都能按住，往后拉，松手击球</div>
   <div id="power" hidden><div id="power-fill"></div></div>
@@ -253,10 +335,11 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     <div class="title" id="card-title"></div>
     <div class="stars" id="card-stars"></div>
     <div class="sub" id="card-sub"></div>
-    <div class="round" id="card-round"></div>
+    <div class="prog" id="card-prog"></div>
+    <div class="yard" id="card-yard"></div>
     <div class="best" id="card-best" hidden></div>
     <div class="tip" id="card-tip" hidden></div>
-    <div class="btns"><button id="card-retry" class="retry"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4h4"/></svg><span>重打这洞</span></button><button id="card-btn">下一洞</button></div>
+    <div class="btns"><button id="card-retry" class="retry"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4h4"/></svg><span>重打这洞</span></button><button id="card-map" class="retry" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg><span>地图</span></button><button id="card-btn">下一洞</button></div>
   </div>
 </div>
 <div id="menu" hidden>
@@ -272,9 +355,20 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
       <button id="m-music" class="tog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17V6l10-2v11"/><circle class="fill" cx="6.5" cy="17" r="2.5"/><circle class="fill" cx="16.5" cy="15" r="2.5"/><path class="x" d="M3 3l18 18"/></svg><span>音乐</span></button>
     </div>
   </div>
+  <div class="panel wide" id="menu-map" hidden>
+    <div class="head"><button id="y-back" class="back" aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span>选院子</span><span class="tot"><i>★</i><b id="y-stars"></b></span></div>
+    <div class="played" id="y-played"></div>
+    <div class="yards" id="yard-list"></div>
+    <div class="levels" id="y-level" role="group" aria-label="难度"><button data-l="easy">简单</button><button data-l="normal">普通</button><button data-l="hard">困难</button></div>
+    <div class="lv-note" id="y-level-note"></div>
+  </div>
+  <div class="panel" id="menu-level" hidden>
+    <div class="head"><button id="l-back" class="back" aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span>难度</span></div>
+    <div class="lvopts" id="l-opts" role="group" aria-label="难度"><button data-l="easy"><b>简单</b><small>虚线一直画到第一次撞墙</small></button><button data-l="normal"><b>普通</b><small>虚线只画一小段，进洞要轻一点</small></button><button data-l="hard"><b>困难</b><small>没有虚线，只看箭头；进洞要很轻</small></button></div>
+    <div class="lv-note">随时可以在右上角改</div>
+  </div>
   <div class="panel wide" id="menu-holes" hidden>
-    <div class="head"><button id="h-back" class="back" aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span>选洞</span><small id="h-lv"></small><span class="tot"><i>★</i><b id="h-stars"></b></span></div>
-    <div class="tabs" id="yard-tabs"></div>
+    <div class="head"><button id="h-back" class="back" aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span id="h-title"></span><span class="tot"><i>★</i><b id="h-stars"></b></span></div>
     <div class="grid" id="hole-grid"></div>
     <div class="round" id="h-round"></div>
   </div>
@@ -296,8 +390,8 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 </script>
 <script>(function () {
   // (written by tools/cdn-loader.mjs, which says how it works)
-  var FILE = "golf.f8f6ec8c.js", SIZE = 1343388, SRI = 'uoJ3EBMvmrDwUPy1YoKJVWrY5tX8EOpApKRJUQZpQJo5z5bMaYboiN7jgqP6C/5P', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
-  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@c81bd12edd2b57b39a1415e756187bc19347bfab/golf/golf.f8f6ec8c.js"]], STALL = 6000;
+  var FILE = "golf.25d2f52e.js", SIZE = 1352191, SRI = 'Ex0/qjj10eX4TsKa85l4S2vTvDzWHzNo/Cx978gELRSWkRPp5tHY1o+N0soQMo1n', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
+  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"]], STALL = 6000;
   var cn = false, en = false;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   try {
