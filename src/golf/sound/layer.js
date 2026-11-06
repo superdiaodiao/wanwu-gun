@@ -1,7 +1,8 @@
 // A music layer per yard over the golf song (src/audio/songs.js 'golf', which stays as it is): the
-// pumpkin patch adds picked strings and soft claps, the snow day a glockenspiel and a soft pad;
-// the duck pond and the pool party play the song as it is. The layers are a song of their own on the
-// same 16 bars and chords, played by a Track (src/audio/sequencer.js) on the music bus (so the music
+// pool party adds electric-piano off-beats and bongos, the pumpkin patch picked strings and soft
+// claps, the snow day a glockenspiel and a soft pad; the duck pond plays the song as it is (one layer
+// at a time: the yard's own). The layers are a song of their own on the same 16 bars and chords,
+// played by a Track (src/audio/sequencer.js) on the music bus (so the music
 // switch and the ducking under a fanfare act on it as on the song) and kept in step with the song:
 // it starts from the song's own position (audio.js keeps the playing Track as audio._track: only read
 // here, never changed) and then counts the same steps; after a stall it skips the steps gone by, as the
@@ -17,7 +18,9 @@ import { Voice, cached, mtof, prng } from '../../audio/core.js';
 const CH = ['G', 'Em7', 'Cmaj7', 'D7', 'G', 'E7', ['Am7', 'D7'], 'G', 'C', 'D7', 'Bm7', 'E7', 'Am7', 'Cm6', 'G', 'D7'];
 const halves = c => (Array.isArray(c) ? [[c[0], 0, 8], [c[1], 8, 8]] : [[c, 0, 16]]);
 const above = (pc, lo) => lo + ((pc - (lo % 12) + 12) % 12); // lowest midi >= lo with pitch class pc
-export const LAYERS = ['autumn', 'winter'];
+export const LAYERS = ['pool', 'autumn', 'winter'];
+// the pool party's bongos in a bar: [16th step, pitch Hz, velocity]
+const BONGOS = [[3, 330, 0.2], [7, 250, 0.24], [10, 330, 0.16], [11, 330, 0.2], [15, 250, 0.26]];
 
 // The pumpkin patch's plucked string: a bright, twangy Karplus-Strong string picked near the bridge,
 // banjo-ish, rendered once per note (0.9 s, kept: STRING_NOTES are warmed up ahead, sound/index.js)
@@ -74,8 +77,16 @@ function build(variant) {
       // snow day: a soft pad on the chord (root, third and seventh, or the triad), round middle C
       const pick = ch.ivs.length >= 4 ? [0, 1, 3] : [0, 1, 2];
       ev(b, s0, 'winter', I.pad, { midis: pick.map(i => above((ch.root + ch.ivs[i]) % 12, 57)), vel: 0.6, attack: 0.7, release: 1, bright: 0.55, send: 0.4, pan: 0.1 }, len);
+      // pool party: electric-piano stabs on the off-beats after beats 2 and 4 (the 3rd, the 7th or
+      // the 5th, and the root, each the lowest from the B-flat below middle C up)
+      const stab = [ch.ivs[1], ch.ivs[ch.ivs.length >= 4 ? 3 : 2], 0].map(i => above((ch.root + i) % 12, 58));
+      for (const [s, vel] of [[6, 0.34], [14, 0.3]]) {
+        if (s >= s0 && s < s0 + len) for (const midi of stab) ev(b, s, 'pool', I.epiano, { midi, vel, dur: 0.22, pan: 0.25, send: 0.22 });
+      }
     }
     const cur = Array.isArray(c) ? c[1] : c, ch = chord(cur);
+    // pool party: bongos, high and low, round the back of each beat (not where the song fills, bar 16)
+    if (b !== 15) for (const [s, f, vel] of BONGOS) ev(b, s, 'pool', I.tom, { f, vel, pan: -0.35, send: 0.08 });
     // pumpkin patch: soft claps on the off-beats (the song claps on 2 and 4; not where it fills, bar 16)
     if (b !== 15) {
       ev(b, 6, 'autumn', I.clap, { vel: 0.2, pan: 0.3, send: 0.2 });
