@@ -1,5 +1,6 @@
 // The ambience's one-shot sounds (beds.js plays them now and then): birds, a far-off duck, hen, crow and
-// dog, a leaf rustle, a sprinkler across the gardens, a drip in the pool, snow sliding off a branch.
+// dog, a leaf rustle, a sprinkler across the gardens, a drip in the pool, snow sliding off a branch. And
+// near ones the holes' things make (props.js): a crow's caw, a rubber duck's squeak.
 // Each is (ctx, dest, t, r, o) and works in an OfflineAudioContext too: dest a bus (core.js mkBus: its
 // `_wet` twin is the reverb send), t when it starts, r() a random number 0..1 (seeded in a test render),
 // o { vel 0..1, pan -1..1 }. Every one is built on core.js Voice, which lets its nodes go once it ends.
@@ -90,6 +91,26 @@ export function crow(ctx, dest, t, r, { vel = 0.5, pan = 0 } = {}) {
     });
   }
   return last;
+}
+
+/** a rubber duck squeezed as the ball goes by: a short squeak that jumps up and sags back down (a
+ *  square wave through a band-pass round 1.5 kHz: 820, 1350, 1180, 760 Hz in 0.24 s). At vel 0.13
+ *  (props.js SQUEAK) its peak is under the softest putt's */
+export function squeak(ctx, dest, t, r, { vel = 0.13, pan = 0, pitch = 1 } = {}) {
+  const v = new Voice(ctx, dest, t, 0.08, pan);
+  const q = pitch * span(r, 0.96, 1.04), o = v.osc('square', 820 * q, t, t + 0.26), f = o.frequency;
+  f.setValueAtTime(820 * q, t);
+  f.exponentialRampToValueAtTime(1350 * q, t + 0.04);
+  f.linearRampToValueAtTime(1180 * q, t + 0.13);
+  f.exponentialRampToValueAtTime(760 * q, t + 0.24);
+  const bp = v.filter('bandpass', 1500, 1.2), lp = v.filter('lowpass', 4200, 0.7), g = v.gain(0);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vel, t + 0.012);
+  g.gain.setValueAtTime(vel, t + 0.05);
+  g.gain.linearRampToValueAtTime(vel * 0.7, t + 0.17);
+  g.gain.linearRampToValueAtTime(0, t + 0.25);
+  v.conn(o, bp, lp, g, v.out);
+  return v.done();
 }
 
 /** dry leaves stirred by a gust: a patter of tiny ticks, swelling and dying away over `dur` seconds */

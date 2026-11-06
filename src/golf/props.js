@@ -22,9 +22,10 @@
 //          themselves, it gives them a tag
 //   tint   (obj, watch, bike, goose, tunnel) its colours multiplied by this one, 0xrrggbb: crows from
 //          pigeons
-//   call   (bike, watch, goose) the sound it makes: 'cluck' 'oink' 'coo' 'bark' 'honk' 'quack' 'meow'
-//          'moo' 'bell' 'horn' (audio/sfx.js CALL_KEYS), or a crow's 'caw'; left out, the animal's own
-//          (by a whole part of its id: dog_husky barks, bird_crow caws), a bike's bell, a car's horn
+//   call   (bike, watch, goose, obj) the sound it makes: 'cluck' 'oink' 'coo' 'bark' 'honk' 'quack' 'meow'
+//          'moo' 'bell' 'horn' (audio/sfx.js CALL_KEYS), or a crow's 'caw', a rubber duck's 'squeak';
+//          left out, the animal's own (by a whole part of its id: dog_husky barks, bird_crow caws), a
+//          bike's bell, a car's horn; an obj's (a rubber duck's) in place of its thud
 //   bike   walk: true — an animal walking to and fro (hens crossing): it waddles and bobs, turns
 //          round at each end, and stops there for `pause` seconds (0.2; a vehicle 0.6);
 //          aside: true — it flicks a ball lying (or creeping) in its way off to the side it is on,
@@ -36,16 +37,21 @@
 //          at home, in degrees of its turn: 180 (the default) up the map, away from the tee, 0 down
 //          towards the tee, 90 to the right (not a cat's face, where 0 is up the map)
 //   obj    e: how bouncy it is (0.55; a snowbank 0.3); wobble: true — it rocks when hit, with a soft
-//          thud; a part of it that comes off (its model's spec.pop: a snowman's hat; or pop: '<id>',
-//          a model of its own standing on top of it; or a child of its group named 'pop') is knocked
-//          off by a hard hit and lands nearby. What the ball meets is the same either way
+//          thud (or its call); near: metres — a ball going by that close (rolling, not crawling) rocks
+//          it too, away from the ball, once a stroke, and it calls; a part of it that comes off (its
+//          model's spec.pop: a snowman's hat; or pop: '<id>', a model of its own standing on top of
+//          it; or a child of its group named 'pop') is knocked off by a hard hit and lands nearby.
+//          What the ball meets is the same either way
+//   watch  near: how close the ball comes before it hops and calls (1.6 m); given, it calls only on
+//          the first stroke (and hops on later ones); cheer: true — it hops twice when the ball drops
+//          in, and calls unless it just did
 // The difficulty's pace (ctx.pace: 1, or 0.75 at the easy one) slows the moving things: the speed of
 // bikes, walkers, windmills and sprinklers times it; at the easy one a bike or a car also stops three
 // times as long at each end, a cat waits 1.3 times as long between swipes, and a goose or a dog notices
 // the ball 0.8 as far off.
 import * as THREE from 'three';
 import { BALL_R, contact } from './physics.js';
-import { crow } from './sound/calls.js';
+import { crow, squeak } from './sound/calls.js';
 
 const D = Math.PI / 180;
 const GOOSE = 1.3, CAT = 1.7, DOG = 1.4; // (bigger than life, to be seen from where the hole is watched)
@@ -73,9 +79,18 @@ const easy = ctx => (ctx.pace ?? 1) < 1;
 const CALLS = [['dog', 'bark'], ['goose', 'honk'], ['pig', 'oink'], ['chicken', 'cluck'], ['hen', 'cluck'], ['pigeon', 'coo'], ['crow', 'caw'], ['duck', 'quack'], ['cat', 'meow'], ['cow', 'moo']];
 const callOf = (id, d) => d.call || (CALLS.find(([k]) => id.split('_').includes(k)) || [0, 'honk'])[1];
 /** an animal's call, a bike's bell, a car's horn (audio.voice); a crow's caw is the one the pumpkin
- *  patch's ambience has far off (sound/calls.js), here near, and not again while one is going */
-let cawing = 0;
-function say(ctx, call) {
+ *  patch's ambience has far off (sound/calls.js), here near, and not again while one is going; a
+ *  rubber duck's squeak (sound/calls.js) the same way, panned to where it is (pan) */
+let cawing = 0, squeaking = 0;
+const SQUEAK = 0.13; // (the squeak's loudness: its peak under the softest putt's)
+function say(ctx, call, pan = 0) {
+  if (call === 'squeak') {
+    const a = ctx.audio, ac = a.ctx;
+    if (!a.running || a.muted || ac.currentTime < squeaking) return;
+    squeaking = ac.currentTime + 0.2; // (two ducks rocked at once: one squeak)
+    try { squeak(ac, a.m.sfx, ac.currentTime + 0.01, Math.random, { vel: SQUEAK, pan }); } catch {}
+    return;
+  }
   if (call !== 'caw') { ctx.audio.voice(call); return; }
   const a = ctx.audio, ac = a.ctx;
   if (!a.running || a.muted || ac.currentTime < cawing) return;
@@ -107,7 +122,7 @@ const MAKERS = {
     const me = { cols: [col], update() {}, model: g };
     if (d.tag) me.tag = tag(ctx, d.tag, d.id, k, () => [p.x, course.Y(p.x, p.z), p.z]);
     const cap = popPart(ctx, d, k, g);
-    if (d.wobble || cap) Object.assign(me, knocked(d, course, ctx, p, g, cap));
+    if (d.wobble || d.near || cap) Object.assign(me, knocked(d, course, ctx, p, g, cap));
     if (me.hit) col.owner = me;
     return me;
   },
@@ -123,11 +138,12 @@ const MAKERS = {
     // streaks of air drifting along the strip
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
     const streaks = [];
-    for (let i = 0; i < 14; i++) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.05), mat.clone());
+    const n = Math.round(d.len * d.w * 1.4); // (about 1.4 a square metre of the strip)
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.08), mat.clone());
       m.rotation.set(-Math.PI / 2, 0, Math.atan2(-dz, dx));
       course.group.add(m);
-      streaks.push({ m, u: (i / 14) * d.len, side: ((i * 0.618) % 1 - 0.5) * d.w * 0.8 });
+      streaks.push({ m, u: (i / n) * d.len, side: ((i * 0.618) % 1 - 0.5) * d.w * 0.8 });
     }
     let t = Math.random() * 6;
     return {
@@ -219,22 +235,34 @@ const MAKERS = {
   },
 
   // stands beside the green on a block of its own and keeps an eye on the ball, turning after it;
-  // a ball rolling close makes it hop and honk, or bark (no more than once a stroke)
+  // a ball rolling close makes it hop and honk, or bark (no more than once a stroke; given near, it
+  // honks on the first stroke only); cheer: two hops and a honk when the ball drops in
   watch(d, course, ctx) {
     const p = course.at(...d.at), k = d.s || (d.id === 'goose' ? GOOSE : DOG), call = callOf(d.id, d);
     course.pad(p.x, p.z, 1.1, 1.1);
     const g = ctx.model(d.id, k, undefined, d.tint);
     course.group.add(g);
-    let yaw = 0, hop = 0, heard = -1;
+    const reach = d.near ?? 1.6;
+    let yaw = 0, hop = 0, heard = -1, hops = 0, cheered = false, quiet = 9;
     return {
       cols: [], tag: d.tag ? tag(ctx, d.tag, d.id, k, () => [p.x, -0.03, p.z]) : undefined,
       update(dt, ball, game) {
         yaw += angDiff(yaw, Math.atan2(ball.x - p.x, ball.z - p.z)) * Math.min(1, dt * 3);
         hop = Math.max(0, hop - dt * 2.5);
-        if (game.state === 'roll' && heard !== game.strokes && Math.hypot(ball.x - p.x, ball.z - p.z) < 1.6) {
+        if (game.state === 'roll' && heard !== game.strokes && Math.hypot(ball.x - p.x, ball.z - p.z) < reach) {
           heard = game.strokes;
           hop = 1;
-          say(ctx, call);
+          if (d.near == null || game.strokes === 1) { say(ctx, call); quiet = 0; }
+        }
+        if (d.cheer) {
+          // (in it goes: two hops, and a honk unless it has only just honked. A hop still in the air
+          // lands first, and the two follow: it doesn't drop to the ground in a frame)
+          quiet += dt;
+          if (game.state === 'sink' && !cheered) {
+            cheered = true;
+            if (hop > 0) hops = 2; else { hop = 1; hops = 1; }
+            if (quiet >= 1) { say(ctx, call); quiet = 0; }
+          } else if (hop === 0 && hops > 0) { hops--; hop = 1; }
         }
         g.position.set(p.x, -0.03 + Math.sin(hop * Math.PI) * 0.25, p.z);
         g.rotation.y = yaw;
@@ -597,7 +625,8 @@ function popPart(ctx, d, k, g, id = d.id) {
  *  land beside it */
 function knocked(d, course, ctx, p, g, cap) {
   const up = new THREE.Vector3(0, 1, 0), yaw = new THREE.Quaternion().setFromAxisAngle(up, g.rotation.y), tilt = new THREE.Quaternion(), axis = new THREE.Vector3();
-  let ball = null, t = 9, amp = 0, dx = 0, dz = 1, thud = 0, fly = null;
+  let ball = null, t = 9, amp = 0, dx = 0, dz = 1, thud = 0, fly = null, passed = -1;
+  const pan = Math.max(-0.6, Math.min(0.6, p.x * 0.3)); // (a call heard from where it stands)
   const launch = (ux, uz, vy) => {
     if (!cap || fly) return;
     const w = new THREE.Vector3(), q = new THREE.Quaternion();
@@ -619,15 +648,23 @@ function knocked(d, course, ctx, p, g, cap) {
       if (d.wobble) {
         dx = bx / bd; dz = bz / bd; t = 0;
         amp = Math.min(0.32, 0.06 + speed * 0.05);
-        if (thud <= 0) { ctx.audio.wall(Math.min(0.45, 0.12 + speed / 14)); thud = 0.25; }
+        if (thud <= 0 && d.call) { say(ctx, d.call, pan); thud = 0.5; } // (a rubber duck squeaks instead)
+        else if (thud <= 0) { ctx.audio.wall(Math.min(0.45, 0.12 + speed / 14)); thud = 0.25; }
       } else if (thud <= 0 && speed > 0.5) { ctx.audio.wall(Math.min(1, speed / 7)); thud = 0.07; }
       // (a hard knock: the loose part flies off, the way the ball was going, to land a step away)
       if (speed > 2.2) launch(bx / bd, bz / bd, 2.4 + speed * 0.12);
     },
-    update(dt, b) {
+    update(dt, b, game) {
       ball = b;
       thud -= dt;
-      if (d.wobble && t < 3) {
+      // (near: the ball rolling by rocks it away from itself, once a stroke, and it calls)
+      if (d.near && game && game.state === 'roll' && passed !== game.strokes && Math.hypot(b.vx, b.vz) > 0.6 && Math.hypot(b.x - p.x, b.z - p.z) < d.near) {
+        passed = game.strokes;
+        const bx = p.x - b.x, bz = p.z - b.z, bd = Math.hypot(bx, bz) || 1;
+        dx = bx / bd; dz = bz / bd; t = 0; amp = 0.22;
+        if (d.call && thud <= 0) { say(ctx, d.call, pan); thud = 0.5; }
+      }
+      if ((d.wobble || d.near) && t < 3) {
         t += dt;
         const a = amp * Math.exp(-3.2 * t) * Math.sin(t * 10);
         tilt.setFromAxisAngle(axis.set(dz, 0, -dx), a);

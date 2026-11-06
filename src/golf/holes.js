@@ -15,7 +15,10 @@
 //   { t: 'tires', at, rot, s }          a wall of tyres: the ball bounces off it hard
 //   { t: 'tires', corner, leg }         tyres piled into a corner of the green (corner: where its
 //                                        rails meet, e.g. [8.5, -0.5]), a bank leg metres along each
-//   { t: 'watch', id, at }              stands beside the green watching the ball (does nothing to it)
+//   { t: 'watch', id, at, near, cheer } stands beside the green watching the ball (does nothing to it);
+//                                        a ball within `near` metres (1.6) makes it hop and call (with
+//                                        near given, it calls on the first stroke only and just hops on
+//                                        later ones); cheer: it hops twice and calls when the ball drops in
 //   { t: 'goose', id: 'dog_shiba', … }  a dog doing what the goose does
 //   { t: 'windmill', at, s, fill, speed, phase }  the ball goes through the tunnel under it (at its
 //                                        middle; it is 2.4 s metres across, 1.4 s deep, flower troughs
@@ -26,8 +29,10 @@
 //                                        the windmill's footprint (a giant pumpkin, a snow fort)
 //   and on any of them: tag (what it says over it), tint, call (false: none, a bike just knocks), walk (a bike that is an animal walking),
 //   aside (a bike's: flicks a resting ball out of its way; a walker's unless false), mode and face (a
-//   goose's: 'chase' | 'nudge'; where it looks at home, deg, 180 = up the hole), e, wobble and pop (an
-//   obj's: pop, the id of a model of its own that a hard hit knocks off its top): see props.js
+//   goose's: 'chase' | 'nudge'; where it looks at home, deg, 180 = up the hole), e, wobble, near, call
+//   and pop (an obj's: near, metres: a ball going by that close rocks it, once a stroke; call: the
+//   sound it makes then, and when hit, in place of a thud: 'squeak'; pop, the id of a model of its
+//   own that a hard hit knocks off its top): see props.js
 // and the shape of the ground, where it isn't flat: ground: [ramps, hills, ridges] (see ground.js);
 // coins: more coins, at [c, r] each (on a green square), or 'tops': one on top of every mound. Every
 // hole has at least one coin (a warning at the bottom says if not, or if one is off the green).
@@ -60,30 +65,32 @@ export const YARDS = [
 
 export const HOLES = [
   {
-    name: '热身', tip: '按住往后拉，松手击球；金币全捡到多一颗星', par: 2,
+    name: '热身', tip: '', par: 2,
     map: [
       '.....',
       '..H..',
       '.....',
       '.....',
-      '....o',
+      '..o..',
       '.....',
       '.....',
       '.....',
-      'o....',
+      '..o..',
       '.....',
       '.....',
       '..T..',
       '.....',
     ],
     props: [
-      { t: 'obj', id: 'rubber_duck', at: [1.1, 6], rot: 90, s: 6 }, // (face to face: from the tee the
-      { t: 'obj', id: 'rubber_duck', at: [2.9, 6], rot: -90, s: 6 }, // ball meets a duck's round side)
-      { t: 'watch', id: 'goose', at: [-1.25, 2.4] },
+      // (face to face: from the tee the ball meets a duck's round side. A putt between them rocks
+      // them and they squeak; the goose by the cup hops as the ball comes up, and cheers it in)
+      { t: 'obj', id: 'rubber_duck', at: [1.1, 6], rot: 90, s: 6, wobble: true, near: 1.0, call: 'squeak' },
+      { t: 'obj', id: 'rubber_duck', at: [2.9, 6], rot: -90, s: 6, wobble: true, near: 1.0, call: 'squeak' },
+      { t: 'watch', id: 'goose', at: [-1.25, 2.4], near: 3.6, cheer: true },
     ],
   },
   {
-    name: '跷跷板', tip: '撞墙会弹回来，借墙拐弯', par: 3,
+    name: '跷跷板', tip: '借跷跷板拐弯', par: 3,
     map: [
       '............',
       '..........H.',
@@ -99,10 +106,12 @@ export const HOLES = [
       '....        ',
     ],
     props: [
-      { t: 'obj', id: 'seesaw', at: [6.6, 1], rot: 8, s: 0.6 },
+      // (the seesaw lies across the far corner, a bank that gives the ball all its speed back: up the
+      // leg, off it, along the bar to the cup. The hydrants stand in the corners behind the cup)
+      { t: 'obj', id: 'seesaw', at: [0.56, 0.56], rot: 45, s: 1.35, e: 1.0, wobble: true },
       { t: 'obj', id: 'fire_hydrant', at: [2.6, 3.6] },
-      { t: 'obj', id: 'fire_hydrant', at: [8.9, 0.1] },
-      { t: 'obj', id: 'fire_hydrant', at: [8.9, 1.9] },
+      { t: 'obj', id: 'fire_hydrant', at: [11.15, -0.15] },
+      { t: 'obj', id: 'fire_hydrant', at: [11.15, 2.15] },
     ],
   },
   {
@@ -126,8 +135,8 @@ export const HOLES = [
       '......',
     ],
     props: [
-      { t: 'fan', at: [-1.2, 10], dir: [1, 0], len: 7.4, w: 2.6, a: 5.5 },
-      { t: 'fan', at: [6.2, 4.5], dir: [-1, 0], len: 7.4, w: 2.6, a: 5.5 },
+      { t: 'fan', at: [-0.85, 10], dir: [1, 0], len: 7.05, w: 2.6, a: 5.5 }, // (standing on the rail)
+      { t: 'fan', at: [5.85, 4.5], dir: [-1, 0], len: 7.05, w: 2.6, a: 5.5 },
     ],
   },
   {
