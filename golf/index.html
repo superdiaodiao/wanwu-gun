@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>小区高尔夫</title>
-<meta name="description" content="一颗高尔夫球，一个小区：绕过跷跷板，顶着电风扇，躲开来往的车和大鹅，把球打进洞。">
+<meta name="description" content="一颗高尔夫球，四个院子，36 洞：从鸭子池塘、泳池派对到南瓜地和雪地，躲开车、大鹅、小猫和母鸡，穿过泥地和冰面，把球打进洞。">
 <meta name="theme-color" content="#cfeaf5">
 <style>
 /* 小区高尔夫 — UI: white rounded pills over the sky, a big friendly card between holes. */
@@ -32,10 +32,12 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #score b { font: 800 24px var(--num); }
 #score b.small { font-size: 18px; }
 #score .sep { margin-left: 6px; padding-left: 12px; border-left: 2px solid #e3e8e4; }
+#score.nocoin .sep, #score.nocoin #sweets-num { display: none; }
 #tags { inset: 0; transition: opacity 0.5s; }
 #tags.out { opacity: 0; }
 #tags .tag { position: absolute; left: 0; top: 0; padding: 5px 12px; border-radius: 11px; background: #fff; color: var(--ink); font: 800 16px var(--body); white-space: nowrap; box-shadow: 0 3px 0 rgba(47, 58, 51, 0.15); }
-#tags .tag::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
+/* (its point at what it names: the middle, or --to along it when it is moved aside off the flag) */
+#tags .tag::after { content: ""; position: absolute; left: var(--to, 50%); bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
 #tags .tag.below::after { bottom: auto; top: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: #fff; }
 /* the yard's stars (a tap: the map of the yards), the yard's name by them where there is room */
 #hud > #stars { position: absolute; right: 14px; border: 0; font-family: var(--body); color: var(--ink); pointer-events: auto; cursor: pointer; }
@@ -65,7 +67,8 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #hole-dots { align-self: center; display: flex; margin-left: 2px; }
 #hole.tighter #hole-dots { display: none; }
 #banner { left: 50%; top: 22%; width: max-content; max-width: calc(100vw - 32px); transform: translate(-50%, -50%); text-align: center; color: #fff; text-shadow: 0 3px 0 rgba(47, 58, 51, 0.3); white-space: nowrap; animation: pop 2.6s ease-out forwards; }
-#banner-title { font: 800 46px var(--body); }
+/* (the name in a dark edge, as the line under it: white letters stay readable over snow) */
+#banner-title { font: 800 46px var(--body); text-shadow: 0 3px 0 rgba(31, 60, 40, 0.45), 0 0 10px rgba(31, 60, 40, 0.5), 0 0 2px rgba(31, 60, 40, 0.8), 0 0 1px rgba(31, 60, 40, 0.9); }
 #banner-kick { display: inline-block; margin-bottom: 4px; padding: 3px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--ink); text-shadow: none; font: 800 17px var(--body); }
 #banner-kick:empty { display: none; }
 #banner.logo #banner-kick { margin: 6px 0 2px; font-size: clamp(12px, 2.6vh, 16px); }
@@ -104,6 +107,7 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #card .title { --edge: #2c7a3a; font: 800 clamp(28px, min(8vh, 10vw), 50px) var(--num); line-height: 1.05; color: #fff; text-wrap: balance; animation: word-pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both;
   text-shadow: 3px 3px 0 var(--edge), -3px 3px 0 var(--edge), 3px -3px 0 var(--edge), -3px -3px 0 var(--edge), 0 3px 0 var(--edge), 0 -3px 0 var(--edge), 3px 0 0 var(--edge), -3px 0 0 var(--edge), 0 7px 0 rgba(47, 58, 51, 0.25); }
 html[lang="en"] #card .title:not(.none) { text-transform: uppercase; }
+html[lang="en"] #card .title.long { font-size: clamp(20px, min(6.5vh, 6.6vw), 44px); } /* (NEIGHBOURHOOD, a long word: on a phone's width) */
 #card .title.ace { --edge: #d9541a; color: #ffd84a; }
 #card .title.under { --edge: #1f86d1; }
 #card .title.over { --edge: #6f8596; }
@@ -155,7 +159,8 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 /* the difficulties in a row, on the first card */
 #card .best .lvrow { display: inline-flex; align-items: center; gap: 8px; }
 #card .best .levels { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: #f1f3f2; }
-#card .best .levels button { padding: 5px 13px; font: 700 15px var(--body); background: transparent; color: var(--dim); box-shadow: none; }
+#card .best .levels button { position: relative; padding: 10px 14px; font: 700 15px var(--body); background: transparent; color: var(--dim); box-shadow: none; }
+#card .best .levels button::after { content: ""; position: absolute; inset: -3px 0; } /* (taller to tap than it looks: 44 px; not wider, so not over the next) */
 #card .best .levels button:active { transform: none; box-shadow: none; }
 #card .best .levels button.on { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 2px #f2c94c; }
 #card .best small.lvhint { display: block; font-size: 13px; line-height: 1.4; color: var(--dim); }
@@ -165,6 +170,9 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #card.yd-page .stars, #card.yd-page .sub, #card.yd-page .prog, #card.yd-page .best, #card.yd-page .tip, #card.yd-page #card-retry { display: none; }
 #card .yard .ym { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: clamp(2px, 1vh, 8px) 0 4px; }
 #card .yard .ym .medal svg { animation: medal-drop 0.75s cubic-bezier(0.2, 1.4, 0.4, 1) 0.25s both; }
+/* (the whole neighbourhood's page: every yard's medal in a row, dropping in one after another) */
+#card .yard .ym .row { display: flex; gap: 10px; }
+#card .yard .ym .row .medal svg { width: 44px; height: 55px; animation-delay: calc(0.25s + var(--k) * 0.15s); }
 #card .yard .ym b { font: 800 18px var(--body); }
 #card .yard .ym b small { margin-left: 8px; color: #e0670f; font-size: 15px; }
 #card .yard .sum { margin: 0 0 clamp(6px, 1.6vh, 10px); font: 700 16px var(--body); color: var(--ink); }
@@ -180,9 +188,11 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(47, 58, 51, 0.38); }
 #menu .panel { display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); overflow: hidden auto; padding: clamp(14px, 3vh, 22px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.25s ease-out; }
 #menu .panel.wide { width: 560px; }
+#menu #menu-map.panel { width: 820px; } /* (room for a row of four yards on a wide screen) */
 #menu .head { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; font: 800 24px var(--body); }
 #menu .head .back { position: absolute; left: 0; top: 0; width: 40px; height: 40px; padding: 8px; border: 0; border-radius: 50%; background: #eef3ef; cursor: pointer; }
 #menu .head .back svg { width: 100%; height: 100%; stroke-width: 3; }
+#menu .head .back::after { content: ""; position: absolute; inset: -5px; } /* (a bigger place to tap than it looks: 44 px or more) */
 #menu .head .tot { position: absolute; right: 0; top: 6px; font: 800 18px var(--num); }
 #menu .head .tot i { font-style: normal; color: var(--gold); margin-right: 3px; }
 #menu button { font: 800 18px var(--body); border: 0; border-radius: 999px; cursor: pointer; color: var(--ink); }
@@ -216,28 +226,28 @@ html[lang="en"] #menu .lv-note { min-height: 2lh; text-wrap: balance; } /* (two 
 #menu .lvopts button[data-l="hard"] b::before { background: #e0524a; }
 #menu .lvopts button small { font: 700 14px var(--body); color: var(--dim); }
 #menu .lvopts button.on { background: #fff6d6; box-shadow: inset 0 0 0 3px #f2c94c; }
-/* the map: a card for each yard, its sky over its name and medal, then its holes as dots and its stars;
-   one not open yet greyed, with what opens it */
+/* the map: a card for each yard, its sky (its look's, with its picture over its name, the medal in the
+   corner), then its holes as dots and its stars; one not open yet greyed, with what opens it. Four
+   in a row on a computer or a phone on its side, two on a phone held upright */
 #menu .played { margin: -6px 0 0; font: 700 14px var(--body); color: var(--dim); }
-#menu .yards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+#menu .yards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 700px), (orientation: landscape) { #menu .yards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 #menu button.yd { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0 0 10px; overflow: hidden; border-radius: 20px; background: #fff; box-shadow: inset 0 0 0 2px #d9e2dc, 0 4px 0 #d9e2dc; }
 #menu button.yd:active { transform: translateY(2px); box-shadow: inset 0 0 0 2px #d9e2dc, 0 2px 0 #d9e2dc; }
 #menu button.yd.cur { box-shadow: inset 0 0 0 3px #f2c94c, 0 4px 0 #f2c94c; }
-#menu .yd .sky { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 62px; padding: 0 40px; background: linear-gradient(#7fc2ee, #cfeaf5); }
-#menu .yd.pond .sky { background: linear-gradient(#4fb0f2, #9fd8fa 58%, #bfe9c9); }
-#menu .yd.pool .sky { background: linear-gradient(#5a7fd6, #d99ab8 48%, #ffc48f); }
-#menu .yd .sky b { font: 800 20px var(--body); color: #fff; white-space: nowrap; text-shadow: 0 2px 0 rgba(31, 60, 40, 0.45), 0 0 6px rgba(31, 60, 40, 0.35); }
-#menu .yd svg.ic { flex: none; width: 34px; height: 28px; stroke: none; }
-#menu .yd .sky .medal { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
-#menu .yd .meta { margin-top: 8px; font: 700 13px var(--body); color: var(--dim); }
-#menu .yd .dots { justify-content: center; margin: 7px 0 3px; }
-#menu .yd .ys { font: 800 16px var(--num); }
+#menu .yd .sky { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 78px; padding: 4px 14px; background: linear-gradient(#7fc2ee, #cfeaf5); } /* (each yard's own sky: its look's card, looks/) */
+#menu .yd .sky b { font: 800 18px/1.08 var(--body); color: #fff; text-wrap: balance; text-shadow: 0 2px 0 rgba(31, 60, 40, 0.45), 0 0 6px rgba(31, 60, 40, 0.35); }
+#menu .yd svg.ic { flex: none; width: 32px; height: 26px; stroke: none; }
+#menu .yd .sky .medal { position: absolute; right: 7px; top: 7px; }
+#menu .yd .sky .medal svg { width: 21px; height: 26px; }
+#menu .yd .dots { justify-content: center; margin: 10px 0 3px; }
+#menu .yd .ys { padding: 0 4px; font: 800 16px var(--num); }
 #menu .yd .ys i { font-style: normal; color: var(--gold); margin-right: 3px; }
-#menu .yd .ys small { font: 700 13px var(--body); color: var(--dim); }
 #menu .yd.locked { background: #f6f7f6; cursor: default; }
 #menu .yd.locked:active { transform: none; }
-#menu .yd.locked .sky { filter: grayscale(0.9) brightness(1.05); opacity: 0.7; }
-#menu .yd .lk { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 14px 8px 4px; font: 700 14px var(--body); color: var(--dim); }
+#menu .yd.locked .sky { filter: grayscale(1) brightness(1.05); }
+#menu .yd.locked .sky b { color: var(--dim); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5); } /* (greyed, its name in grey: readable on any sky) */
+#menu .yd .lk { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 8px 2px; font: 700 13px var(--body); color: var(--dim); text-wrap: balance; }
 #menu .yd .lk svg { flex: none; width: 18px; height: 18px; stroke: #a3ada6; }
 #menu .yd.no { animation: shake 0.3s; }
 /* a yard's medal: bronze, silver, gold on a red ribbon; not won yet, a dashed ring */
@@ -303,6 +313,11 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
   #menu button.tog { flex-direction: row; justify-content: center; gap: 6px; padding: 7px 0; }
   #menu button.tog svg { width: 22px; height: 22px; }
   #menu .tile .nm { display: none; }
+  #menu .yd .sky { height: 62px; gap: 1px; }
+  #menu .yd .sky .medal { top: 4px; right: 4px; } /* (smaller, in the corner: clear of a name in the low sky) */
+  #menu .yd .sky .medal svg { width: 17px; height: 21px; }
+  #menu .yd svg.ic { width: 26px; height: 21px; }
+  #menu .yd .dots { margin: 7px 0 2px; }
   #menu .round .lbl { margin: 0; }
   #menu .tabs button { flex-direction: row; justify-content: center; gap: 8px; padding: 6px; }
 }
@@ -390,8 +405,8 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 </script>
 <script>(function () {
   // (written by tools/cdn-loader.mjs, which says how it works)
-  var FILE = "golf.25d2f52e.js", SIZE = 1352191, SRI = 'Ex0/qjj10eX4TsKa85l4S2vTvDzWHzNo/Cx978gELRSWkRPp5tHY1o+N0soQMo1n', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
-  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@b44d11f0d6a7e68e95bce0ec7cd4384b746eaaa1/golf/golf.25d2f52e.js"]], STALL = 6000;
+  var FILE = "golf.da875f4d.js", SIZE = 1093827, SRI = 'yEZHtUFu7OORlQN5iBqvgcGIN8Jd999nyCrtR099syhJ29FiZs4Bk5Fbat5drewi', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
+  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"]], STALL = 6000;
   var cn = false, en = false;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   try {
