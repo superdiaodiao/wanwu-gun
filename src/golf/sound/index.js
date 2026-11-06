@@ -4,8 +4,8 @@
 //     soft wind and a dog far off. Quiet, under the music and the effects; crossfaded when the yard's
 //     look changes, and left running from one hole of a yard to the next.
 //   - the ball rolling (roll.js): with its speed, duller on mud, a hiss on ice; silent once it stops.
-//   - a music layer per look over the golf song (layer.js): strings and claps in the pumpkin patch, a
-//     glockenspiel and a pad on the snow day.
+//   - a music layer per look over the golf song (layer.js): electric-piano off-beats and bongos at the
+//     pool party, strings and claps in the pumpkin patch, a glockenspiel and a pad on the snow day.
 // They hang off the game's mixer (audio.m): the bed and the roll off the effects bus, so the sound
 // switch, CrazyGames' mute and a hidden tab (the context suspended) silence them just as they do the
 // effects (and under the mute the bed is let go altogether, to come back when the sound does); the

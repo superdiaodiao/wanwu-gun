@@ -1500,7 +1500,7 @@ function finish(sunk, skipped = false) {
   $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : !lastHole ? t('下一洞') : nx && yardOpen(y + 1) ? t('去{yard}', { yard: t(nx.name) }) : t('回到地图');
   $('card-map').hidden = true;
   // the difficulty: on the very first card, the three in a row (the one played lit); afterwards at the
-  // easy one, there are harder ones (a tap opens them): said after a hole under par (not the warm-up)
+  // easy one, there are harder ones (a tap opens them): said after a hole under par (from hole 4 on)
   // once a visit for the first few visits, until a difficulty is picked
   const told = store.get('levelTips', 0);
   if (firstCard) {

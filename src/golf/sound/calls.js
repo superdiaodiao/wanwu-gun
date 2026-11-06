@@ -94,9 +94,9 @@ export function crow(ctx, dest, t, r, { vel = 0.5, pan = 0 } = {}) {
 }
 
 /** a rubber duck squeezed as the ball goes by: a short squeak that jumps up and sags back down (a
- *  square wave through a band-pass round 1.5 kHz: 820, 1350, 1180, 760 Hz in 0.24 s). At vel 0.13
- *  (props.js SQUEAK) its peak is under the softest putt's */
-export function squeak(ctx, dest, t, r, { vel = 0.13, pan = 0, pitch = 1 } = {}) {
+ *  square wave through a band-pass round 1.5 kHz: 820, 1350, 1180, 760 Hz in 0.24 s). At vel 0.077
+ *  (props.js SQUEAK) its loudest 50 ms is about 2 dB under a full-power putt's */
+export function squeak(ctx, dest, t, r, { vel = 0.077, pan = 0, pitch = 1 } = {}) {
   const v = new Voice(ctx, dest, t, 0.08, pan);
   const q = pitch * span(r, 0.96, 1.04), o = v.osc('square', 820 * q, t, t + 0.26), f = o.frequency;
   f.setValueAtTime(820 * q, t);

@@ -82,7 +82,7 @@ const callOf = (id, d) => d.call || (CALLS.find(([k]) => id.split('_').includes(
  *  patch's ambience has far off (sound/calls.js), here near, and not again while one is going; a
  *  rubber duck's squeak (sound/calls.js) the same way, panned to where it is (pan) */
 let cawing = 0, squeaking = 0;
-const SQUEAK = 0.13; // (the squeak's loudness: its peak under the softest putt's)
+const SQUEAK = 0.077; // (the squeak's loudness: its loudest 50 ms about 2 dB under a full-power putt's)
 function say(ctx, call, pan = 0) {
   if (call === 'squeak') {
     const a = ctx.audio, ac = a.ctx;
