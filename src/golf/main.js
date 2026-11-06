@@ -687,6 +687,11 @@ function placeTags() {
       }
     }
     y = fit(y);
+    // (the coins' one, with no room between its coin and the ball on a short screen, landscape under about
+    // 340 px: left out, rather than put below the ball, pointing at it, behind the hint)
+    const gone = tg.under && y > placed[1].y;
+    if (tg.el.hidden !== gone) tg.el.hidden = gone;
+    if (gone) continue;
     placed.push({ x, y, w: W, h: tg.h });
     tg.el.classList.toggle('below', below);
     tg.el.style.transform = `translate(${x}px, ${y}px)`;
