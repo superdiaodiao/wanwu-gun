@@ -729,7 +729,8 @@ function makeMenu() {
     const i = +tile.dataset.i;
     if (!opened(i)) { tile.classList.remove('no'); void tile.offsetWidth; tile.classList.add('no'); audio.wall(0.3); return; }
     audio.tap();
-    load(i, i % PER === 0);
+    unpause(); // (first: nothing in the menu can be pressed while the hole fades)
+    dip(() => load(i, i % PER === 0));
   });
 }
 let shownYard = 0;
@@ -821,16 +822,92 @@ const canSkip = () => G.state === 'aim' && !G.paused && G.strokes >= HOLES[G.hol
 
 /** on to the next hole; after a yard's last, the next yard's first (after the last yard's, the map) */
 function next() {
-  if ((G.hole + 1) % PER) load(G.hole + 1);
-  else if (G.hole + 1 < HOLES.length && yardOpen(yardOf(G.hole + 1))) load(G.hole + 1, true);
+  const i = G.hole + 1;
+  if (i % PER) dip(() => load(i));
+  else if (i < HOLES.length && yardOpen(yardOf(i))) dip(() => load(i, true));
   else { track('map', 'card'); menu('map'); }
 }
 /** the card's main button: the yard's page after its last hole, from there the next yard (or the map
  *  after the last), else the next hole */
 function cardNext() {
   if (G.yardPage) return showYard();
-  if (G.yardShown) { const y = yardOf(G.hole); if (y + 1 < YARDS.length) load((y + 1) * PER, true); else { track('map', 'card'); menu('map'); } return; }
+  if (G.yardShown) { const y = yardOf(G.hole); if (y + 1 < YARDS.length) dip(() => load((y + 1) * PER, true)); else { track('map', 'card'); menu('map'); } return; }
   next();
+}
+
+// ---- from one hole to another, by the card or the holes: a short fade, and the camera moving in ------
+/** the card fades as a haze the yard's colour comes up (0.15 s); under it the confetti still falling is
+ *  cleared and go() (a load) builds the next hole; two frames later, that hole drawn under the haze, it
+ *  clears (0.26 s) as the camera moves in. Nothing can be pressed meanwhile (the state 'load', and the
+ *  pointer: onDown). Only on the way on from the card and from the holes: the game opening, a retry and
+ *  __golf.load() stay as they were, at once */
+let dipping = false;
+function dip(go) {
+  if (dipping) return;
+  dipping = true;
+  G.state = 'load';
+  const d = $('dip'), haze = () => { d.style.background = '#' + engine.scene.fog.color.getHexString(); };
+  haze();
+  // (there only for the fade: a layer over the whole screen, even an empty one, changes how the bars at
+  // the top are drawn. Put in clear first, so that it fades in)
+  d.hidden = false;
+  void d.offsetWidth;
+  $('card').classList.add('leaving');
+  d.classList.add('on');
+  // (the next hole is built once the haze is all the way up: its fade's end, 0.15 s from the next frame,
+  // or 0.4 s at most)
+  new Promise(r => { const k = setTimeout(r, 400); d.addEventListener('transitionend', () => { clearTimeout(k); r(); }, { once: true }); }).then(async () => {
+    confetti.ps.length = 0;
+    go();
+    camIn(G.hole);
+    $('card').classList.remove('leaving');
+    await nextFrame();
+    await nextFrame();
+    haze(); // (the next yard's, after a yard's last hole)
+    d.classList.remove('on');
+    dipping = false;
+    setTimeout(() => { if (!d.classList.contains('on')) d.hidden = true; }, 300); // (once it has cleared: golf.css)
+  });
+}
+/** the camera after a fade: from a little further back and higher, eased in to where aim() put it over
+ *  0.6 s; or into a yard after the first, the first time this visit, a sweep down from high over it, 1.5 s.
+ *  A press puts it in place at once (onDown), and so does a new size of the screen (aim) */
+let camMove = null;
+const swept = new Set();
+function camIn(i) {
+  const c = engine.camera, b = G.course.bounds, y = yardOf(i);
+  const mid = new THREE.Vector3((b.x0 + b.x1) / 2, 0, (b.z0 + b.z1) / 2), dist = c.position.distanceTo(mid);
+  const end = { p: c.position.clone(), q: c.quaternion.clone() }, from = c.position.clone();
+  const sweep = i % PER === 0 && y >= 1 && y <= 3 && !swept.has(y);
+  if (sweep) {
+    swept.add(y);
+    from.set(mid.x + 0.75 * dist, 1.15 * dist, mid.z + 0.35 * dist);
+    c.position.copy(from);
+    c.lookAt(mid.x, 0, mid.z - 0.15 * dist);
+  } else {
+    from.addScaledVector(c.getWorldDirection(tmpV), -0.1 * dist);
+    from.y += 0.03 * dist;
+  }
+  camMove = { from, q: c.quaternion.clone(), end, t: 0, T: sweep ? 1.5 : 0.6, sweep };
+  camStep(0);
+}
+function camStep(dt) {
+  const m = camMove, c = engine.camera;
+  m.t += dt;
+  const u = Math.min(1, m.t / m.T), k = m.sweep ? u * u * (3 - 2 * u) : 1 - (1 - u) ** 3; // (in and out; out)
+  if (u >= 1) return camDone();
+  c.position.lerpVectors(m.from, m.end.p, k);
+  c.quaternion.slerpQuaternions(m.q, m.end.q, k);
+  c.updateMatrixWorld();
+}
+/** the camera where aim() put it, now */
+function camDone() {
+  if (!camMove) return;
+  const c = engine.camera;
+  c.position.copy(camMove.end.p);
+  c.quaternion.copy(camMove.end.q);
+  c.updateMatrixWorld();
+  camMove = null;
 }
 
 function hud() {
@@ -914,6 +991,7 @@ function dropBanner() {
 /** frame the whole hole from its near end, so the ball starts near the player and is hit away from
  *  them: as close as still shows every wall and the flag, clear of the bars at top and bottom */
 function aim() {
+  camMove = null; // (a camera move after a fade ends here: the camera is put in place)
   const c = engine.camera, b = G.course.bounds;
   const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
   const dir = new THREE.Vector3(0, 0, 1); // (every hole is drawn with its tee at the near end, +z)
@@ -1009,6 +1087,12 @@ function aim() {
     }
     d.g.visible = !over;
   }
+  // how far a pull goes for full power: 0.3 of the screen's shorter side, or less where the tee sits
+  // nearer the bottom than that (a phone on its side, a wide screen), so a press on the ball pulled down
+  // reaches it a finger short of the edge (18 px: the 10 px a pull starts at, and 8). From the tee, so the
+  // same all through the hole; worked out again with the screen's size
+  const m = Math.min(innerWidth, innerHeight), ty = onScreen(C.tee.x, ground(C.tee.x, C.tee.z), C.tee.z)[1];
+  G.full = Math.max(0.15 * m, Math.min(0.3 * m, innerHeight - ty - 18));
 }
 
 // ---- aiming: hold anywhere, pull back, let go -----------------------------------------------------------
@@ -1023,6 +1107,8 @@ function groundAt(x, y, h = 0) {
 }
 function onDown(e) {
   wake();
+  if (dipping) return;
+  camDone(); // (a press while the camera is still moving in puts it in place, and aims as usual)
   // one finger, the main mouse button; a second touch doesn't take the shot over
   if (G.state !== 'aim' || G.aim || !e.isPrimary || e.button !== 0) return;
   G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ang: 0, p: 0, was: [], touch: e.pointerType === 'touch' };
@@ -1040,7 +1126,7 @@ function onMove(e) {
   const p = groundAt(r.left + ((ballV.x + 1) / 2) * r.width + e.clientX - a.sx, r.top + ((1 - ballV.y) / 2) * r.height + e.clientY - a.sy, by);
   if (!p) return;
   const px = Math.hypot(e.clientX - a.sx, e.clientY - a.sy);
-  a.p = Math.max(0, Math.min(1, (px - 10) / (0.3 * Math.min(innerWidth, innerHeight))));
+  a.p = Math.max(0, Math.min(1, (px - 10) / G.full)); // (G.full: aim)
   const dx = b.x - p.x, dz = b.z - p.z;
   if (Math.hypot(dx, dz) > 1e-3) a.ang = Math.atan2(dx, -dz);
   // (the aim a moment ago, for the finger lifting off: see onUp)
@@ -1175,6 +1261,7 @@ function onHit(c, s) {
 }
 
 function step(dt, draw = true) {
+  if (camMove) camStep(dt);
   G.t += dt;
   G.hitT -= dt;
   const b = G.ball;
@@ -1493,6 +1580,7 @@ window.__golf = {
   get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES, YARDS, audio, PHYS,
   sound, // (sound/: sound.stats() for the tests)
   setLevel: l => useLevel(l), // (for the bots: a difficulty's records, cup and pace, without the menu)
+  camDone, // (the camera's move after a fade, done at once: for the tests, after a hole changed by the card or the holes)
 };
 
 boot();
