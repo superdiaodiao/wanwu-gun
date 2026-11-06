@@ -8,20 +8,79 @@
 //          with a boing
 //   windmill  the ball goes through the tunnel under it; its sails sweep down past the door and
 //          knock back a ball that comes when one is in the way
+//   tunnel    the same tunnel without the sails, under any model built to the windmill's footprint
+//          (models/windmill.js: x ±1.2 s, z ±0.7 s, the tunnel x ±0.45 s and 0.6 s clear): a giant
+//          pumpkin's door, a snow fort's gate
 //   spinner   a lawn sprinkler: its arm sweeps round and shoves the ball it meets
 // Each returns { cols, update(dt, ball, game) }: cols join the course's (moving ones are updated
 // in place, with their speed so they shove), update moves and animates it. The ones that do
 // something to the ball also say what, in a few words, and where over them: tag { text, at() }.
+//
+// Options any of them may have, besides their own (see holes.js):
+//   tag    what it says over it till the first shot, in place of its own (a Chinese key: the yard
+//          file's `en` has its English); on an obj, a tunnel or a watcher, which say nothing of
+//          themselves, it gives them a tag
+//   tint   (obj, watch, bike, goose, tunnel) its colours multiplied by this one, 0xrrggbb: crows from
+//          pigeons
+//   call   (bike, watch, goose) the sound it makes: 'cluck' 'oink' 'coo' 'bark' 'honk' 'quack' 'meow'
+//          'moo' 'bell' 'horn' (audio/sfx.js CALL_KEYS), or a crow's 'caw'; left out, the animal's own
+//          (by a whole part of its id: dog_husky barks, bird_crow caws), a bike's bell, a car's horn
+//   bike   walk: true — an animal walking to and fro (hens crossing): it waddles and bobs, turns
+//          round at each end, and stops there for `pause` seconds (0.2; a vehicle 0.6);
+//          aside: true — it flicks a ball lying (or creeping) in its way off to the side it is on,
+//          rather than shoving it along in front of it (on a walker unless aside: false; a car, a
+//          bike or a mower only if said: the wheelbarrow, the sled, the snowplough)
+//   goose  mode: 'chase' (it chases the ball and pecks it away: the goose's own) or 'nudge' (it goes
+//          only for a ball lying still 2.5 s, once a stroke, never while it is being aimed: a dog's,
+//          a pig's); s: its size (the goose 1.3 times life, others 1.4); face: which way it looks
+//          at home, in degrees of its turn: 180 (the default) up the map, away from the tee, 0 down
+//          towards the tee, 90 to the right (not a cat's face, where 0 is up the map)
+//   obj    e: how bouncy it is (0.55; a snowbank 0.3); wobble: true — it rocks when hit, with a soft
+//          thud; a part of it that comes off (its model's spec.pop: a snowman's hat; or pop: '<id>',
+//          a model of its own standing on top of it; or a child of its group named 'pop') is knocked
+//          off by a hard hit and lands nearby. What the ball meets is the same either way
+// The difficulty's pace (ctx.pace: 1, or 0.75 at the easy one) slows the moving things: the speed of
+// bikes, walkers, windmills and sprinklers times it; at the easy one a bike or a car also stops three
+// times as long at each end, a cat waits 1.3 times as long between swipes, and a goose or a dog notices
+// the ball 0.8 as far off.
 import * as THREE from 'three';
-import { BALL_R } from './physics.js';
+import { BALL_R, contact } from './physics.js';
+import { crow } from './sound/calls.js';
 
 const D = Math.PI / 180;
 const GOOSE = 1.3, CAT = 1.7, DOG = 1.4; // (bigger than life, to be seen from where the hole is watched)
 // round things get a round collider (and how much of their footprint it covers)
-const ROUND = { traffic_cone: 0.9, fire_hydrant: 0.8, rose_pot: 0.9, potted_plant: 0.8, flower_bed: 1, rubber_duck: 0.85 };
+const ROUND = { traffic_cone: 0.9, fire_hydrant: 0.8, rose_pot: 0.9, potted_plant: 0.8, flower_bed: 1, rubber_duck: 0.85, pumpkin: 0.95, pumpkin_small: 0.95, pumpkin_white: 0.95, snowman: 1.05, snowman_small: 1.05 };
 
+let made = null; // (what the last hole's were made with: course.js warmLook makes another's the same way)
+export const propsCtx = () => made;
+// (ctx.warm: made only to have their shaders compiled, out of sight, and any model may be a stand-in)
 export function buildProps(hole, course, ctx) {
-  return hole.props.map(d => MAKERS[d.t](d, course, ctx));
+  if (!ctx.warm) made = ctx;
+  return (hole.props || []).map(d => {
+    if (!MAKERS[d.t]) { console.warn('[golf] no such thing on a hole:', d.t); return { cols: [], update() {} }; }
+    const me = MAKERS[d.t](d, course, ctx);
+    if (d.tag && me.tag) me.tag = { ...me.tag, text: d.tag };
+    if (d.tag === false) delete me.tag; // (tag: false — nothing said over it: a thing a hole before brought in)
+    return me;
+  });
+}
+
+/** at the easy difficulty (a pace under 1) */
+const easy = ctx => (ctx.pace ?? 1) < 1;
+// what an animal says, by a whole part of its model's name (dog_husky, bird_crow; a goose honks, as
+// anything not listed does)
+const CALLS = [['dog', 'bark'], ['goose', 'honk'], ['pig', 'oink'], ['chicken', 'cluck'], ['hen', 'cluck'], ['pigeon', 'coo'], ['crow', 'caw'], ['duck', 'quack'], ['cat', 'meow'], ['cow', 'moo']];
+const callOf = (id, d) => d.call || (CALLS.find(([k]) => id.split('_').includes(k)) || [0, 'honk'])[1];
+/** an animal's call, a bike's bell, a car's horn (audio.voice); a crow's caw is the one the pumpkin
+ *  patch's ambience has far off (sound/calls.js), here near, and not again while one is going */
+let cawing = 0;
+function say(ctx, call) {
+  if (call !== 'caw') { ctx.audio.voice(call); return; }
+  const a = ctx.audio, ac = a.ctx;
+  if (!a.running || a.muted || ac.currentTime < cawing) return;
+  cawing = ac.currentTime + 1.6;
+  try { crow(ac, a.m.sfx, ac.currentTime + 0.01, Math.random, { vel: 0.6, pan: (Math.random() - 0.5) * 0.6 }); } catch {}
 }
 
 /** what a thing does to the ball, said over it: at() is where (above the model's top) */
@@ -40,11 +99,17 @@ function footprint(ctx, id, k, x, z, rot, e, pad = 0.9) {
 const MAKERS = {
   obj(d, course, ctx) {
     const p = course.at(...d.at), rot = (d.rot || 0) * D, k = d.s || 1;
-    const g = ctx.model(d.id, k);
+    const g = ctx.model(d.id, k, undefined, d.tint);
     g.position.set(p.x, course.Y(p.x, p.z), p.z);
     g.rotation.y = rot;
     course.group.add(g);
-    return { cols: [footprint(ctx, d.id, k, p.x, p.z, rot, 0.55)], update() {} };
+    const col = footprint(ctx, d.id, k, p.x, p.z, rot, d.e ?? 0.55);
+    const me = { cols: [col], update() {}, model: g };
+    if (d.tag) me.tag = tag(ctx, d.tag, d.id, k, () => [p.x, course.Y(p.x, p.z), p.z]);
+    const cap = popPart(ctx, d, k, g);
+    if (d.wobble || cap) Object.assign(me, knocked(d, course, ctx, p, g, cap));
+    if (me.hit) col.owner = me;
+    return me;
   },
 
   fan(d, course, ctx) {
@@ -84,33 +149,67 @@ const MAKERS = {
     const A = course.at(...d.from), B = course.at(...d.to);
     const L = Math.hypot(B.x - A.x, B.z - A.z), ux = (B.x - A.x) / L, uz = (B.z - A.z) / L;
     // (a car comes down to len metres long, the size of a bike: a toy car, a taxi like a toy one)
-    const s = ctx.spec(d.id), k = d.len ? d.len / s.maxDim : 1;
-    const g = ctx.model(d.id, k);
+    const s = ctx.spec(d.id), k = d.len ? d.len / s.maxDim : d.s || 1;
+    const g = ctx.model(d.id, k, undefined, d.tint);
     course.group.add(g);
     const col = { kind: 'box', x: A.x, z: A.z, hx: s.dims.w * k / 2 * 0.85, hz: s.dims.d * k / 2 * 0.9, rot: 0, e: 0.45, vx: 0, vz: 0 };
-    let u = (d.phase || 0) * 2 * L, bell = 0, lean = 0, yaw = null;
-    // (a robot mower turns round on the spot at each end, and chimes; a bike rings, a car hoots)
-    const bike = d.id.includes('bike'), mower = d.id === 'mower';
-    const ring = bike || mower ? 'bell' : 'horn';
+    // (one that reaches over the rail at the end of its way could push the ball out through it: said, for
+    // whoever is making the hole)
+    if (!ctx.warm) for (const [P, sg] of [[A, -1], [B, 1]]) {
+      const r = col.hz + 2 * BALL_R;
+      if (course.onGreen && !course.onGreen(P.x + ux * sg * r, P.z + uz * sg * r)) console.warn(`[golf] ${d.id} reaches over the rail at the end of its way (keep its ends ${r.toFixed(2)} m inside the green)`);
+    }
+    let u = (d.phase || 0) * 2 * L, bell = 0, lean = 0, yaw = null, step = 0;
+    // (a robot mower turns round on the spot at each end, and chimes; a bike rings, a car hoots; an
+    // animal walking to and fro turns round too, waddling as it goes, and calls)
+    const bike = d.id.includes('bike'), mower = d.id === 'mower', walk = !!d.walk, aside = d.aside ?? walk;
+    // (call: false, one that makes no call of its own (a sled, a wheelbarrow): it knocks, like a rail)
+    const ring = d.call === false ? null : d.call || (bike || mower ? 'bell' : walk ? callOf(d.id, d) : 'horn');
+    // (at the easy difficulty slower, and stopping longer at each end: a shot that isn't timed meets a car
+    // about as often however fast it goes, so the gaps between them are made longer too)
+    const sp = d.speed * (ctx.pace ?? 1), PAUSE = (d.pause ?? (walk ? 0.2 : 0.6)) * (easy(ctx) ? 3 : 1);
     const me = {
       cols: [col], tag: tag(ctx, '会撞开球', d.id, k, () => [col.x, course.Y(col.x, col.z), col.z]),
-      hit(speed) { if (bell <= 0 && speed > 0.4) { ctx.audio.voice(ring); bell = 1.2; } },
-      update(dt) {
+      hit(speed) {
+        if (bell > 0 || speed <= 0.4) return;
+        if (ring) { say(ctx, ring); bell = 1.2; } else { ctx.audio.wall(Math.min(1, speed / 7)); bell = 2.5; } // (one knock a meeting, not the shove's and the flick's a second on: shorter than any mover's next pass)
+      },
+      update(dt, ball, game) {
         bell -= dt;
         // ride to the end, a short stop, ride back
-        const span = 2 * L + 2 * 0.6 * d.speed;
-        u = (u + d.speed * dt) % span;
-        const half = L + 0.6 * d.speed;
+        const span = 2 * L + 2 * PAUSE * sp;
+        u = (u + sp * dt) % span;
+        const half = L + PAUSE * sp;
         const k = u < half ? Math.min(u, L) : Math.max(0, L - (u - half));
         const moving = u < half ? u < L : u - half < L;
         const dir = u < half ? 1 : -1;
         col.x = A.x + ux * k; col.z = A.z + uz * k;
-        col.vx = moving ? ux * d.speed * dir : 0;
-        col.vz = moving ? uz * d.speed * dir : 0;
+        col.vx = moving ? ux * sp * dir : 0;
+        col.vz = moving ? uz * sp * dir : 0;
         const head = Math.atan2(ux * dir, uz * dir);
-        yaw = yaw === null || !mower ? head : yaw + angDiff(yaw, head) * Math.min(1, dt * 6);
+        yaw = yaw === null || !(mower || walk) ? head : yaw + angDiff(yaw, head) * Math.min(1, dt * 6);
         col.rot = yaw;
+        // (aside: a ball lying, or creeping, just ahead of it is flicked off its way to the side it is on,
+        // keeping a little of the mover's speed: it isn't carried along for seconds while the player waits.
+        // Slow against the mover, not the ground: one riding along at the mover's speed is flicked again)
+        if (aside && moving && ball && (game.state === 'aim' || game.state === 'roll') && Math.hypot(ball.vx - col.vx, ball.vz - col.vz) < 0.6 && contact(col, ball.x, ball.z, BALL_R + 0.03)) {
+          const fx = ux * dir, fz = uz * dir, rx = ball.x - col.x, rz = ball.z - col.z;
+          if (rx * fx + rz * fz > 0) {
+            const side = Math.sign(rx * -fz + rz * fx) || 1;
+            ball.vx = -fz * side * 0.8 + fx * sp; ball.vz = fx * side * 0.8 + fz * sp;
+            me.hit(1);
+            game.pushed();
+          }
+        }
         lean += ((moving || !bike ? 0 : 0.12) - lean) * Math.min(1, dt * 5); // (a bike leans on its stand)
+        if (walk) {
+          // (a waddle: rocking side to side and bobbing at each step, still when it stops)
+          if (moving) step += dt * 11;
+          const w = moving ? Math.sin(step) : 0;
+          g.position.set(col.x, course.Y(col.x, col.z) + Math.abs(w) * 0.035, col.z);
+          g.rotation.set(0, col.rot, w * 0.14);
+          return;
+        }
         g.position.set(col.x, course.Y(col.x, col.z), col.z);
         g.rotation.set(0, col.rot, lean);
       },
@@ -122,20 +221,20 @@ const MAKERS = {
   // stands beside the green on a block of its own and keeps an eye on the ball, turning after it;
   // a ball rolling close makes it hop and honk, or bark (no more than once a stroke)
   watch(d, course, ctx) {
-    const p = course.at(...d.at), k = d.s || (d.id === 'goose' ? GOOSE : DOG), call = d.id.startsWith('dog') ? 'bark' : 'honk';
+    const p = course.at(...d.at), k = d.s || (d.id === 'goose' ? GOOSE : DOG), call = callOf(d.id, d);
     course.pad(p.x, p.z, 1.1, 1.1);
-    const g = ctx.model(d.id, k);
+    const g = ctx.model(d.id, k, undefined, d.tint);
     course.group.add(g);
     let yaw = 0, hop = 0, heard = -1;
     return {
-      cols: [],
+      cols: [], tag: d.tag ? tag(ctx, d.tag, d.id, k, () => [p.x, -0.03, p.z]) : undefined,
       update(dt, ball, game) {
         yaw += angDiff(yaw, Math.atan2(ball.x - p.x, ball.z - p.z)) * Math.min(1, dt * 3);
         hop = Math.max(0, hop - dt * 2.5);
         if (game.state === 'roll' && heard !== game.strokes && Math.hypot(ball.x - p.x, ball.z - p.z) < 1.6) {
           heard = game.strokes;
           hop = 1;
-          ctx.audio.voice(call);
+          say(ctx, call);
         }
         g.position.set(p.x, -0.03 + Math.sin(hop * Math.PI) * 0.25, p.z);
         g.rotation.y = yaw;
@@ -143,25 +242,28 @@ const MAKERS = {
     };
   },
 
-  // (or a dog, which barks: d.id)
+  // (or a dog, which barks, a pig, which oinks: d.id; and how it goes for the ball: d.mode)
   goose(d, course, ctx) {
-    const home = course.at(...d.at), id = d.id || 'goose', call = id.startsWith('dog') ? 'bark' : 'honk';
-    const g = ctx.model(id, id === 'goose' ? GOOSE : DOG);
+    const home = course.at(...d.at), id = d.id || 'goose', call = callOf(id, d), K = d.s || (id === 'goose' ? GOOSE : DOG);
+    const mode = d.mode || (id === 'goose' ? 'chase' : 'nudge'), aggro = d.aggro * (easy(ctx) ? 0.8 : 1);
+    const g = ctx.model(id, K, undefined, d.tint);
     g.rotation.order = 'YXZ'; // so the peck dips its head forward, whichever way it faces
     course.group.add(g);
     const col = { kind: 'circle', x: home.x, z: home.z, r: 0.24, e: 0.4, vx: 0, vz: 0 };
-    let x = home.x, z = home.z, yaw = Math.PI, cd = 0, peck = 0, walk = 0, honkCd = 0, t = Math.random() * 5, rest = 0, nosed = -1;
+    // (where it looks at home: up the map unless face says, in degrees)
+    const face = d.face == null ? Math.PI : d.face * D;
+    let x = home.x, z = home.z, yaw = face, cd = 0, peck = 0, walk = 0, honkCd = 0, t = Math.random() * 5, rest = 0, nosed = -1;
     const me = {
-      cols: [col], tag: tag(ctx, id === 'goose' ? '会追着啄球' : '会追着拱球', id, id === 'goose' ? GOOSE : DOG, () => [x, course.Y(x, z), z]),
-      hit(speed) { if (honkCd <= 0 && speed > 0.5) { ctx.audio.voice(call); honkCd = 1; } },
+      cols: [col], tag: tag(ctx, mode === 'chase' ? '会追着啄球' : '会追着拱球', id, K, () => [x, course.Y(x, z), z]),
+      hit(speed) { if (honkCd <= 0 && speed > 0.5) { say(ctx, call); honkCd = 1; } },
       update(dt, ball, game) {
         t += dt; cd -= dt; peck -= dt; honkCd -= dt;
-        // (a dog goes only for a ball that has lain still a while, and noses it on once a stroke: on a
-        // slope a ball it nudges away can roll back to it, and it mustn't keep the player from ever
-        // taking the shot; the goose is as it was)
+        // (one that nudges, a dog, goes only for a ball that has lain still a while, and noses it on once a
+        // stroke: on a slope a ball it nudges away can roll back to it, and it mustn't keep the player
+        // from ever taking the shot; one that chases, the goose, is as it was)
         rest = game.state !== 'aim' ? 0 : game.aim ? rest : rest + dt; // (not while being aimed: it waits for the shot)
-        const near = Math.hypot(ball.x - home.x, ball.z - home.z) < d.aggro;
-        const chase = cd <= 0 && near && game.live && (id === 'goose' || (rest > 2.5 && nosed !== game.strokes));
+        const near = Math.hypot(ball.x - home.x, ball.z - home.z) < aggro;
+        const chase = cd <= 0 && near && game.live && (mode === 'chase' || (rest > 2.5 && nosed !== game.strokes));
         const tx = chase ? ball.x : home.x, tz = chase ? ball.z : home.z;
         let vx = 0, vz = 0;
         const dx = tx - x, dz = tz - z, dist = Math.hypot(dx, dz);
@@ -177,7 +279,7 @@ const MAKERS = {
           walk += dt * 14;
         } else if (!chase) {
           // home: look about now and then
-          yaw += angDiff(yaw, Math.PI + Math.sin(t * 0.7) * 0.9) * Math.min(1, dt * 2);
+          yaw += angDiff(yaw, face + Math.sin(t * 0.7) * 0.9) * Math.min(1, dt * 2);
         }
         // got it: a peck that sends the ball off, away from the goose
         const bx = ball.x - x, bz = ball.z - z, bd = Math.hypot(bx, bz);
@@ -187,7 +289,7 @@ const MAKERS = {
           // isn't pecked again before the player can take a shot)
           ball.vx = ux * 2.8; ball.vz = uz * 2.8;
           cd = 2.3; peck = 0.3; nosed = game.strokes;
-          ctx.audio.voice(call);
+          say(ctx, call);
           honkCd = 1;
           ctx.fx.pickup(ball.x, 0.2 + course.Y(ball.x, ball.z), ball.z, 0.05, 0.25);
           game.pushed();
@@ -217,7 +319,7 @@ const MAKERS = {
     zone.add(rim);
     course.group.add(zone);
     const col = { kind: 'circle', x: p.x, z: p.z, r: 0.24, e: 0.4 };
-    const P = d.period || 2.4;
+    const P = (d.period || 2.4) * (easy(ctx) ? 1.3 : 1);
     // (one swipe a stroke: a ball batted against a wall can roll back into reach, and a cat that
     // swiped again every time it did could keep the player from ever getting a shot off)
     let t = (d.phase || 0) * P, batted = false, swiped = -1;
@@ -300,7 +402,7 @@ const MAKERS = {
   // turning in front of the tunnel's door; while one sweeps down past the door it knocks the ball
   // back (and a little sideways, the way it is going). Its walls either side are solid.
   windmill(d, course, ctx) {
-    const p = course.at(...d.at), y0 = course.Y(p.x, p.z), w = d.speed || 0.8, k = d.s || 1;
+    const p = course.at(...d.at), y0 = course.Y(p.x, p.z), w = (d.speed || 0.8) * (ctx.pace ?? 1), k = d.s || 1;
     const house = place(ctx, 'windmill', k, p.x, y0, p.z);
     course.group.add(house);
     // the sails turn about the axle out of the tower's front, 1.6 m up and 0.78 m out (as made: k times
@@ -310,17 +412,13 @@ const MAKERS = {
     rotor.children[0].position.set(0, -ctx.spec('windmill_rotor').center.y * k, 0); // (the hub on the group's origin)
     rotor.position.set(p.x, y0 + HUB, p.z + OUT);
     course.group.add(rotor);
-    // (its walls reach out to `fill` metres either side of its middle where the green is wider than the
-    // house: a trough of flowers stands in each gap, so that the ball gets past only by the tunnel)
-    const out = Math.max(1.2 * k, d.fill || 0), whx = (out - 0.45 * k) / 2;
-    const wall = sx => ({ kind: 'box', x: p.x + sx * (0.45 * k + whx), z: p.z, hx: whx, hz: 0.7 * k, rot: 0, e: 0.5 });
-    if (out > 1.2 * k + 0.01) for (const sx of [-1, 1]) course.group.add(trough(out - 1.2 * k, 1.4 * k, p.x + sx * (1.2 * k + out) / 2, y0, p.z));
+    const [wallL, wallR] = tunnelWalls(d, course, p, y0, k);
     // the sail in the way: where the lowest one crosses the ball's height, its canvas off to one side
     // of its spar (the trailing side), thin, in front of the door; off while none is low enough
     const sail = { kind: 'box', x: p.x, z: p.z + OUT, hx: SAIL / 2 + 0.04, hz: 0.05 * k, rot: 0, e: 0.45, vx: 0, vz: 0, off: true };
     let a = (d.phase || 0) * (Math.PI / 2), knock = 0;
     const me = {
-      cols: [wall(-1), wall(1), sail], tag: { text: '等叶片转开', at: () => [p.x, y0 + 0.95 * k, p.z + OUT] },
+      cols: [wallL, wallR, sail], tag: { text: '等叶片转开', at: () => [p.x, y0 + 0.95 * k, p.z + OUT] },
       // (its roof's peak, see aim(); and the box it fills, behind which the ball is seen through it)
       tall: { x: p.x, y0, y: y0 + ctx.spec('windmill').dims.h * k, z: p.z, hx: 1.2 * k, hz: 0.7 * k + 0.1 },
       hit(speed) { if (knock <= 0 && speed > 0.4) { ctx.audio.wall(Math.min(1, speed / 6)); knock = 0.3; } },
@@ -354,10 +452,31 @@ const MAKERS = {
     return me;
   },
 
+  // the windmill's tunnel with no sails, under any model built to its footprint (id: 'windmill' itself
+  // till there are others)
+  tunnel(d, course, ctx) {
+    const p = course.at(...d.at), y0 = course.Y(p.x, p.z), k = d.s || 1, id = d.id || 'windmill';
+    const house = place(ctx, id, k, p.x, y0, p.z, d.tint);
+    course.group.add(house);
+    const cols = tunnelWalls(d, course, p, y0, k), top = y0 + ctx.spec(id).dims.h * k;
+    // (its loose part, a giant pumpkin's lid, see popPart: thrown up when the ball drops into the cup)
+    const cap = popPart(ctx, d, k, house, id), lid = cap ? knocked({}, course, ctx, p, house, cap) : null;
+    return {
+      cols, tag: d.tag ? { text: d.tag, at: () => [p.x, top + 0.25, p.z] } : undefined,
+      // (as the windmill's: see aim(), and the ghost of the ball seen through it)
+      tall: { x: p.x, y0, y: top, z: p.z, hx: 1.2 * k, hz: 0.7 * k + 0.1 },
+      update(dt, ball, game) {
+        if (!lid) return;
+        if (game.state === 'sink') lid.launch(0, 0.4, 3.2);
+        lid.update(dt, ball);
+      },
+    };
+  },
+
   // a lawn sprinkler: an arm `len` metres end to end turns on a post, `speed` radians a second, and
   // shoves the ball out of its way; water sprays from its tips
   spinner(d, course, ctx) {
-    const p = course.at(...d.at), y0 = course.Y(p.x, p.z), len = d.len || 2, w = d.speed || 1.2;
+    const p = course.at(...d.at), y0 = course.Y(p.x, p.z), len = d.len || 2, w = (d.speed || 1.2) * (ctx.pace ?? 1);
     course.group.add(place(ctx, 'sprinkler_base', 1, p.x, y0, p.z));
     const k = len / 2; // (the arm is 2 m long as made)
     const arm = place(ctx, 'sprinkler_arm', k, 0, 0, 0), spin = new THREE.Group();
@@ -437,10 +556,94 @@ function trough(w, d, x, y, z) {
 
 /** a model with its own origin (the middle of its footprint as made, on the ground) at (x, y, z),
  *  however lopsided its box is (model() centres the box) */
-function place(ctx, id, k, x, y, z) {
-  const s = ctx.spec(id), g = ctx.model(id, k);
+function place(ctx, id, k, x, y, z, tint) {
+  const s = ctx.spec(id), g = ctx.model(id, k, undefined, tint);
   g.position.set(x + s.center.x * k, y + s.bbox.min.y * k, z + s.center.z * k);
   return g;
+}
+
+/** the walls either side of a tunnel through something built to the windmill's footprint at p: they
+ *  reach out to `fill` metres either side of its middle where the green is wider than the house, a
+ *  trough of flowers standing in each gap, so that the ball gets past only by the tunnel */
+function tunnelWalls(d, course, p, y0, k) {
+  const out = Math.max(1.2 * k, d.fill || 0), whx = (out - 0.45 * k) / 2;
+  const wall = sx => ({ kind: 'box', x: p.x + sx * (0.45 * k + whx), z: p.z, hx: whx, hz: 0.7 * k, rot: 0, e: 0.5 });
+  if (out > 1.2 * k + 0.01) for (const sx of [-1, 1]) course.group.add(trough(out - 1.2 * k, 1.4 * k, p.x + sx * (1.2 * k + out) / 2, y0, p.z));
+  return [wall(-1), wall(1)];
+}
+
+/** the part of a model that a hard knock sends flying (a snowman's hat, a giant pumpkin's lid), put in
+ *  its place in the model's group g and named 'pop'; null if it has none. It is: a child of the group
+ *  named 'pop' already; or the one the model's spec says (spec.pop = { id, at }: at, [x, y, z], where
+ *  the part's own origin, the middle of its base, sits in the model's own frame); or the model d.pop,
+ *  set on top of the whole, in the middle (where spec.pop says, if it names the same part). Every part
+ *  is modelled at its own origin */
+function popPart(ctx, d, k, g, id = d.id) {
+  const own = g.getObjectByName('pop');
+  if (own) return own;
+  const s = ctx.spec(id);
+  const P = d.pop ? { id: d.pop, at: s.pop?.id === d.pop ? s.pop.at : [s.center.x, s.bbox.max.y, s.center.z] } : s.pop;
+  if (!P) return null;
+  const [ax, ay, az] = Array.isArray(P.at) ? P.at : [P.at.x, P.at.y, P.at.z];
+  let cap;
+  try { cap = place(ctx, P.id, k, (ax - s.center.x) * k, (ay - s.bbox.min.y) * k, (az - s.center.z) * k, d.tint); } catch (e) { console.warn(`[golf] ${id}: no part ${P.id} to pop off`, e); return null; }
+  cap.name = 'pop';
+  g.add(cap);
+  return cap;
+}
+
+/** something that reacts to the ball: rocks (wobble) away from where it was hit and settles, with a
+ *  soft thud; and its loose part (cap) knocked off by a hard hit (or thrown by launch()), up and away to
+ *  land beside it */
+function knocked(d, course, ctx, p, g, cap) {
+  const up = new THREE.Vector3(0, 1, 0), yaw = new THREE.Quaternion().setFromAxisAngle(up, g.rotation.y), tilt = new THREE.Quaternion(), axis = new THREE.Vector3();
+  let ball = null, t = 9, amp = 0, dx = 0, dz = 1, thud = 0, fly = null;
+  const launch = (ux, uz, vy) => {
+    if (!cap || fly) return;
+    const w = new THREE.Vector3(), q = new THREE.Quaternion();
+    cap.getWorldPosition(w);
+    cap.getWorldQuaternion(q);
+    cap.removeFromParent();
+    cap.position.copy(w);
+    cap.quaternion.copy(q);
+    course.group.add(cap);
+    const side = (Math.random() - 0.5) * 0.8;
+    fly = { vx: ux * 1.3 - uz * side, vz: uz * 1.3 + ux * side, vy, spin: 6 + Math.random() * 4, ax: Math.random() - 0.5, az: Math.random() - 0.5, done: false };
+    ctx.audio.bump(0.5);
+  };
+  return {
+    launch,
+    hit(speed) {
+      if (speed < 0.3 || !ball) return;
+      const bx = p.x - ball.x, bz = p.z - ball.z, bd = Math.hypot(bx, bz) || 1;
+      if (d.wobble) {
+        dx = bx / bd; dz = bz / bd; t = 0;
+        amp = Math.min(0.32, 0.06 + speed * 0.05);
+        if (thud <= 0) { ctx.audio.wall(Math.min(0.45, 0.12 + speed / 14)); thud = 0.25; }
+      } else if (thud <= 0 && speed > 0.5) { ctx.audio.wall(Math.min(1, speed / 7)); thud = 0.07; }
+      // (a hard knock: the loose part flies off, the way the ball was going, to land a step away)
+      if (speed > 2.2) launch(bx / bd, bz / bd, 2.4 + speed * 0.12);
+    },
+    update(dt, b) {
+      ball = b;
+      thud -= dt;
+      if (d.wobble && t < 3) {
+        t += dt;
+        const a = amp * Math.exp(-3.2 * t) * Math.sin(t * 10);
+        tilt.setFromAxisAngle(axis.set(dz, 0, -dx), a);
+        g.quaternion.copy(tilt).multiply(yaw);
+      }
+      if (fly && !fly.done) {
+        fly.vy -= 9 * dt;
+        cap.position.x += fly.vx * dt; cap.position.y += fly.vy * dt; cap.position.z += fly.vz * dt;
+        cap.rotateOnWorldAxis(axis.set(fly.ax, 0.3, fly.az).normalize(), fly.spin * dt);
+        // (down on the green where it is over it, else on the water)
+        const x = cap.position.x, z = cap.position.z, bb = course.bounds;
+        const floor = x > bb.x0 - 0.3 && x < bb.x1 + 0.3 && z > bb.z0 - 0.3 && z < bb.z1 + 0.3 ? course.Y(x, z) : course.water;
+        if (fly.vy < 0 && cap.position.y <= floor) { cap.position.y = floor; fly.done = true; }
+      }
+    },
+  };
 }
 
 /** tyres piled into a corner of the green, their front a bank across it at 45° from rail to rail

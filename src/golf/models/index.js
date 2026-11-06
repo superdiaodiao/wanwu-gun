@@ -4,3 +4,5 @@ import './windmill.js';
 import './yardtoys.js';
 import './patio.js';
 import './pool.js';
+import './winter.js';
+import './farm.js';

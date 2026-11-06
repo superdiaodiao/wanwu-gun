@@ -19,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { cdnLoader, cdnRev, wrap } from './tools/cdn-loader.mjs';
 
 const args = process.argv.slice(2);
@@ -105,7 +106,7 @@ function asciiHtml(html) {
 
 // the golf page's own name and description in English, for CrazyGames (the page says them before
 // the game has started, and the game is English there for nearly everyone)
-const GOLF_EN = { title: 'Backyard Mini Golf', description: 'Mini golf round a park pond: putt past fans, traffic, a goose and a pair of cats, pick up the coins and sink it in as few strokes as you can.' };
+const GOLF_EN = { title: 'Backyard Mini Golf', description: 'Mini golf through four backyards, from a duck pond and a pool party to a pumpkin patch and a snow day: 36 holes of fans, traffic, geese, cats, hens, mud and ice.' };
 function assembleCrazyGames(name) {
   fs.rmSync(`dist/${name}`, { recursive: true, force: true });
   fs.mkdirSync(`dist/${name}`);
@@ -138,6 +139,46 @@ export const audio = new Proxy({ ready: false, musicOn: true, muted: false, init
 });`,
       loader: 'js',
     }));
+  },
+};
+
+// 小区高尔夫 is built from the game's catalog and English, and leaves out what only the game uses
+// (the golf pages only):
+// - models: golf names every model it uses as a string somewhere under src/golf/ (a hole's props, a
+//   look's lists). A catalog def() of a model named nowhere there is left out, with whatever only it
+//   used. The decals all stay, so the texture atlas is the same.
+// - English (en/ui.js): an entry is left out when its Chinese is in the game's own files and in none
+//   of the files the golf page is made of.
+const walkSrc = (dir, re, out = []) => {
+  for (const f of fs.readdirSync(dir)) {
+    const p = path.join(dir, f);
+    if (fs.statSync(p).isDirectory()) walkSrc(p, re, out);
+    else if (re.test(f)) out.push(p);
+  }
+  return out;
+};
+const golfOnly = {
+  name: 'golf-only',
+  setup(b) {
+    let named, golfText, gameText;
+    b.onStart(async () => {
+      named = new Set();
+      for (const f of walkSrc('src/golf', /\.js$/)) for (const m of fs.readFileSync(f, 'utf8').matchAll(/(['"`])([\w-]+)\1/g)) named.add(m[2]);
+      // the files the page is made of: a quick bundle of the same entry, for its list of inputs
+      const { metafile } = await esbuild.build({ entryPoints: b.initialOptions.entryPoints, bundle: true, write: false, metafile: true, plugins: [audioFallback], define: b.initialOptions.define, logLevel: 'silent' });
+      const golf = new Set(Object.keys(metafile.inputs).filter(f => f.startsWith('src/') && !f.startsWith('src/i18n/')).concat('src/golf.html'));
+      golfText = [...golf].map(f => fs.readFileSync(f, 'utf8')).join('\n');
+      gameText = walkSrc('src', /\.(js|html)$/).filter(f => !golf.has(f) && !f.startsWith('src/i18n/')).map(f => fs.readFileSync(f, 'utf8')).join('\n');
+    });
+    b.onLoad({ filter: /[\\/]src[\\/]catalog[\\/]\w+\.js$/ }, args => ({
+      contents: fs.readFileSync(args.path, 'utf8').replace(/^def\((['"])([\w-]+)\1/gm, (m, q, id) => (named.has(id) ? m : 'if (0) ' + m)),
+      loader: 'js',
+    }));
+    b.onLoad({ filter: /[\\/]src[\\/]i18n[\\/]en[\\/]ui\.js$/ }, async args => {
+      const { UI } = await import(`${pathToFileURL(args.path).href}?${Date.now()}`);
+      const ui = Object.fromEntries(Object.entries(UI).filter(([zh]) => golfText.includes(zh) || !gameText.includes(zh)));
+      return { contents: `export const UI = ${JSON.stringify(ui)};\n`, loader: 'js' };
+    });
   },
 };
 
@@ -189,11 +230,11 @@ if (target === 'game') {
   tplName = 'audio-test'; outName = 'audio-test';
 } else if (target === 'golf') {
   // 小区高尔夫: a separate mini-golf game built from the same models
-  opts = { ...base, entryPoints: ['src/golf/main.js'] };
+  opts = { ...base, plugins: [audioFallback, golfOnly], entryPoints: ['src/golf/main.js'] };
   tplName = 'golf'; outName = 'golf';
 } else if (target === 'golf-crazygames') {
   // its upload for CrazyGames, made the same way as the game's (above)
-  opts = { ...base, charset: 'ascii', define: { ...base.define, __PLATFORM__: '"crazygames"' }, entryPoints: ['src/golf/main.js'] };
+  opts = { ...base, charset: 'ascii', define: { ...base.define, __PLATFORM__: '"crazygames"' }, plugins: [audioFallback, golfOnly], entryPoints: ['src/golf/main.js'] };
   tplName = 'golf'; outName = 'crazygames-golf';
 } else {
   console.error('unknown target', target); process.exit(1);
@@ -202,7 +243,7 @@ if (target === 'game') {
 if (watch) {
   const ctx = await esbuild.context({
     ...opts,
-    plugins: [audioFallback, {
+    plugins: [...opts.plugins, {
       name: 'assemble',
       setup(b) {
         b.onEnd(r => {

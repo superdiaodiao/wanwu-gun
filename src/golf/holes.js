@@ -1,6 +1,8 @@
 // The holes. Each is drawn in characters, one per square metre, the far end at the top (the tee
 // near the bottom: the hole is seen from that end, so the ball starts near the player):
 //   .  green        r  road (green to the ball, grey to look at)
+//   m  mud: slows the ball hard, and holds it where it stops (a 2-row band takes a firm putt to cross)
+//   i  ice: the ball runs on and on (drag a third of the green's: aim short)
 //   T  the tee      H  the hole      o  a coin lying on the green (more anywhere: coins, below)
 //   (anything else is not course: a wall runs along every edge of the green)
 // then what stands on it, at (column, row) — fractions allowed, 0 is the first square's middle:
@@ -20,13 +22,36 @@
 //                                        filling out to `fill` metres either side), its sails sweeping
 //                                        past the door; speed: radians a second
 //   { t: 'spinner', at, len, speed, phase } a lawn sprinkler, its arm len metres end to end turning
+//   { t: 'tunnel', id, at, s, fill }    the windmill's tunnel without its sails, under any model built to
+//                                        the windmill's footprint (a giant pumpkin, a snow fort)
+//   and on any of them: tag (what it says over it), tint, call (false: none, a bike just knocks), walk (a bike that is an animal walking),
+//   aside (a bike's: flicks a resting ball out of its way; a walker's unless false), mode and face (a
+//   goose's: 'chase' | 'nudge'; where it looks at home, deg, 180 = up the hole), e, wobble and pop (an
+//   obj's: pop, the id of a model of its own that a hard hit knocks off its top): see props.js
 // and the shape of the ground, where it isn't flat: ground: [ramps, hills, ridges] (see ground.js);
-// coins: more coins, at [c, r] each, or 'tops': one on top of every mound.
+// coins: more coins, at [c, r] each (on a green square), or 'tops': one on top of every mound. Every
+// hole has at least one coin (a warning at the bottom says if not, or if one is off the green).
+// surfTags: false: no "Mud slows the ball" / "Ice is slippery" over its mud or ice (say it once, on the
+// hole that brings it in, and leave it unsaid after).
 // tilt: how low the camera may look along the hole at most (radians from straight down; a windmill in
 // front of the cup already keeps the camera high enough to see the cup over it).
 // The yards: nine holes each, played one after another, each a round of its own. The first is a duck
 // pond in a park at midday, everything flat; the second the pool in a back garden at sundown, where the
-// green has slopes and things on it turn.
+// green has slopes and things on it turn. The ones after are files of their own (yards/), appended in
+// order at the bottom (a new one: import its file and add it to the list there). A player's records are
+// kept by a hole's place, so a yard is only ever added at the end. A yard file:
+//   export default {
+//     name: '南瓜地',      the yard's name (the Chinese is the key its English is found by)
+//     look: 'autumn',     how it looks (looks/: its light and colours, what is round the pond)
+//     holes: [ ... ],     its nine holes, written as above
+//     en: { '南瓜地': 'Pumpkin Patch', ... },  the English of its own words: its name, its holes'
+//                         names and tips, any tags of its own (merged into the game's at start)
+//   };
+import { UI } from '../i18n/en/ui.js';
+import { EN } from './en.js';
+import pumpkin from './yards/pumpkin.js';
+import snow from './yards/snow.js';
+
 export const PER = 9;
 export const YARDS = [
   { name: '鸭子池塘', look: 'pond' },
@@ -444,3 +469,21 @@ export const HOLES = [
     coins: [[1.3, 6.1], [5, 8.6]],
   },
 ];
+
+// ---- the yards in files of their own, after these two, in this order ----
+Object.assign(UI, EN); // (the golf game's own English, en.js: the shared table stays as the other game has it)
+for (const y of [pumpkin, snow]) {
+  if (y.holes.length !== PER) console.warn(`[golf] ${y.name}: ${y.holes.length} holes, not ${PER}`);
+  for (const h of y.holes) if (h.map.join('').split('T').length !== 2 || h.map.join('').split('H').length !== 2) console.warn(`[golf] ${h.name}: wants one T and one H`);
+  YARDS.push({ name: y.name, look: y.look });
+  HOLES.push(...y.holes);
+  Object.assign(UI, y.en);
+}
+// (every hole has a coin, each on a green square: on a hole without one the third star is for a birdie
+// only (main.js finish), and a coin off the green can't be picked up, so that star and the yard's gold
+// can't be had)
+for (const h of HOLES) {
+  const extra = h.coins === 'tops' ? (h.ground || []).filter(g => g.t === 'hill' && g.h > 0).map(g => g.at) : h.coins || [];
+  if (!extra.length && !h.map.join('').includes('o')) console.warn(`[golf] ${h.name}: no coins`);
+  for (const [c, r] of extra) if (!'.rTHomi'.includes(h.map[Math.round(r)]?.[Math.round(c)] || ' ')) console.warn(`[golf] ${h.name}: coin [${c}, ${r}] is off the green`);
+}

@@ -4,7 +4,8 @@
 // goose guarding the hole, a cat swiping, tyres; until the first shot each says over it what it
 // does to the ball. Stars: one for sinking it, one for par or better, one for every coin on the
 // green picked up on the way. The holes are in yards of nine (the duck pond, then the pool party at
-// sundown, with slopes and things that turn), each yard a round: the best strokes for each hole and
+// sundown, with slopes and things that turn, then the pumpkin patch's mud and the snow day's ice: holes.js;
+// how each looks: looks/), each yard a round: the best strokes for each hole and
 // for a whole round are kept, and a hole opens once the one before it is done; a yard opens once the
 // one before it has been played through (its last hole's card goes on to the yard's page: its medal,
 // bronze for playing it through, silver and gold for stars, and what opens next). The bars at the top
@@ -23,9 +24,9 @@ import { Engine } from '../game/engine.js';
 import { FX } from '../game/fx.js';
 import { audio } from '../audio/audio.js';
 import { t, translateDom, EN } from '../i18n/index.js';
-import { applyContent } from '../i18n/apply.js';
-import { BALL_R, CUP_R, PHYS, stepBall, simulate, shotSpeed, windAt, slopeAt } from './physics.js';
-import { buildCourse } from './course.js';
+import { BALL_R, CUP_R, PHYS, stepBall, simulate, shotSpeed, windAt, slopeAt, holdAt } from './physics.js';
+import { buildCourse, warmLook } from './course.js';
+import { lookOf as lookDef } from './looks/index.js';
 import { buildProps } from './props.js';
 import { HOLES, YARDS, PER } from './holes.js';
 import { golfBall, Trail } from './ball.js';
@@ -33,11 +34,10 @@ import { Confetti } from './confetti.js';
 import { portalInit, portalLoaded, portalPlaying, portalOnMute } from '../game/portal.js';
 import { strayHost } from '../game/guard.js';
 import { track, trackBoot, trackHole, trackDone } from './track.js';
+import { sound } from './sound/index.js'; // (the yard's ambience, the ball rolling, the yard's music layer: sound/)
 
 // counted things in English: '{n} stroke{s}'
 const pl = (zh, n, vars) => t(zh, { n, s: n === 1 ? '' : 's', ...vars });
-
-applyContent();
 
 const $ = id => document.getElementById(id);
 const PLATFORM = typeof __PLATFORM__ !== 'undefined' ? __PLATFORM__ : 'site';
@@ -56,11 +56,12 @@ const spec = id => {
   return specs.get(id);
 };
 /** a catalog model standing on y = 0 of its group, centred on its footprint; real size × k, or
- *  `size` metres across its largest side */
-function model(id, k = 1, size) {
+ *  `size` metres across its largest side; `tint`: its colours multiplied by this one (0xrrggbb: crows
+ *  from pigeons) */
+function model(id, k = 1, size, tint) {
   const s = spec(id);
   if (size) k = size / s.maxDim;
-  const mesh = new THREE.Mesh(s.geometry, material);
+  const mesh = new THREE.Mesh(s.geometry, tint == null ? material : tinted(tint));
   mesh.userData.keep = true; // (its geometry and material are shared: see course.dispose)
   mesh.scale.setScalar(k);
   mesh.position.set(-s.center.x * k, -s.bbox.min.y * k, -s.center.z * k);
@@ -71,6 +72,20 @@ function model(id, k = 1, size) {
   return g;
 }
 
+// (the models' material in a tint: one for each, made once and kept, as every material is)
+const tints = new Map();
+function tinted(c) {
+  if (!tints.has(c)) {
+    const m = material.clone();
+    // (neither is copied by clone(): the same shader under the same key, so the same program)
+    m.onBeforeCompile = material.onBeforeCompile;
+    m.customProgramCacheKey = material.customProgramCacheKey;
+    m.color.set(c);
+    tints.set(c, m);
+  }
+  return tints.get(c);
+}
+
 const G = {
   hole: 0, level: 'easy', state: 'load', strokes: 0, got: 0, best: [], rounds: [], paused: false, course: null, props: [], cols: [], sweets: [],
   ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, hitT: 0, t: 0, sinkT: 0, live: true,
@@ -78,13 +93,15 @@ const G = {
 };
 
 // the difficulty: how far along a shot's run the dotted guide shows it (no further than its first
-// bounce; at the hardest, not at all: the arrow alone), and how slowly a ball must reach the cup to drop
-// (faster, it runs over the lip). Each has its
-// own stars, records and rounds; a hole opened at one is open at all of them.
+// bounce; at the hardest, not at all: the arrow alone), how slowly a ball must reach the cup to drop
+// (faster, it runs over the lip), and the pace of the moving things (at the easy one cars, mowers,
+// walkers, windmills and sprinklers go at 3/4 speed and cars stop longer at each end, cats wait longer
+// and the goose and the dog notice the ball nearer: props.js; the harder ones are as fast as the easy one
+// was, for moving things add luck, not skill). Each has its own stars, records and rounds; a hole opened at one is open at all of them.
 const LEVELS = {
-  easy: { name: '简单', note: '虚线一直画到第一次撞墙', guide: 7, capture: 3 },
-  normal: { name: '普通', note: '虚线只画一小段，进洞要轻一点', guide: 1.5, capture: 2.2 },
-  hard: { name: '困难', note: '没有虚线，只看箭头；进洞要很轻', guide: 0, capture: 1.6 },
+  easy: { name: '简单', note: '虚线一直画到第一次撞墙', guide: 7, capture: 3, pace: 0.75 },
+  normal: { name: '普通', note: '虚线只画一小段，进洞要轻一点', guide: 1.5, capture: 2.2, pace: 1 },
+  hard: { name: '困难', note: '没有虚线，只看箭头；进洞要很轻', guide: 0, capture: 1.6, pace: 1 },
 };
 const LEVEL_TIPS = 3; // (on how many visits a hole under par at the easy one says there are harder: see finish)
 let levelTold = false; // (and whether it has on this one)
@@ -118,18 +135,20 @@ function pickLevel(l, where) {
   if (G.state === 'sink') finish(true);
   // (picked on a card, between holes: the yard's round so far goes on at the new difficulty, so a round
   // begun at one, the difficulty changed on its first card, can still be played through)
-  const cy = yardOf(G.hole), carry = G.state === 'card' ? G.rounds[cy].slice() : null;
+  const cy = yardOf(G.hole), carry = G.state === 'card' ? G.rounds[cy].slice() : null, pace = LEVELS[G.level].pace;
   useLevel(l);
   if (carry) { G.rounds[cy] = carry; store.set(rec('rounds'), G.rounds); }
   track('level', G.level);
   track('lvpick', where);
   showLevel();
-  // (a hole is played at one difficulty: one under way starts again. And the new difficulty's round
+  // (a hole is played at one difficulty: one under way starts again, and one not begun yet is built again
+  // if the moving things go at another pace, the menu staying up. And the new difficulty's round
   // goes by load()'s rule: a yard's first hole, or any after its last, starts a new one)
   if (G.state !== 'card') {
     const y = yardOf(G.hole);
     if (G.hole % PER === 0 || G.rounds[y][PER - 1] != null) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
     if (G.strokes > 0) load(G.hole, false, true);
+    else if (LEVELS[G.level].pace !== pace) load(G.hole, false, true, true);
   } else {
     // (picked from the card or the yard's page: it no longer offers one)
     for (const h of $('card').querySelectorAll('.harder')) h.parentElement.remove();
@@ -177,11 +196,6 @@ function goal(y) {
   const s = starsIn(y), m = medalOf(y);
   return m === 3 ? t('{yard}满星，金牌！', { yard: name }) : pl(m === 2 ? '再拿 {n} 颗星换金牌' : '再拿 {n} 颗星换银牌', (m === 2 ? PER * 3 : PER * 2) - s);
 }
-// (a picture for each yard on the map: a duck, a swim ring)
-const ICONS = {
-  pond: '<svg class="ic" viewBox="0 0 40 32" aria-hidden="true"><ellipse cx="17" cy="21" rx="14" ry="8.5" fill="#ffd23f"/><path d="M5 17c4 3 10 3 14 0" fill="none" stroke="#f0b400" stroke-width="2" stroke-linecap="round"/><circle cx="27" cy="11" r="6.5" fill="#ffd23f"/><path d="M32.5 10.5l6.5 1.8-6.5 1.8z" fill="#ff8a2a"/><circle cx="28.6" cy="9.4" r="1.3" fill="#2f3a33"/></svg>',
-  pool: '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="#fff" stroke-width="7"/><circle cx="16" cy="16" r="11" fill="none" stroke="#ff5d5d" stroke-width="7" stroke-dasharray="8.64 8.64"/></svg>',
-};
 
 async function boot() {
   translateDom();
@@ -307,12 +321,21 @@ async function boot() {
   // hole that isn't open, from before the yards had gates, gives way to the first one still to play)
   let at = Math.min(store.get('hole', 0), HOLES.length - 1);
   if (!opened(at)) at = Math.max(0, HOLES.findIndex((h, i) => opened(i) && !played(i)));
+  // (one who had played every yard there was, back at the first hole after the last, comes back to the
+  // first yard added since, and is told it is open: a yard after the first two, which came out together)
+  if (at === 0 && played(0)) {
+    const nx = HOLES.findIndex((h, i) => opened(i) && !played(i));
+    if (nx >= 2 * PER && nx % PER === 0) { at = nx; G.welcome = t('{yard}开放了！', { yard: t(YARDS[yardOf(nx)].name) }); }
+  }
   load(at, at % PER === 0);
   portalLoaded(); // (before the first frame, which says the hole is being played)
   requestAnimationFrame(loop);
   await nextFrame();
   $('loading').classList.add('done');
   window.__ready = true;
+  // (the next yard's shaders when nothing else is going on, if it is open already; if not, they wait
+  // for this yard's last two holes: load)
+  idle(() => { const y = G.yard; if (YARDS[y + 1] && yardOpen(y + 1)) warm(YARDS[y + 1].look, 0); });
 }
 
 const tabbed = el => { try { return el.matches(':focus-visible'); } catch { return false; } };
@@ -334,17 +357,17 @@ function sky(stops) {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-// each yard's light: the duck pond at midday (deep blue overhead, paling to the haze), the pool party
-// at sundown (warm, low sun, a peach sky)
-const LOOKS = {
-  pond: { sky: [[0, '#4fb0f2'], [0.55, '#9fd8fa'], [1, '#d4effc']], fog: 0xd4effc, hemi: [0xeaf6ff, 0x9cc48a, 1.35], sun: [0xfff1dc, 2.8, [-0.35, 1, 0.5]] },
-  pool: { sky: [[0, '#5a7fd6'], [0.42, '#d99ab8'], [0.75, '#ffbf8f'], [1, '#ffe0b0']], fog: 0xffd9b0, hemi: [0xffe2c8, 0xa59a74, 1.5], sun: [0xffc98f, 3.3, [-0.75, 0.9, 0.4]] },
-};
+// each yard's light, from its look (looks/: the duck pond at midday, deep blue overhead paling to the
+// haze; the pool party at sundown, warm, low sun, a peach sky; ...)
 const skies = {};
 function lookOf(name) {
-  const L = LOOKS[name], e = engine, sc = e.scene;
-  sc.background = skies[name] || (skies[name] = sky(L.sky));
-  sc.fog.color.set(L.fog);
+  const L = lookDef(name), e = engine, sc = e.scene;
+  sc.background = skies[L.name] || (skies[L.name] = sky(L.sky));
+  const [fog, near = 45, far = 95] = Array.isArray(L.fog) ? L.fog : [L.fog];
+  sc.fog.color.set(fog);
+  sc.fog.near = near;
+  sc.fog.far = far;
+  e.sun.shadow.intensity = L.shadow;
   e.hemi.color.set(L.hemi[0]);
   e.hemi.groundColor.set(L.hemi[1]);
   e.hemi.intensity = L.hemi[2];
@@ -358,7 +381,7 @@ async function wake() {
 }
 
 // ---- the ball and the aiming guide -----------------------------------------------------------------
-let ballG, ballSpin, ghost, trail, arrow, arrowMat, dots, ring;
+let ballG, ballSpin, ghost, ballRim, trail, arrow, arrowMat, dots, ring;
 function makeBall(sc) {
   ballG = new THREE.Group();
   ballSpin = golfBall(BALL_R);
@@ -371,6 +394,11 @@ function makeBall(sc) {
   ghost.visible = false;
   ballSpin.add(ghost);
   ballG.add(ballSpin);
+  // and on a look that asks for it (its ballRim: how dark), a faint dark ring round it, facing the
+  // camera and a couple of pixels wide however far off: a pale ball on pale ice still stands out
+  ballRim = new THREE.Mesh(new THREE.CircleGeometry(1, 28), new THREE.MeshBasicMaterial({ color: 0x2f3a33, transparent: true, depthWrite: false }));
+  ballRim.visible = false;
+  ballG.add(ballRim);
   sc.add(ballG);
   trail = new Trail(sc, BALL_R * 0.8);
 }
@@ -474,16 +502,18 @@ function coin() {
 /** play hole i (`fresh`: a new round of its yard starts with it, as at a yard's first hole). A round
  *  is over once its last hole has been played: whatever is played next in that yard starts the next
  *  one, unless it is that hole again (a retry, which doesn't touch the round). `quiet`: not the
- *  player's own retry (the difficulty changed), so not counted as one */
-function load(i, fresh = false, quiet = false) {
+ *  player's own retry (the difficulty changed), so not counted as one; `stay`: the menu it was changed
+ *  in stays up, and the hole's name isn't said again */
+function load(i, fresh = false, quiet = false, stay = false) {
   const retry = !!G.course && i === G.hole;
   if (!quiet) trackHole(i, retry);
   if (G.course) G.course.dispose();
   for (const k of cardTimers.splice(0)) clearTimeout(k);
   G.hole = i;
   const hole = HOLES[i], y = yardOf(i);
-  const ctx = { model, spec, audio, fx };
+  const ctx = { model, spec, audio, fx, pace: LEVELS[G.level].pace };
   if (G.yard !== y) { G.yard = y; lookOf(YARDS[y].look); }
+  sound.yard(YARDS[y].look); // (sound/: the yard's ambience and music layer, crossfaded when the look changes)
   G.course = buildCourse(hole, i, { scene: engine.scene, model, look: YARDS[y].look, aniso: Math.min(8, engine.renderer.capabilities.getMaxAnisotropy()) });
   G.props = buildProps(hole, G.course, ctx);
   G.cols = [...G.course.cols, ...G.props.flatMap(p => p.cols)];
@@ -511,6 +541,10 @@ function load(i, fresh = false, quiet = false) {
   ballSpin.renderOrder = sloped ? 5 : 0;
   ballSpin.children[0].renderOrder = sloped ? 4 : 0;
   ghost.visible = G.props.some(p => p.tall);
+  const rimA = lookDef(YARDS[y].look).ballRim;
+  ballRim.visible = rimA > 0;
+  ballRim.material.opacity = rimA || 0;
+  ballRim.scale.setScalar(BALL_R * 1.3); // (and sized to the screen as it goes: step)
   G.strokes = 0; G.got = 0; G.still = 0; G.aim = null; G.state = 'aim'; G.live = true;
   showAim(false);
   $('card').hidden = true;
@@ -519,25 +553,29 @@ function load(i, fresh = false, quiet = false) {
   if (!retry) G.yardPage = null; // (the yard's page still to come, after a retry of its last hole)
   $('hint').hidden = i > 0 || store.get('shot', false);
   if (fresh || (!retry && G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
-  if (G.paused) unpause();
+  if (G.paused && !stay) unpause();
   hud();
   aim();
   // (the game's name over the first hole played, and a welcome back; a yard's name over its first hole)
-  banner(t(hole.name), t(hole.tip), !G.titled, G.welcome || (i % PER ? '' : t(YARDS[y].name)));
+  if (!stay) banner(t(hole.name), t(hole.tip), !G.titled, G.welcome || (i % PER ? '' : t(YARDS[y].name)));
   G.welcome = '';
   G.titled = true;
   // what each nuisance does (one of each kind: the one lowest on the screen, so furthest from the
-  // bars at the top), and on the first hole what the coins are for
+  // bars at the top), and on the first hole what the coins are for. (body: what a thing stands on, its
+  // colliders; flat: a tag of the ground, mud or ice or a coin, not of a thing standing on it)
   const pick = new Map();
-  for (const p of G.props) if (p.tag) {
+  for (const p of [...G.props, ...G.course.tags.map(tag => ({ tag, flat: true }))]) if (p.tag) {
     tagV.set(...p.tag.at()).project(engine.camera);
     const y = (Math.abs(tagV.x) <= 1 ? 0 : 10) + tagV.y, had = pick.get(p.tag.text);
-    if (!had || y < had.y) pick.set(p.tag.text, { tag: p.tag, y });
+    if (!had || y < had.y) pick.set(p.tag.text, { tag: { text: p.tag.text, at: p.tag.at, body: p.cols, flat: p.flat }, y });
   }
   const list = [...pick.values()].map(v => v.tag);
-  if (i === 0 && G.sweets.length) { const s = G.sweets[0]; list.push({ text: '全捡到 +1 ★', at: () => [s.x, 0.6, s.z] }); }
+  if (i === 0 && G.sweets.length) { const s = G.sweets[0]; list.push({ text: '全捡到 +1 ★', at: () => [s.x, 0.6, s.z], flat: true }); }
   showTags(list);
+  if (stay) G.redraw = true; // (under the menu: drawn once, the hole built again behind it and its tags placed)
   store.set('hole', i);
+  // (on a yard's last two holes, the next yard's shaders, when there is a moment: warm)
+  if (i % PER >= PER - 2 && YARDS[y + 1] && !warmed.has(YARDS[y + 1].look)) idle(() => warm(YARDS[y + 1].look, 0));
 }
 
 // ---- the tags: a word over each thing that does something to the ball, till the first shot -------
@@ -552,7 +590,7 @@ function showTags(list) {
     el.className = 'tag';
     el.textContent = t(tg.text);
     box.appendChild(el);
-    return { at: tg.at, el, half: el.offsetWidth / 2, h: el.offsetHeight };
+    return { at: tg.at, el, half: el.offsetWidth / 2, h: el.offsetHeight, flat: !!tg.flat, body: tg.body };
   });
   hudBottom();
   // (they come in once the hole's name, which they would sit under, has gone)
@@ -580,25 +618,77 @@ function placeTags() {
     const R = Math.max(10, Math.abs(((tagV.x + 1) / 2) * w - cx));
     placed.push({ x: cx - R, y: cy - R, w: 2 * R, h: 2 * R });
   }
+  // and the flag: its pole from the cup up to the knob, the flag out to the right of it
+  const C = G.course, fy = ground(C.cup.x, C.cup.z);
+  let fx0 = Infinity, fy0 = Infinity, fx1 = -Infinity, fy1 = -Infinity;
+  for (const [dx, dy] of [[0, 0], [0, 1.36], [0.52, 1.31], [0.52, 0.93]]) {
+    tagV.set(C.cup.x + dx, fy + dy, C.cup.z).project(engine.camera);
+    const sx = ((tagV.x + 1) / 2) * w, sy = ((1 - tagV.y) / 2) * h;
+    fx0 = Math.min(fx0, sx); fx1 = Math.max(fx1, sx); fy0 = Math.min(fy0, sy); fy1 = Math.max(fy1, sy);
+  }
+  const coins = placed.slice(2), cup = placed[0], bare = { x: fx0, y: fy0, w: fx1 - fx0, h: fy1 - fy0 }, flag = { x: fx0 - 3, y: fy0 - 3, w: bare.w + 6, h: bare.h + 6 };
+  placed.push(flag);
+  const pin = { x0: Math.min(cup.x, flag.x), x1: Math.max(cup.x + cup.w, flag.x + flag.w) }; // (the cup and its flag, side to side)
   if ($('lv-chip').classList.contains('low')) { const r = $('lv-chip').getBoundingClientRect(); placed.push({ x: r.left - 4, y: r.top - 4, w: r.width + 8, h: r.height + 8 }); }
   for (const tg of tags) {
     tagV.set(...tg.at()).project(engine.camera);
-    // kept on the screen and off the bars at the top: a thing near an edge has its tag pushed in,
-    // one up by the bars has it below instead of above; and a tag that would cover another moves on
-    const x = Math.max(6, Math.min(w - 2 * tg.half - 6, ((tagV.x + 1) / 2) * w - tg.half));
-    const py = ((1 - tagV.y) / 2) * h;
-    let below = py - 8 - tg.h < tagTop, y = below ? py + 8 : py - 8 - tg.h;
-    for (let k = 0; k < 4; k++) {
-      const o = placed.find(r => x < r.x + r.w && r.x < x + 2 * tg.half && y < r.y + r.h && r.y < y + tg.h);
-      if (!o) break;
-      y = below ? o.y + o.h + 4 : o.y - tg.h - 4;
-      // (no room above it, up by the bars: below it instead)
-      if (!below && y < tagTop) { below = true; y = o.y + o.h + 4; }
+    // kept on the screen and off the bars at the top: a thing near an edge has its tag pushed in, one
+    // up by the bars has it below instead of above (below the whole of the thing, not on it); and a tag
+    // that would cover another, the cup, the ball or a coin moves on up past what is in the way. One
+    // that would then cover the flag stays by its thing instead. If only coins are in its way, it slides
+    // aside just clear of them, or else stays on them (a coin under a tag for a moment is no matter: tags
+    // go at the first shot). If only the cup, the flag and coins are, it slides aside just clear of the
+    // cup and flag. Either way it is still over the thing, its point at it. Else it goes just below the
+    // thing if that is free, and only then up past the flag. One of the ground (mud, ice, the coin),
+    // first to just below its spot if that is free: on the ground it names
+    const px = ((tagV.x + 1) / 2) * w, py = ((1 - tagV.y) / 2) * h, W = 2 * tg.half;
+    let x = Math.max(6, Math.min(w - W - 6, px - tg.half)), to = null, under = py + 8;
+    for (const c of tg.body || []) {
+      // (a sprinkler's turning arm: the whole round it sweeps, not where it is now, or the tag would bob with it)
+      const r = c.w ? Math.max(c.hx, c.hz) : c.r;
+      const ends = c.kind === 'seg' ? [[c.ax, c.az], [c.bx, c.bz]] : c.w || c.kind === 'circle' ? [[c.x - r, c.z], [c.x + r, c.z], [c.x, c.z - r], [c.x, c.z + r]]
+        : [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => { const cs = Math.cos(c.rot || 0), sn = Math.sin(c.rot || 0), lx = sx * c.hx, lz = sz * c.hz; return [c.x + lx * cs + lz * sn, c.z - lx * sn + lz * cs]; });
+      for (const [ex, ez] of ends) { tagV.set(ex, ground(ex, ez), ez).project(engine.camera); under = Math.max(under, ((1 - tagV.y) / 2) * h + 8); }
     }
-    y = Math.max(tagTop, Math.min(h - tg.h - 6, y));
-    placed.push({ x, y, w: 2 * tg.half, h: tg.h });
+    const on = (r, y, x0 = x) => x0 < r.x + r.w && r.x < x0 + W && y < r.y + r.h && r.y < y + tg.h;
+    const fit = y => Math.max(tagTop, Math.min(h - tg.h - 6, y));
+    const stack = (y, below, n, boxes) => {
+      for (let k = 0; k < n; k++) {
+        const o = boxes.find(r => on(r, y));
+        if (!o) break;
+        y = below ? o.y + o.h + 4 : o.y - tg.h - 4;
+        // (no room above it, up by the bars: below it instead)
+        if (!below && y < tagTop) { below = true; y = Math.max(under, o.y + o.h + 4); }
+      }
+      return [y, below];
+    };
+    let below = py - 8 - tg.h < tagTop, y = below ? under : py - 8 - tg.h;
+    if (tg.flat) {
+      if (!below && placed.some(r => on(r, y)) && under <= h - tg.h - 6 && !placed.some(r => on(r, under))) { below = true; y = under; }
+      [y, below] = stack(y, below, 8, placed);
+    } else {
+      // (where it always went, the flag left out: there, unless that is over the flag itself)
+      const was = stack(y, below, 4, placed.filter(r => r !== flag));
+      if (!on(bare, fit(was[0]))) [y, below] = was;
+      else {
+        // (aside: just clear of x0 to x1 at the same height, its point still 10 px in, over nothing but what ok() lets it)
+        const first = below ? [] : placed.filter(r => on(r, y)), pinned = r => r === cup || r === flag, coin = r => coins.includes(r);
+        const beside = (x0, x1, ok) => [x1 + 4, x0 - W - 4].filter(a => a >= 6 && a <= w - W - 6 && px >= a + 10 && px <= a + W - 10 && !placed.some(r => !ok(r) && on(r, y, a)));
+        const coinsOnly = first.length > 0 && first.every(coin);
+        const aside = coinsOnly ? beside(Math.min(...first.map(r => r.x)), Math.max(...first.map(r => r.x + r.w)), () => false)
+          : first.some(pinned) && first.every(r => pinned(r) || coin(r)) ? beside(pin.x0, pin.x1, coin) : [];
+        if (aside.length) { x = aside.sort((a, b) => Math.abs(a - x) - Math.abs(b - x))[0]; to = Math.max(14, Math.min(W - 14, px - x)); }
+        else if (coinsOnly) {} // (where it first was, over the coins for a moment)
+        else if (under <= h - tg.h - 6 && !placed.some(r => on(r, under))) { y = under; below = true; }
+        else [y, below] = stack(y, below, 8, placed);
+      }
+    }
+    y = fit(y);
+    placed.push({ x, y, w: W, h: tg.h });
     tg.el.classList.toggle('below', below);
     tg.el.style.transform = `translate(${x}px, ${y}px)`;
+    if (to == null) tg.el.style.removeProperty('--to');
+    else tg.el.style.setProperty('--to', `${Math.round(to)}px`);
   }
 }
 
@@ -631,6 +721,7 @@ function makeMenu() {
     if (!yardOpen(y)) { c.classList.remove('no'); void c.offsetWidth; c.classList.add('no'); audio.wall(0.3); return; }
     audio.tap();
     menu('holes', y);
+    warm(YARDS[y].look, 300); // (its shaders, while a hole is being picked)
   });
   $('hole-grid').addEventListener('click', e => {
     const tile = e.target.closest('.tile');
@@ -642,19 +733,17 @@ function makeMenu() {
   });
 }
 let shownYard = 0;
-/** the map: every yard, with its holes as dots, its stars, medal and best round, or what opens it; how
- *  far along the whole of it is; and the difficulty */
+/** the map: every yard, with its holes as dots, its stars and medal, or what opens it (its best round is
+ *  on its own page); how far along the whole of it is; and the difficulty */
 function mapPage() {
   $('y-stars').textContent = `${starsAll()}/${HOLES.length * 3}`;
   $('y-played').textContent = t('已打 {n}/{all} 洞', { n: playedCount(), all: HOLES.length });
-  const bests = bestRounds();
   $('yard-list').innerHTML = YARDS.map((yd, y) => {
-    const sky = `<span class="sky">${ICONS[yd.look] || ''}<b>${t(yd.name)}</b>${yardOpen(y) ? medal(medalOf(y)) : ''}</span>`;
-    if (!yardOpen(y)) return `<button class="yd ${yd.look} locked" data-y="${y}" aria-label="${t(yd.name)} · ${t('打完{yard}开放', { yard: t(YARDS[y - 1].name) })}">${sky}`
+    const L = lookDef(yd.look), sky = `<span class="sky" style="background: ${L.card}">${L.icon}<b>${t(yd.name)}</b>${yardOpen(y) ? medal(medalOf(y)) : ''}</span>`;
+    if (!yardOpen(y)) return `<button class="yd locked" data-y="${y}" aria-label="${t(yd.name)} · ${t('打完{yard}开放', { yard: t(YARDS[y - 1].name) })}">${sky}`
       + `<span class="lk">${LOCK}${t('打完{yard}开放', { yard: t(YARDS[y - 1].name) })}</span></button>`;
-    return `<button class="yd ${yd.look}${y === G.yard ? ' cur' : ''}" data-y="${y}">${sky}`
-      + `<span class="meta">${t('{n} 洞 · 标准杆 {par}', { n: PER, par: parOf(y) })}</span>${dotsOf(y)}`
-      + `<span class="ys"><i>★</i>${starsIn(y)}/${PER * 3}${bests[y] ? `<small> · ${t('最好一轮 {n} 杆', { n: bests[y] })}</small>` : ''}</span></button>`;
+    return `<button class="yd${y === G.yard ? ' cur' : ''}" data-y="${y}">${sky}${dotsOf(y)}`
+      + `<span class="ys"><i>★</i>${starsIn(y)}/${PER * 3}</span></button>`;
   }).join('');
   showLevel();
 }
@@ -754,6 +843,7 @@ function hud() {
   $('strokes-num').textContent = G.strokes;
   $('par').textContent = t('标准 {n}', { n: hole.par });
   $('sweets-num').textContent = `${G.got}/${G.sweets.length}`;
+  $('score').classList.toggle('nocoin', !G.sweets.length); // (a hole with none: no count of them)
   $('stars-yard').textContent = t(YARDS[G.yard].name);
   $('stars-num').textContent = `${starsIn(G.yard)}/${PER * 3}`;
   fitHud();
@@ -763,15 +853,17 @@ function hud() {
  *  middle, first the yard's name by the stars goes, then the difficulty's name (its dot stays), then it
  *  goes under the stars; on a narrow one it is at the top right, the stars under it. And where the hole's
  *  bar would run into the strokes or the difficulty, first the hole's name goes, then (narrow) the
- *  difficulty's name, then the hole's dots */
+ *  difficulty's name, then the yard's name by the stars, then the hole's dots */
 function fitHud() {
   const hole = $('hole'), stars = $('stars'), chip = $('lv-chip'), score = $('score');
   hole.classList.remove('tight', 'tighter');
   stars.classList.remove('tight');
   chip.classList.remove('tight', 'low');
-  const hits = (a, b) => {
+  // (8 px apart; the hole's bar and what is beside it, 5: a little slack, so a pixel's change in a number
+  // doesn't take the hole's dots away)
+  const hits = (a, b, gap = 8) => {
     const r = a.getBoundingClientRect(), s = b.getBoundingClientRect();
-    return !!(r.width && s.width) && s.top < r.bottom && s.bottom > r.top && r.right + 8 > s.left && s.right + 8 > r.left;
+    return !!(r.width && s.width) && s.top < r.bottom && s.bottom > r.top && r.right + gap > s.left && s.right + gap > r.left;
   };
   const wide = innerWidth > 560, beside = () => { chip.style.right = wide && !chip.classList.contains('low') ? `${14 + stars.offsetWidth + 8}px` : ''; };
   beside();
@@ -780,9 +872,10 @@ function fitHud() {
     step();
     beside();
   }
-  // (on a narrow screen the difficulty's name goes before the hole's dots do: its dot still says which)
-  for (const step of [() => hole.classList.add('tight'), () => !wide && chip.classList.add('tight'), () => hole.classList.add('tighter')]) {
-    if (!hits(hole, score) && !hits(hole, chip)) break;
+  // (the difficulty's name on a narrow screen, and the yard's name by the stars, go before the hole's
+  // dots do: the dots are how far along the yard is)
+  for (const step of [() => hole.classList.add('tight'), () => !wide && chip.classList.add('tight'), () => { stars.classList.add('tight'); beside(); }, () => hole.classList.add('tighter')]) {
+    if (!hits(hole, score, 5) && !hits(hole, chip, 5)) break;
     step();
   }
 }
@@ -1066,6 +1159,7 @@ function loop() {
   // (held still under the menu: drawn again only if the window changes)
   if (!G.paused) step(dt);
   else if (G.redraw) { G.redraw = false; render(); }
+  sound.frame(G); // (sound/: the ball rolling, the ambience's and the music layer's next sounds)
   confetti.update(dt);
   playing();
   const skip = canSkip() && $('power').hidden; // (not over the power bar while pulling back)
@@ -1102,7 +1196,7 @@ function step(dt, draw = true) {
     if (G.state === 'roll') {
       // (in a fan's wind or on a steep slope it isn't held still: it drifts on until it is pinned
       // against a wall, or rolls back down)
-      const steep = slopeAt(G.course, b.x, b.z) > PHYS.hold;
+      const steep = slopeAt(G.course, b.x, b.z) > holdAt(G.course, b.x, b.z);
       const blown = (G.course.winds.length && windAt(G.course, b.x, b.z) > PHYS.a0) || steep;
       if (sp < PHYS.rest) { G.still += dt; if (!blown) { b.vx *= 0.5; b.vz *= 0.5; } } else G.still = 0;
       G.rollT += dt;
@@ -1127,6 +1221,7 @@ function step(dt, draw = true) {
     const d = sp * dt;
     if (d > 0) ballSpin.rotateOnWorldAxis(new THREE.Vector3(b.vz, 0, -b.vx).normalize(), d / BALL_R);
     ballG.position.set(b.x, BALL_R + ground(b.x, b.z), b.z);
+    if (ballRim.visible) { ballRim.quaternion.copy(engine.camera.quaternion); ballRim.scale.setScalar(BALL_R * Math.max(1.3, 1 + 1.8 / (BALL_R * pxPerM()))); }
     trail.update(b.x, b.z, sp, dt);
   } else trail.reset();
   if (G.state === 'sink') {
@@ -1240,14 +1335,16 @@ function finish(sunk, skipped = false) {
   if (skipped) G.strokes = Math.max(G.strokes, HOLES[G.hole].par + GIVE_UP);
   const hole = HOLES[G.hole], all = G.sweets.length, s = G.strokes, d = s - hole.par;
   trackDone(G.hole, sunk, skipped, s, d, G.level);
-  const on = [sunk, sunk && d <= 0, sunk && (d < 0 || G.got >= all)];
+  // (a hole with no coins on it: the third star is for a birdie)
+  const on = [sunk, sunk && d <= 0, sunk && (d < 0 || (all > 0 && G.got >= all))];
   const stars = on.filter(Boolean).length;
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
   store.set(rec('best'), G.best);
   recount();
   store.set('lastVisit', Date.now());
   const fin = !allWas && YARDS.every((yd, j) => yardDone(j)), opens = y + 1 < YARDS.length && !nxWas && yardOpen(y + 1);
-  if (fin && !store.get('finale', false)) { store.set('finale', true); track('finale'); }
+  // (kept as how many holes there were: one who did it when there were fewer is counted again)
+  if (fin && store.get('finale', 0) !== HOLES.length) { store.set('finale', HOLES.length); track('finale'); }
   const [word, kind] = !sunk ? ['这洞先放过你', 'none'] : s === 1 ? ['一杆进洞！', 'ace'] : d <= -3 ? ['信天翁！', 'ace']
     : d === -2 ? ['老鹰球！', 'ace'] : d === -1 ? ['小鸟球！', 'under'] : d === 0 ? ['标准杆！', ''] : d === 1 ? ['多了一杆', 'over']
       : d === 2 ? ['多了两杆', 'over'] : ['进洞了', 'over'];
@@ -1256,7 +1353,7 @@ function finish(sunk, skipped = false) {
   // the stars come in one after another, each with a note higher than the last; all three, a fanfare
   // and confetti from both corners
   const at = i => 0.3 + i * 0.32;
-  $('card-stars').innerHTML = ['进洞', '标准杆内', '金币全捡或小鸟球'].map((c, i) =>
+  $('card-stars').innerHTML = ['进洞', '标准杆内', all ? '金币全捡或小鸟球' : '小鸟球'].map((c, i) =>
     `<span class="st${on[i] ? ' on' : ''}" style="--d:${at(i)}s"><i>★</i>${on[i] ? '<b>★</b>' : ''}<small>${t(c)}</small></span>`).join('');
   let n = 0;
   on.forEach((o, i) => { if (o) { const k = ++n; cardTimers.push(setTimeout(() => audio.sweet(k), at(i) * 1000 + 120)); } });
@@ -1266,11 +1363,12 @@ function finish(sunk, skipped = false) {
     confetti.burst(innerWidth, innerHeight, 90, { angle: -Math.PI + 1.2, spread: 0.45, speed: innerHeight * 3.4 });
   }, at(2) * 1000 + 380));
   // what the next star would take, if there is one to have: then Retry is the button to press
-  const tip = skipped ? t('跳过的洞记 {n} 杆', { n: s }) : !sunk ? '' : !on[1] ? t('下一颗星：{par} 杆内进洞', { par: hole.par }) : !on[2] ? t('再拿一颗星：捡齐金币，或 {n} 杆内进洞', { n: hole.par - 1 }) : '';
+  const tip = skipped ? t('跳过的洞记 {n} 杆', { n: s }) : !sunk ? '' : !on[1] ? t('下一颗星：{par} 杆内进洞', { par: hole.par })
+    : on[2] ? '' : all ? t('再拿一颗星：捡齐金币，或 {n} 杆内进洞', { n: hole.par - 1 }) : t('下一颗星：{par} 杆内进洞', { par: hole.par - 1 });
   $('card-tip').textContent = tip;
   $('card-tip').hidden = !tip;
   $('card').classList.toggle('again', !!tip);
-  $('card-sub').textContent = pl('{n} 杆 · 标准杆 {par} · 金币 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all });
+  $('card-sub').textContent = all ? pl('{n} 杆 · 标准杆 {par} · 金币 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all }) : pl('{n} 杆 · 标准杆 {par}', G.strokes, { par: hole.par });
   // records: this hole's fewest strokes (the round's go on the yard's page)
   const lines = [];
   const holeBest = store.get(rec('strokes'), []), was = holeBest[G.hole];
@@ -1330,31 +1428,54 @@ function finish(sunk, skipped = false) {
   showLevel();
   hud();
   $('card').hidden = false;
+  // (after a yard's last hole, the next yard's look has its shaders compiled while the card is up, so
+  // its first hole doesn't stop to)
+  if (lastHole && YARDS[y + 1]) warm(YARDS[y + 1].look);
 }
+// (and so is a yard's when its holes are opened on the map, and the next yard's when there is a moment
+// to spare: from the start if it is open, else on this yard's last two holes. Not the yard being played
+// by then: its hole on screen has its shaders already)
+const warmed = new Set();
+function warm(look, wait = 700) {
+  setTimeout(() => {
+    if (warmed.has(look) || YARDS[G.yard].look === look) return;
+    warmed.add(look);
+    warmLook(look, engine.renderer, engine.scene, engine.camera);
+  }, wait);
+}
+const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 4000 }) : setTimeout(f, 2000));
 
 /** a yard's page, after its last hole: its name, the medal (dropping in, and said if it is new), its
  *  stars and the round with its scorecard, then this visit's and the whole neighbourhood's count, what
  *  the next medal takes, what has opened; on to the next yard, or the map. After the last yard with
- *  every one played through, the whole neighbourhood is done */
+ *  every one played through, the whole neighbourhood's page: done, every yard's medal in a row, and
+ *  how many holes and stars in all */
 function showYard() {
   const p = G.yardPage, y = p.y, name = t(YARDS[y].name), m = medalOf(y), nx = YARDS[y + 1], all = YARDS.every((yd, k) => yardDone(k));
+  const fin = p.fin || (!nx && all);
   G.yardPage = null;
   G.yardShown = true;
   for (const k of cardTimers.splice(0)) clearTimeout(k);
   $('card').classList.add('yd-page');
-  $('card-title').textContent = t('{yard}通关！', { yard: name });
-  $('card-title').className = 'title under';
+  $('card-title').textContent = fin ? t('整个街区通关！') : t('{yard}通关！', { yard: name });
+  $('card-title').className = 'title under' + (fin ? ' long' : '');
   const lines = [];
   const holes = playedCount() - G.visit.holes, stars = starsAll() - G.visit.stars;
-  if (holes > 0) lines.push(pl('这次：+{n} 洞 · +{k} ★', holes, { k: stars })); // (pl's {s} is the plural)
-  else if (stars > 0) lines.push(t('这次：+{s} ★', { s: stars }));
-  lines.push(t('整个街区：{n}/{all} 洞 · ★ {s}/{S}', { n: playedCount(), all: HOLES.length, s: starsAll(), S: HOLES.length * 3 }));
+  // (the whole neighbourhood done: its count in all, and no count of this visit's)
+  if (fin) lines.push(`<span class="fin">${t('已打 {n}/{all} 洞', { n: playedCount(), all: HOLES.length })} · ★ ${starsAll()}/${HOLES.length * 3}</span>`);
+  else {
+    if (holes > 0) lines.push(pl('这次：+{n} 洞 · +{k} ★', holes, { k: stars })); // (pl's {s} is the plural)
+    else if (stars > 0) lines.push(t('这次：+{s} ★', { s: stars }));
+    lines.push(t('整个街区：{n}/{all} 洞 · ★ {s}/{S}', { n: playedCount(), all: HOLES.length, s: starsAll(), S: HOLES.length * 3 }));
+  }
   if (m < 3) lines.push(`<span class="goal">${goal(y)}</span>`);
   if (nx && p.opens) lines.push(`<span class="unlock">${t('{yard}开放了！', { yard: t(nx.name) })}</span>`);
-  if (p.fin || (!nx && all)) lines.unshift(`<span class="fin">${t('整个街区都打完了！')}</span>`);
   // (a yard all but swept at the easy difficulty: there are harder ones)
   if (G.level === 'easy' && starsIn(y) >= PER * 3 - 4) { lines.push(`<button class="harder" type="button">${t('嫌简单？换个难度')}</button>`); track('tip', 'yard'); }
-  $('card-yard').innerHTML = `<div class="ym">${medal(m, ' big')}<b>${t(MEDALS[m])}${m > p.had ? `<small>${t('新奖牌！')}</small>` : ''}</b></div>`
+  const won = m > p.had ? `<small>${t('新奖牌！')}</small>` : '';
+  $('card-yard').innerHTML = (fin
+    ? `<div class="ym"><span class="row">${YARDS.map((yd, k) => `<span style="--k: ${k}">${medal(medalOf(k))}</span>`).join('')}</span><b>${t('{yard}{medal}', { yard: name, medal: t(MEDALS[m]) })}${won}</b></div>`
+    : `<div class="ym">${medal(m, ' big')}<b>${t(MEDALS[m])}${won}</b></div>`)
     + `<div class="sum"><i>★</i> ${starsIn(y)}/${PER * 3}${p.roundLine ? ' · ' + p.roundLine : ''}</div>`
     + p.card
     + `<div class="lines">${lines.map(l => `<div>${l}</div>`).join('')}</div>`;
@@ -1369,7 +1490,9 @@ function showYard() {
 }
 
 window.__golf = {
-  get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES, audio, PHYS,
+  get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES, YARDS, audio, PHYS,
+  sound, // (sound/: sound.stats() for the tests)
+  setLevel: l => useLevel(l), // (for the bots: a difficulty's records, cup and pace, without the menu)
 };
 
 boot();
