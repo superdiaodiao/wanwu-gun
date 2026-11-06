@@ -571,7 +571,9 @@ function load(i, fresh = false, quiet = false, stay = false) {
     if (!had || y < had.y) pick.set(p.tag.text, { tag: { text: p.tag.text, at: p.tag.at, body: p.cols, flat: p.flat }, y });
   }
   const list = [...pick.values()].map(v => v.tag);
-  if (i === 0 && G.sweets.length) { const s = G.sweets[0]; list.push({ text: '全捡到 +1 ★', at: () => [s.x, 0.6, s.z], flat: true }); }
+  // (the coins' one under the coin nearest the tee, the last in the map: above it are the other coin, the
+  // cup and the flag, and past them it would read as the flag's. Put at the coin's foot, so just below it)
+  if (i === 0 && G.sweets.length) { const s = G.sweets[G.sweets.length - 1]; list.push({ text: '全捡到 +1 ★', at: () => [s.x, 0, s.z], flat: true, under: true }); }
   showTags(list);
   if (stay) G.redraw = true; // (under the menu: drawn once, the hole built again behind it and its tags placed)
   store.set('hole', i);
@@ -591,7 +593,7 @@ function showTags(list) {
     el.className = 'tag';
     el.textContent = t(tg.text);
     box.appendChild(el);
-    return { at: tg.at, el, half: el.offsetWidth / 2, h: el.offsetHeight, flat: !!tg.flat, body: tg.body };
+    return { at: tg.at, el, half: el.offsetWidth / 2, h: el.offsetHeight, flat: !!tg.flat, under: !!tg.under, body: tg.body };
   });
   hudBottom();
   // (they come in once the hole's name, which they would sit under, has gone)
@@ -663,7 +665,7 @@ function placeTags() {
       }
       return [y, below];
     };
-    let below = py - 8 - tg.h < tagTop, y = below ? under : py - 8 - tg.h;
+    let below = tg.under || py - 8 - tg.h < tagTop, y = below ? under : py - 8 - tg.h;
     if (tg.flat) {
       if (!below && placed.some(r => on(r, y)) && under <= h - tg.h - 6 && !placed.some(r => on(r, under))) { below = true; y = under; }
       [y, below] = stack(y, below, 8, placed);

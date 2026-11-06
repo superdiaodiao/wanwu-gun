@@ -14,7 +14,7 @@
 //           strokes)
 //   level   easy|normal|hard: the difficulty changed in the menu
 //   tip     row: the very first card's row of the three difficulties shown; under|yard: the card offered a
-//           harder difficulty, at the easy one (after a hole under par, not the warm-up, once a visit on the
+//           harder difficulty, at the easy one (after a hole under par from hole 4 on, once a visit on the
 //           first three visits; on the yard's page after a yard all but swept); open: that offer tapped
 //           (it opens the difficulty's page)
 //   lvchip  open: the difficulty at the top right tapped (its page)
