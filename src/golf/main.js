@@ -442,6 +442,7 @@ function showAim(on) {
   dots.visible = on;
   $('power').hidden = !on;
   if (on) $('hint').hidden = true;
+  $('tags').classList.toggle('dim', on); // (the tags fade while pulling back, off the guide's dots)
 }
 
 /** the green's height at (x, z), and which way is up from it there (into `out`) */
@@ -1425,6 +1426,7 @@ function finish(sunk, skipped = false) {
   // (a hole with no coins on it: the third star is for a birdie)
   const on = [sunk, sunk && d <= 0, sunk && (d < 0 || (all > 0 && G.got >= all))];
   const stars = on.filter(Boolean).length;
+  const starsWas = starsIn(y); // (the top bar's total: it goes up once the card's stars have popped in)
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
   store.set(rec('best'), G.best);
   recount();
@@ -1449,12 +1451,16 @@ function finish(sunk, skipped = false) {
     confetti.burst(0, innerHeight, 90, { angle: -1.2, spread: 0.45, speed: innerHeight * 3.4 });
     confetti.burst(innerWidth, innerHeight, 90, { angle: -Math.PI + 1.2, spread: 0.45, speed: innerHeight * 3.4 });
   }, at(2) * 1000 + 380));
-  // what the next star would take, if there is one to have: then Retry is the button to press
-  const tip = skipped ? t('跳过的洞记 {n} 杆', { n: s }) : !sunk ? '' : !on[1] ? t('下一颗星：{par} 杆内进洞', { par: hole.par })
-    : on[2] ? '' : all ? t('再拿一颗星：捡齐金币，或 {n} 杆内进洞', { n: hole.par - 1 }) : t('下一颗星：{par} 杆内进洞', { par: hole.par - 1 });
+  // what the next star would take, if there is one to have (not on the very first card, which has the
+  // difficulties to show; and never a hole in one: on a par 2 only the coins, if it has any). Retry is
+  // the button to press when it was the par star that was missed
+  const firstCard = !rowShown && !store.get('lvIntro', false);
+  const tip = skipped ? t('跳过的洞记 {n} 杆', { n: s }) : !sunk || firstCard ? '' : !on[1] ? t('下一颗星：{par} 杆内进洞', { par: hole.par })
+    : on[2] ? '' : hole.par - 1 < 2 ? (all ? t('再拿一颗星：捡齐金币') : '')
+      : all ? t('再拿一颗星：捡齐金币，或 {n} 杆内进洞', { n: hole.par - 1 }) : t('下一颗星：{par} 杆内进洞', { par: hole.par - 1 });
   $('card-tip').textContent = tip;
   $('card-tip').hidden = !tip;
-  $('card').classList.toggle('again', !!tip);
+  $('card').classList.toggle('again', !!tip && !on[1]);
   $('card-sub').textContent = all ? pl('{n} 杆 · 标准杆 {par} · 金币 {got}/{all}', G.strokes, { par: hole.par, got: G.got, all }) : pl('{n} 杆 · 标准杆 {par}', G.strokes, { par: hole.par });
   // records: this hole's fewest strokes (the round's go on the yard's page)
   const lines = [];
@@ -1497,13 +1503,14 @@ function finish(sunk, skipped = false) {
   // easy one, there are harder ones (a tap opens them): said after a hole under par (not the warm-up)
   // once a visit for the first few visits, until a difficulty is picked
   const told = store.get('levelTips', 0);
-  if (!rowShown && !store.get('lvIntro', false)) {
+  if (firstCard) {
     rowShown = true;
     store.set('lvIntro', true);
-    lines.push(`<span class="lvrow"><span>${t('难度')}</span><span class="levels" role="group" aria-label="${t('难度')}">`
-      + Object.keys(LEVELS).map(l => `<button type="button" data-l="${l}">${t(LEVELS[l].name)}</button>`).join('') + `</span></span><small class="lvhint">${t('随时可以在右上角改')}</small>`);
+    // (on a 320 px screen the English row is wider than the card: its name goes over the three)
+    lines.push(`<span class="lvrow" style="flex-wrap: wrap; justify-content: center"><span>${t('难度')}</span><span class="levels" role="group" aria-label="${t('难度')}">`
+      + Object.keys(LEVELS).map(l => `<button type="button" data-l="${l}">${t(LEVELS[l].name)}</button>`).join('') + '</span></span>');
     track('tip', 'row');
-  } else if (G.level === 'easy' && sunk && d < 0 && G.hole > 0 && !levelTold && told < LEVEL_TIPS && !store.get('levelPicked', false)
+  } else if (G.level === 'easy' && sunk && d < 0 && G.hole >= 3 && !levelTold && told < LEVEL_TIPS && !store.get('levelPicked', false)
     && !(G.yardPage && starsIn(y) >= PER * 3 - 4)) { // (the yard's page, next, says it for a yard all but swept)
     lines.push(`<button class="harder" type="button">${t('嫌简单？换个难度')}</button>`);
     levelTold = true;
@@ -1514,6 +1521,8 @@ function finish(sunk, skipped = false) {
   $('card-best').hidden = !lines.length;
   showLevel();
   hud();
+  $('stars-num').textContent = `${starsWas}/${PER * 3}`;
+  cardTimers.push(setTimeout(hud, at(2) * 1000 + 120));
   $('card').hidden = false;
   // (after a yard's last hole, the next yard's look has its shaders compiled while the card is up, so
   // its first hole doesn't stop to)
@@ -1543,20 +1552,24 @@ function showYard() {
   G.yardPage = null;
   G.yardShown = true;
   for (const k of cardTimers.splice(0)) clearTimeout(k);
+  hud(); // (the top bar's star total, if the card's stars were skipped past)
   $('card').classList.add('yd-page');
   $('card-title').textContent = fin ? t('整个街区通关！') : t('{yard}通关！', { yard: name });
   $('card-title').className = 'title under' + (fin ? ' long' : '');
-  const lines = [];
+  // (what has opened first, right under the round, in sight above the buttons on a short screen)
+  const lines = nx && p.opens ? [`<span class="unlock">${t('{yard}开放了！', { yard: t(nx.name) })}</span>`] : [];
   const holes = playedCount() - G.visit.holes, stars = starsAll() - G.visit.stars;
-  // (the whole neighbourhood done: its count in all, and no count of this visit's)
+  // (the whole neighbourhood done: its count in all, and no count of this visit's; nor on a first visit,
+  // where this visit's is the whole neighbourhood's)
   if (fin) lines.push(`<span class="fin">${t('已打 {n}/{all} 洞', { n: playedCount(), all: HOLES.length })} · ★ ${starsAll()}/${HOLES.length * 3}</span>`);
   else {
-    if (holes > 0) lines.push(pl('这次：+{n} 洞 · +{k} ★', holes, { k: stars })); // (pl's {s} is the plural)
-    else if (stars > 0) lines.push(t('这次：+{s} ★', { s: stars }));
+    if (G.visit.holes > 0) {
+      if (holes > 0) lines.push(pl('这次：+{n} 洞 · +{k} ★', holes, { k: stars })); // (pl's {s} is the plural)
+      else if (stars > 0) lines.push(t('这次：+{s} ★', { s: stars }));
+    }
     lines.push(t('整个街区：{n}/{all} 洞 · ★ {s}/{S}', { n: playedCount(), all: HOLES.length, s: starsAll(), S: HOLES.length * 3 }));
   }
   if (m < 3) lines.push(`<span class="goal">${goal(y)}</span>`);
-  if (nx && p.opens) lines.push(`<span class="unlock">${t('{yard}开放了！', { yard: t(nx.name) })}</span>`);
   // (a yard all but swept at the easy difficulty: there are harder ones)
   if (G.level === 'easy' && starsIn(y) >= PER * 3 - 4) { lines.push(`<button class="harder" type="button">${t('嫌简单？换个难度')}</button>`); track('tip', 'yard'); }
   const won = m > p.had ? `<small>${t('新奖牌！')}</small>` : '';
