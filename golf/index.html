@@ -35,6 +35,7 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #score.nocoin .sep, #score.nocoin #sweets-num { display: none; }
 #tags { inset: 0; transition: opacity 0.5s; }
 #tags.out { opacity: 0; }
+#tags.dim:not(.out){opacity:.25;transition-duration:.15s}
 #tags .tag { position: absolute; left: 0; top: 0; padding: 5px 12px; border-radius: 11px; background: #fff; color: var(--ink); font: 800 16px var(--body); white-space: nowrap; box-shadow: 0 3px 0 rgba(47, 58, 51, 0.15); }
 /* (its point at what it names: the middle, or --to along it when it is moved aside off the flag) */
 #tags .tag::after { content: ""; position: absolute; left: var(--to, 50%); bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
@@ -105,7 +106,7 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #card .inner { min-width: 300px; max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); overflow: hidden auto; padding: clamp(14px, 3vh, 24px) clamp(18px, 4vw, 34px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.35s ease-out; }
 /* the result, big: HOLE IN ONE! / BIRDIE! / PAR / BOGEY…, white in a thick edge of its colour */
 #card .title { --edge: #2c7a3a; font: 800 clamp(28px, min(8vh, 10vw), 50px) var(--num); line-height: 1.05; color: #fff; text-wrap: balance; animation: word-pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both;
-  text-shadow: 3px 3px 0 var(--edge), -3px 3px 0 var(--edge), 3px -3px 0 var(--edge), -3px -3px 0 var(--edge), 0 3px 0 var(--edge), 0 -3px 0 var(--edge), 3px 0 0 var(--edge), -3px 0 0 var(--edge), 0 7px 0 rgba(47, 58, 51, 0.25); }
+  text-shadow: 3px 3px 0 var(--edge), -3px 3px 0 var(--edge), 3px -3px 0 var(--edge), -3px -3px 0 var(--edge), 0 3px 0 var(--edge), 0 -3px 0 var(--edge), 3px 0 0 var(--edge), -3px 0 0 var(--edge), 0 5px 0 var(--edge); }
 html[lang="en"] #card .title:not(.none) { text-transform: uppercase; }
 html[lang="en"] #card .title.long { font-size: clamp(20px, min(6.5vh, 6.6vw), 44px); } /* (NEIGHBOURHOOD, a long word: on a phone's width) */
 #card .title.ace { --edge: #d9541a; color: #ffd84a; }
@@ -163,7 +164,6 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #card .best .levels button::after { content: ""; position: absolute; inset: -3px 0; } /* (taller to tap than it looks: 44 px; not wider, so not over the next) */
 #card .best .levels button:active { transform: none; box-shadow: none; }
 #card .best .levels button.on { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 2px #f2c94c; }
-#card .best small.lvhint { display: block; font-size: 13px; line-height: 1.4; color: var(--dim); }
 /* a yard's page, after its last hole: the hole's own parts give way to the medal dropping in, the
    yard's stars and round, and what is next */
 #card:not(.yd-page) .yard { display: none; }
@@ -284,6 +284,13 @@ html[lang="en"] #menu .lv-note { min-height: 2lh; text-wrap: balance; } /* (two 
 #menu .round .lbl { font: 700 13px var(--body); color: var(--dim); margin: 4px 0 2px; }
 /* (under the bars and the card, so they stay readable while it falls; hidden while there is none) */
 canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* between holes: the card fades as a haze the yard's colour comes up over the hole, the next hole is
+   built under it, and it clears (main.js dip). The tags, above it, go with the card: the next hole's
+   come in on their own timer (showTags). Into another yard it turns the new yard's colour as it clears */
+#dip{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .26s ease-out,background-color .26s ease-out}
+#dip.on{opacity:1;transition:opacity .15s ease-in}
+#dip.on + #hud #tags{opacity:0;transition-duration:.15s}
+#card.leaving{opacity:0;pointer-events:none;transition:opacity .15s}
 #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #cfeaf5; transition: opacity 0.6s; font: 700 18px var(--body); color: var(--dim); }
 #loading.done { opacity: 0; pointer-events: none; }
 @keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
@@ -331,6 +338,7 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 <body>
 <canvas id="game"></canvas>
 <canvas id="confetti"></canvas>
+<div id="dip" hidden></div>
 <div id="hud">
   <div id="tags"></div>
   <button id="menu-btn" type="button" aria-label="暂停一下"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg></button>
@@ -405,8 +413,8 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 </script>
 <script>(function () {
   // (written by tools/cdn-loader.mjs, which says how it works)
-  var FILE = "golf.da875f4d.js", SIZE = 1093827, SRI = 'yEZHtUFu7OORlQN5iBqvgcGIN8Jd999nyCrtR099syhJ29FiZs4Bk5Fbat5drewi', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
-  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@23eb077d4ebeea788e9a3e413fab94e042ef3924/golf/golf.da875f4d.js"]], STALL = 6000;
+  var FILE = "golf.95e41d05.js", SIZE = 1097514, SRI = 'lSgKIYxD49wO1Ry/HZDCa6MLIAAlb2Bd1NcX1CbASksxtPz+IXXCE9rRmRHIb/3Q', BOOT = '__golfBoot', REPORT = '__golfLoad', TEXT = "#loading div";
+  var CDN = [["gcore","https://gcore.jsdelivr.net/gh/superdiaodiao/wanwu-gun@f43ba107a6970a7dffd6b0ce715ba1c6b1f4bafb/golf/golf.95e41d05.js"],["testingcf","https://testingcf.jsdelivr.net/gh/superdiaodiao/wanwu-gun@f43ba107a6970a7dffd6b0ce715ba1c6b1f4bafb/golf/golf.95e41d05.js"],["fastly","https://fastly.jsdelivr.net/gh/superdiaodiao/wanwu-gun@f43ba107a6970a7dffd6b0ce715ba1c6b1f4bafb/golf/golf.95e41d05.js"],["cdn","https://cdn.jsdelivr.net/gh/superdiaodiao/wanwu-gun@f43ba107a6970a7dffd6b0ce715ba1c6b1f4bafb/golf/golf.95e41d05.js"]], STALL = 6000;
   var cn = false, en = false;
   try { cn = /^(Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)|PRC)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) {}
   try {
