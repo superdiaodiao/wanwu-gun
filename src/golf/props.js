@@ -51,9 +51,11 @@
 // The difficulty's pace (ctx.pace: 1, or 0.75 at the easy one) slows the moving things: the speed of
 // bikes, walkers, windmills and sprinklers times it; at the easy one a bike or a car also stops three
 // times as long at each end, a cat waits 1.3 times as long between swipes, and a goose or a dog notices
-// the ball 0.8 as far off.
+// the ball 0.8 as far off. And at the easy one a ball that comes to rest where a sprinkler's arm or a
+// windmill's sails will sweep it is flicked just out of their reach at once (sweeper, below): the player
+// never lines up a putt that is knocked away before it is taken.
 import * as THREE from 'three';
-import { BALL_R, contact } from './physics.js';
+import { BALL_R, PHYS, contact, holdAt, slopeAt, stepBall, windAt } from './physics.js';
 import { crow, squeak } from './sound/calls.js';
 
 const D = Math.PI / 180;
@@ -455,39 +457,49 @@ const MAKERS = {
     // the sail in the way: where the lowest one crosses the ball's height, its canvas off to one side
     // of its spar (the trailing side), thin, in front of the door; off while none is low enough
     const sail = { kind: 'box', x: p.x, z: p.z + OUT, hx: SAIL / 2 + 0.04, hz: 0.05 * k, rot: 0, e: 0.45, vx: 0, vz: 0, off: true };
+    // (but never closer than a ball's width to the house's ends: it would shove a ball resting in front of
+    // the house through the rail there)
+    const lim = 1.2 * k - 2 * BALL_R - 0.02;
     let a = (d.phase || 0) * (Math.PI / 2), knock = 0;
+    /** the sail in the way with the sails turned to `ang` */
+    const pose = ang => {
+      // the blade nearest straight down, as an angle from it (the blades are 90° apart)
+      let f = ((ang % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
+      if (f > Math.PI / 4) f -= Math.PI / 2;
+      const drop = HUB - 0.14; // (from the hub down to the ball's middle)
+      // (low enough to hit: the tip, or past the bottom the canvas's trailing corner, which hangs lower)
+      const low = HUB - REACH * Math.cos(f) - Math.max(0, SAIL * Math.sin(f)) < 2 * BALL_R;
+      sail.off = !low;
+      if (low) {
+        // turning +z (anticlockwise as the player sees it) the blade at the bottom moves to +x, its
+        // canvas trailing on the -x side
+        const cross = Math.tan(f) * drop, side = -(SAIL / 2) / Math.cos(f);
+        sail.x = p.x + cross + side;
+        sail.hx = (SAIL / 2 + 0.04) / Math.cos(f);
+        sail.vx = (w * drop) / (Math.cos(f) * Math.cos(f));
+        const x0 = Math.max(sail.x - sail.hx, p.x - lim), x1 = Math.min(sail.x + sail.hx, p.x + lim);
+        if (x1 <= x0) sail.off = true;
+        else { sail.x = (x0 + x1) / 2; sail.hx = (x1 - x0) / 2; }
+      }
+    };
     const me = {
       cols: [wallL, wallR, sail], tag: { text: '等叶片转开', at: () => [p.x, y0 + 0.95 * k, p.z + OUT] },
       // (its roof's peak, see aim(); and the box it fills, behind which the ball is seen through it)
       tall: { x: p.x, y0, y: y0 + ctx.spec('windmill').dims.h * k, z: p.z, hx: 1.2 * k, hz: 0.7 * k + 0.1 },
       hit(speed) { if (knock <= 0 && speed > 0.4) { ctx.audio.wall(Math.min(1, speed / 6)); knock = 0.3; } },
-      update(dt) {
+      update(dt, ball, game) {
         knock -= dt;
         a = (a + w * dt) % (Math.PI * 2);
         rotor.rotation.z = a;
-        // the blade nearest straight down, as an angle from it (the blades are 90° apart)
-        let f = ((a % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
-        if (f > Math.PI / 4) f -= Math.PI / 2;
-        const drop = HUB - 0.14; // (from the hub down to the ball's middle)
-        // (low enough to hit: the tip, or past the bottom the canvas's trailing corner, which hangs lower)
-        const low = HUB - REACH * Math.cos(f) - Math.max(0, SAIL * Math.sin(f)) < 2 * BALL_R;
-        sail.off = !low;
-        if (low) {
-          // turning +z (anticlockwise as the player sees it) the blade at the bottom moves to +x, its
-          // canvas trailing on the -x side
-          const cross = Math.tan(f) * drop, side = -(SAIL / 2) / Math.cos(f);
-          sail.x = p.x + cross + side;
-          sail.hx = (SAIL / 2 + 0.04) / Math.cos(f);
-          sail.vx = (w * drop) / (Math.cos(f) * Math.cos(f));
-          // (but never closer than a ball's width to the house's ends: it would shove a ball resting
-          // in front of the house through the rail there)
-          const lim = 1.2 * k - 2 * BALL_R - 0.02, x0 = Math.max(sail.x - sail.hx, p.x - lim), x1 = Math.min(sail.x + sail.hx, p.x + lim);
-          if (x1 <= x0) sail.off = true;
-          else { sail.x = (x0 + x1) / 2; sail.hx = (x1 - x0) / 2; }
-        }
+        pose(a);
+        sweep.flick(ball, game, dt);
       },
     };
     sail.owner = me;
+    // (what the sails reach: a ball in front of the door, its middle within its radius of the sail's box
+    // anywhere the sail goes, up to lim either side; and in the tunnel, where a flicked ball isn't to stop)
+    const sweep = sweeper(me, course, ctx, (x, z, m) => Math.abs(x - p.x) < lim + BALL_R + m && Math.abs(z - (p.z + OUT)) < 0.05 * k + BALL_R + m,
+      t => pose(a + w * t), (x, z) => Math.abs(x - p.x) < 1.2 * k && Math.abs(z - p.z) < 0.7 * k + BALL_R);
     return me;
   },
 
@@ -534,11 +546,12 @@ const MAKERS = {
     const me = {
       cols: [col, post], tag: { text: '转臂会扫开球', at: () => [p.x, y0 + 0.5, p.z] },
       hit(speed) { if (swish <= 0 && speed > 0.3) { ctx.audio.voice('splash', 0.6); swish = 0.5; } },
-      update(dt) {
+      update(dt, ball, game) {
         swish -= dt;
         a += w * dt;
         col.rot = a;
         spin.rotation.y = a;
+        sweep.flick(ball, game, dt);
         // (a positive turn takes the arm's +x end towards -z)
         const cx = Math.cos(a), cz = -Math.sin(a);
         for (next -= dt; next < 0; next += 0.022) {
@@ -564,9 +577,125 @@ const MAKERS = {
       },
     };
     col.owner = me;
+    // (what the arm reaches: a ball whose middle is within its radius of the circle the arm's ends go round,
+    // and a hair for the arm's corners)
+    const R = len / 2 + BALL_R + 0.01;
+    const sweep = sweeper(me, course, ctx, (x, z, m) => Math.hypot(x - p.x, z - p.z) < R + m, t => { col.rot = a + w * t; });
     return me;
   },
 };
+
+// ---- at the easy difficulty, a ball left lying in a sweep's reach is flicked out of it -------------------
+// A sprinkler's arm or a windmill's sail shoves a ball lying in its reach as it comes round: a player lining
+// up a putt there loses it before taking it, the pull let go of and no stroke played. At the easy difficulty
+// a ball that comes to rest in a reach (or is set down in one) is flicked out of it at once, the way a
+// walker flicks one off its path, with the sweep's own sound: as softly as rolls it to a stop FLICK.out
+// beyond every reach on the green, clear of everything; of the ways round, the one that stops nearest where
+// it lay (a step gained on the cup counts a third more; the tee's side wins a tie). The way is found by
+// rolling it out with the ball's own physics, the sweeps turning as it goes: first a way that meets nothing,
+// then one that bounces off something, and only then one that stops out of sight in a windmill's tunnel (a
+// ball in its mouth with a sail coming down outside); never into the cup or over its lip. (No way out at all
+// just then: looked for again a moment later.)
+//   trig  how near a reach a ball at rest is flicked (m); out  how far beyond every reach it stops; clear  how
+//   far from anything; dirs  the ways round it tried; far  the furthest it is sent (m); v0, v1  the softest
+//   and the hardest flick (m/s); most  flicks in a row before it rests out of the reach (a sweep that keeps
+//   knocking it back in: let be); again  seconds till a way out is looked for again when there was none
+const FLICK = { trig: 0.02, out: 0.12, clear: 0.04, dirs: 48, far: 4, v0: 0.1, v1: 3.2, most: 3, again: 0.25 };
+const DT = 1 / 60;
+/** whether the slope at (x, z) is too steep for a ball to rest on */
+const steep = (course, x, z) => !!course.ground && slopeAt(course, x, z) > holdAt(course, x, z);
+
+/** something that sweeps the green (a sprinkler's arm, a windmill's sails), on the course's list of them:
+ *  reach(x, z, m), whether a ball's middle at (x, z) is within m metres of where it can be met; pose(t), its
+ *  colliders put where they will be t seconds on (pose(0): where they are); hides(x, z), if given, where a
+ *  flicked ball isn't to stop (in a windmill's tunnel, out of sight). flick(ball, game, dt), each frame after
+ *  it has moved: at the easy difficulty, a ball lying in its reach is flicked out (me.hit: its sound) */
+function sweeper(me, course, ctx, reach, pose, hides) {
+  const sw = { reach, pose, hides, flick() {} };
+  (course.sweeps || (course.sweeps = [])).push(sw);
+  if (!easy(ctx)) return sw;
+  let n = 0, wait = 0;
+  sw.flick = (ball, game, dt) => {
+    wait -= dt;
+    if (!ball || !game || !game.live || (game.state !== 'aim' && game.state !== 'roll')) return;
+    const lying = Math.hypot(ball.vx, ball.vz) < PHYS.rest;
+    if (!reach(ball.x, ball.z, FLICK.trig)) { if (lying && game.state === 'aim') n = 0; return; }
+    if (!lying || n >= FLICK.most || wait > 0 || steep(course, ball.x, ball.z)) return;
+    const v = wayOut(course, ball);
+    if (!v) { wait = FLICK.again; return; }
+    n++;
+    ball.vx = v[0]; ball.vz = v[1];
+    me.hit(1);
+    game.pushed();
+  };
+  return sw;
+}
+
+/** the flick (vx, vz) that takes a ball lying at b out of every sweep's reach (see above), or null */
+function wayOut(course, b) {
+  const sweeps = course.sweeps, cup = course.cup, tee = course.tee;
+  const out = (x, z) => !sweeps.some(s => s.reach(x, z, FLICK.out));
+  const seen = (x, z) => !sweeps.some(s => s.hides && s.hides(x, z));
+  const dc = Math.hypot(cup.x - b.x, cup.z - b.z), tl = Math.hypot(tee.x - b.x, tee.z - b.z) || 1;
+  // each way round: how far it has to go that way to be out. Tried nearest first: one that meets nothing
+  // stops no nearer than that, so once one is found the ways much further are passed over
+  const ways = [];
+  for (let i = 0; i < FLICK.dirs; i++) {
+    const an = (i / FLICK.dirs) * 2 * Math.PI, ux = Math.sin(an), uz = -Math.cos(an);
+    let far = 0;
+    while (far < FLICK.far && !out(b.x + ux * far, b.z + uz * far)) far += 0.02;
+    if (far < FLICK.far) ways.push({ ux, uz, far });
+  }
+  ways.sort((p, q) => p.far - q.far);
+  const best = [null, null, null]; // (the best that meets nothing; that bounces off something; that stops out of sight)
+  for (const { ux, uz, far } of ways) {
+    if (best[0] && far - 0.03 > best[0].score) break;
+    // the speed that rolls it that far on the flat; rolled, a little harder each time it stops short (a
+    // bounce, a slope, mud)
+    let v = runFor(far + 0.01), r = null;
+    for (let k = 0; k < 4 && v <= FLICK.v1; k++, v *= 1.15) {
+      r = roll(course, b.x, b.z, ux * v, uz * v);
+      if (out(r.x, r.z)) break;
+    }
+    if (!r || !out(r.x, r.z) || r.sunk || r.lip || !clear(course, r.x, r.z)) continue;
+    const dx = r.x - b.x, dz = r.z - b.z, d = Math.hypot(dx, dz) || 1e-9, j = !seen(r.x, r.z) ? 2 : r.hits ? 1 : 0;
+    const score = d + 0.3 * Math.max(0, dc - Math.hypot(cup.x - r.x, cup.z - r.z)) - 0.02 * (dx * (tee.x - b.x) + dz * (tee.z - b.z)) / (d * tl);
+    if (!best[j] || score < best[j].score) best[j] = { score, vx: ux * v, vz: uz * v };
+  }
+  const w = best[0] || best[1] || best[2];
+  return w && [w.vx, w.vz];
+}
+
+/** the speed that rolls a ball d metres over the flat green before it stops (its drag: a0 + k v) */
+function runFor(d) {
+  const { a0, k } = PHYS;
+  let lo = 0, hi = FLICK.v1;
+  for (let i = 0; i < 24; i++) { const v = (lo + hi) / 2; if (v / k - (a0 / (k * k)) * Math.log(1 + (k * v) / a0) < d) lo = v; else hi = v; }
+  return Math.max(FLICK.v0, hi);
+}
+
+/** a ball sent off from (x, z) at (vx, vz) rolled to a stop as the game rolls it, frame by frame, every
+ *  sweep turning as it goes: where it stops, whether it meets anything (hits), runs over the cup's lip, drops */
+function roll(course, x, z, vx, vz) {
+  const b = { x, z, vx, vz, lip: 0 }, r = { x, z, hits: 0, lip: false, sunk: false };
+  const hit = c => { if (c.lip) r.lip = true; else r.hits++; };
+  for (let t = 0; t < 8; t += DT) {
+    for (const s of course.sweeps) s.pose(t);
+    if (stepBall(b, course, DT, hit) === 'sunk') { r.sunk = true; break; }
+    if (Math.hypot(b.vx, b.vz) < PHYS.rest && !steep(course, b.x, b.z)) break;
+  }
+  for (const s of course.sweeps) s.pose(0);
+  r.x = b.x; r.z = b.z;
+  return r;
+}
+
+/** whether a ball can rest at (x, z): on the green, on a slope it stays on, out of a fan's wind, and clear of
+ *  everything (each sweep where it is now: it is out of their reach) */
+function clear(course, x, z) {
+  if (!course.onGreen(x, z) || steep(course, x, z) || (course.winds.length && windAt(course, x, z) > PHYS.a0)) return false;
+  for (const c of course.cols) if (!c.off && contact(c, x, z, BALL_R + FLICK.clear)) return false;
+  return true;
+}
 
 /** a wooden trough w by d metres full of flowers, standing at (x, y, z) */
 const TROUGH = { wood: new THREE.MeshLambertMaterial({ color: 0xa8743f }), soil: new THREE.MeshLambertMaterial({ color: 0x5a3b22 }),
