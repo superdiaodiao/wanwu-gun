@@ -354,8 +354,10 @@ export const HOLES = [
     coins: [[8.5, 3.5]],
   },
   {
-    // (an L: up the tee's leg, then left along the far one, which slopes down towards the near rail all
-    // its length, so the ball curls towards it; tyres in the corner turn the ball round it)
+    // (an L: up the tee's leg, then left along the far one, which slopes down towards the near rail, so
+    // the ball curls towards it; tyres in the corner turn the ball round it. The slope is a long rise
+    // along the far rail that dies away before the corner: a corner pile of tyres always stands at the
+    // height of flat ground, and a slope under it buried it)
     name: '斜坡', tip: '球会往低处拐，往高处瞄', par: 3,
     map: [
       '...........',
@@ -371,7 +373,7 @@ export const HOLES = [
       '       ..T.',
       '       ....',
     ],
-    ground: [{ t: 'ramp', from: [5, 3.6], to: [5, -0.4], h: 0.38 }, { t: 'hill', at: [1, 1], r: 1.2, h: -0.08 }],
+    ground: [{ t: 'ridge', from: [-1, -0.5], to: [5.5, -0.5], w: 8, h: 0.36 }, { t: 'hill', at: [1, 1], r: 1.2, h: -0.08 }],
     props: [
       { t: 'obj', id: 'lawn_flamingo', at: [5.2, 2.6], rot: 20, s: 1 },
       { t: 'tires', corner: [10.5, -0.5], leg: 2, tag: false },
