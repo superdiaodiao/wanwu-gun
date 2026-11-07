@@ -489,8 +489,7 @@ export const HOLES = [
     name: '大风车', tip: '直直穿过大风车', par: 3,
     // (the yard's finale: a long lane up a slope to the big windmill (1.35 times hole 12's), and behind it
     // a terrace with the cup off to the side, so the windmill never stands between the tee and the cup; a
-    // shallow bowl beside the cup brings a ball through the door round to it. The sprinkler sweeps the
-    // terrace's far end, where a ball that comes through too hard runs)
+    // shallow bowl beside the cup brings a ball through the door round to it)
     map: [
       '.........',
       '......H..',
@@ -510,7 +509,6 @@ export const HOLES = [
     ground: [{ t: 'ramp', from: [4, 9.6], to: [4, 7.4], h: 0.25 }, { t: 'hill', at: [5.6, 1.2], r: 2.8, h: -0.24 }],
     props: [
       { t: 'windmill', at: [4, 3.555], s: 1.35, speed: 0.75 }, // (its front on the lane's end, its back on the terrace's)
-      { t: 'spinner', at: [1.4, 1], len: 1.8, speed: 1.0 },
     ],
     coins: [[4, 6.2], [4.6, 1.4]],
   },
