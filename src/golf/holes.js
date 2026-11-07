@@ -115,28 +115,30 @@ export const HOLES = [
     ],
   },
   {
+    // (a Z: up the right-hand bed, left along a band across the hole, up the left-hand bed to the cup.
+    // The fan at the band's end blows along it, carrying the ball round towards the cup's bed, and
+    // leaves a ball that stops in the band against the far rail, under the cup; the second blows across
+    // the cup's bed below the cup, so the putt up to it goes through the wind. Both on the rail)
     name: '电风扇', tip: '风会把球吹偏，往上风那边打', par: 3,
     map: [
-      '......',
-      '..H...',
-      '......',
-      '......',
-      '......',
-      '......',
-      '...o..',
-      '......',
-      '......',
-      '......',
-      '.o....',
-      '......',
-      '......',
-      '......',
-      '...T..',
-      '......',
+      '.....     ',
+      '.H...     ',
+      '.....     ',
+      '.....     ',
+      '.....     ',
+      '..........',
+      '..........',
+      '.....o....',
+      '     .....',
+      '     .....',
+      '     .....',
+      '     .....',
+      '     ..T..',
+      '     .....',
     ],
     props: [
-      { t: 'fan', at: [-0.85, 10], dir: [1, 0], len: 7.05, w: 2.6, a: 5.5 }, // (standing on the rail)
-      { t: 'fan', at: [5.85, 4.5], dir: [-1, 0], len: 7.05, w: 2.6, a: 5.5 },
+      { t: 'fan', at: [9.85, 6], dir: [-1, 0], len: 11.05, w: 2.6, a: 5.5 },
+      { t: 'fan', at: [-0.85, 3.5], dir: [1, 0], len: 6.05, w: 2.6, a: 5.5 },
     ],
   },
   {
@@ -210,26 +212,27 @@ export const HOLES = [
     ],
   },
   {
+    // (up the left-hand leg into a wide lawn: the tyres piled in its far corner send the ball back
+    // across it, harder than it came, towards the cup tucked against the right-hand rail. Straight off
+    // the tyres goes along the top: the bank has to be played at an angle, or the ball left short)
     name: '弹弹轮胎', tip: '轮胎比墙还弹，借它拐弯', par: 3,
     map: [
-      '.........',
-      '....H....',
-      '.........',
-      '.........',
-      '.o.....o.',
-      '.........',
-      '.........',
-      '.........',
-      '.........',
-      '.........',
-      '....T....',
-      '.........',
+      '..........',
+      '..........',
+      '..........',
+      '..........',
+      '.........H',
+      '..........',
+      '....      ',
+      '....      ',
+      '....      ',
+      '....      ',
+      '....      ',
+      '.T..      ',
+      '....      ',
     ],
-    props: [
-      { t: 'tires', at: [4, 6.6], rot: 0, s: 1.5 },
-      { t: 'tires', at: [2.2, 3.4], rot: 35, s: 1.3 },
-      { t: 'tires', at: [5.8, 3.4], rot: -35, s: 1.3 },
-    ],
+    props: [{ t: 'tires', corner: [-0.5, -0.5], leg: 2.5 }],
+    coins: [[1.5, 1.5]], // (just off the tyres: on the way, played off them)
   },
   {
     name: '两只猫', tip: '猫爪圈里会被拍，看准空当再打', par: 3,
@@ -254,7 +257,10 @@ export const HOLES = [
     ],
   },
   {
-    name: '早高峰', tip: '等车过去再打，再绕开大鹅', par: 4,
+    // (Duck Pond's finale: a zebra crossing over the road where the ball goes, with a pedestrian light
+    // that shows the green man while a putt hit now would get past the cars, and the goose with its
+    // goslings in a line beside it. The light and the goslings only show: the hole plays as it did)
+    name: '早高峰', tip: '绿灯亮了再打，再绕开大鹅', par: 4,
     map: [
       '.........  ',
       '.......H.  ',
@@ -276,6 +282,7 @@ export const HOLES = [
       { t: 'bike', id: 'toy_car', len: 1.5, from: [9.4, 7.0], to: [0.6, 7.0], speed: 1.7, phase: 0.7 },
       { t: 'goose', at: [4.8, 3.4], aggro: 1.7, leash: 2 },
       { t: 'obj', id: 'traffic_cone', at: [8.1, 4.2] },
+      { t: 'crossing', at: [4.5, 6.5], w: 2.6, zone: 0.4, ahead: [0.35, 1.3], light: [1, 8.2], goslings: 3, trail: [1, -1] }, // (the goslings in a line up to the goose's right: off the coin at its left)
     ],
   },
 

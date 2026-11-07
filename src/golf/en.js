@@ -11,6 +11,8 @@ export const EN = {
   '借跷跷板拐弯': 'Bank off the seesaw round the corner',
   // (hole 12's tip: the windmill's door, or the path round it)
   '穿过风车，或从旁边绕': 'Through the windmill, or round the side',
+  // (hole 9's tip: its crossing has a pedestrian light)
+  '绿灯亮了再打，再绕开大鹅': 'Wait for the green light, then dodge the goose',
   // (the page after the last yard, every one played through)
   '整个街区通关！': 'Neighbourhood complete!',
   // (what the ground says over itself till the first shot: mud and ice, course.js SURF)

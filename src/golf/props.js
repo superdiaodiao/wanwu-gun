@@ -780,3 +780,163 @@ function angDiff(a, b) {
   if (d < -Math.PI) d += Math.PI * 2;
   return d;
 }
+
+// ---- Rush Hour's set piece (Duck Pond's last hole): the zebra crossing ---------------------------------
+//   { t: 'crossing', at: [c, r], w, d, zone, ahead, light: [c, r], goslings: n, trail: [dx, dz] }
+// White bars painted over the road where the ball crosses it, at `at` (the road's middle), w metres along
+// the road (2.4) and d across it (2): bars along the road, one after another across it, as at a real
+// zebra crossing. Its pedestrian light stands at `light`, off the green on a block of its own, its face
+// to the tee: the green man shows while a ball putted over the crossing now would get past the cars, by
+// where each car is, which way it is going and how fast (a car about to come by in the time a putt takes
+// to get there, `ahead` [0.3, 1.4] s on, within `zone` metres of the bars' middle (0.7) shows the red man), so
+// waiting for it helps. And `goslings` goslings waddle after the hole's goose in a line, wherever it
+// goes, settling back into a line behind it (the way `trail` says from it, [-1, 1]: behind and to the
+// left as seen from the tee) once it is home; they hop and peep as the ball rolls by. Only to look at:
+// nothing here touches the ball. The road runs across the hole (along x), as every road does.
+const ZEBRA = new THREE.MeshLambertMaterial({ color: 0xf4f1e8, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+const SIGNAL = { pole: new THREE.MeshLambertMaterial({ color: 0x8e959d }), head: new THREE.MeshLambertMaterial({ color: 0x2f3338 }), button: new THREE.MeshLambertMaterial({ color: 0xffc928 }) };
+let FACES = null; // (the light's two faces, each lit and dark: made once, and kept)
+function signalFaces() {
+  if (FACES) return FACES;
+  const face = (walk, col) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#121416';
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = g.strokeStyle = col;
+    g.lineCap = 'round';
+    g.lineWidth = 7;
+    g.beginPath(); g.arc(walk ? 34 : 32, 12, 6.5, 0, Math.PI * 2); g.fill();
+    const line = (...p) => { g.beginPath(); g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.stroke(); };
+    if (walk) { line(33, 23, 30, 39); line(30, 39, 22, 55); line(30, 39, 39, 47, 41, 57); line(32, 26, 23, 33); line(32, 26, 41, 31); }
+    else { g.lineWidth = 9; line(32, 23, 32, 39); g.lineWidth = 6; line(29, 40, 29, 57); line(35, 40, 35, 57); line(26, 25, 25, 41); line(38, 25, 39, 41); }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return [new THREE.MeshBasicMaterial({ map: t }), new THREE.MeshBasicMaterial({ map: t, color: 0x262626 })];
+  };
+  return (FACES = { stop: face(false, '#ff4434'), walk: face(true, '#46e88a') });
+}
+MAKERS.crossing = function crossing(d, course, ctx) {
+  const p = course.at(...d.at), w = d.w || 2.4, depth = d.d || 2, zone = d.zone ?? 0.7, [t0, t1] = d.ahead || [0.3, 1.4];
+  // the bars: 0.22 m across, five over the 2 m of a road two lanes wide (the middle one over the dashed line)
+  const n = Math.max(2, Math.round(depth / 0.42)), gap = (depth - 0.32) / (n - 1);
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.22).rotateX(-Math.PI / 2), ZEBRA);
+    m.position.set(p.x, 0.004, p.z - (depth - 0.32) / 2 + i * gap);
+    m.receiveShadow = true;
+    course.group.add(m);
+  }
+  // the light: a post, a push button, a head with the red man over the green man
+  const L = course.at(...d.light), F = signalFaces();
+  course.pad(L.x, L.z, 0.7, 0.7);
+  const sig = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.5, 10), SIGNAL.pole);
+  post.position.y = 0.75;
+  const button = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.07), SIGNAL.button);
+  button.position.set(0, 0.95, 0.06);
+  // (its head tipped back a little, its faces up towards the camera: seen from above, on a phone held
+  // upright, a head facing level shows only its top)
+  const top = new THREE.Group(), head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.56, 0.18), SIGNAL.head);
+  top.position.y = 1.72;
+  top.rotation.x = -0.55;
+  const stop = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), F.stop[0]), walk = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), F.walk[1]);
+  stop.position.set(0, 0.13, 0.092);
+  walk.position.set(0, -0.13, 0.092);
+  top.add(head, stop, walk);
+  for (const o of [post, button, head]) { o.castShadow = true; o.receiveShadow = true; }
+  sig.add(post, button, top);
+  sig.position.set(L.x, -0.03, L.z);
+  sig.scale.setScalar(1.25); // (a third over life size, as the animals are: read from the far end of the hole)
+  course.group.add(sig);
+  // the goslings
+  const kids = Array.from({ length: d.goslings || 0 }, (_, i) => {
+    const g = ctx.model('duckling', 2.9);
+    g.visible = false; // (till the first frame finds the goose and puts it in its place)
+    course.group.add(g);
+    return { g, x: 0, z: 0, yaw: 0, step: i * 1.7, hop: 0, heard: -1 };
+  });
+  const [tx, tz] = d.trail || [-1, 1], tl = Math.hypot(tx, tz);
+  let goose, cars, green = false, clearFor = 0, path = [], homeFor = 0, peeped = 0;
+  const PAUSE = 0.6 * (easy(ctx) ? 3 : 1), lo = course.bounds.x0 + 0.22 + 1.1, hi = course.bounds.x1 - 0.22 - 1.1;
+  // where a car will be s seconds on: on to the end of its way, its stop there, and back (its ends where it
+  // has been seen to stop, till then the road's, a car's length in from the rails)
+  const ahead = (k, s) => {
+    let x = k.c.x, dir = k.dir, wait = k.moving ? 0 : Math.max(0, PAUSE - k.still);
+    const v = k.v || 2, a = k.loEnd ?? lo, b = k.hiEnd ?? hi;
+    if (!k.moving) dir = x < (a + b) / 2 ? 1 : -1;
+    while (s > 1e-6) {
+      if (wait > 0) { const u = Math.min(wait, s); wait -= u; s -= u; continue; }
+      const end = dir > 0 ? b : a, u = Math.min(s, Math.abs(end - x) / v);
+      x += dir * v * u; s -= u;
+      if (s > 1e-6) { dir = -dir; wait = PAUSE; }
+    }
+    return x;
+  };
+  return {
+    cols: [],
+    get green() { return green; }, // (the light, for the tests)
+    update(dt, ball, game) {
+      if (!game) return;
+      if (!cars) {
+        // (the cars are the things on the hole that move and are boxes: the bikes and cars going to and fro)
+        cars = [];
+        for (const q of game.props) for (const c of q.cols) if (c.kind === 'box' && 'vx' in c && !('off' in c)) cars.push({ c, v: 0, dir: 1, still: 0, moving: false, loEnd: null, hiEnd: null });
+        goose = game.props.find(q => q.cols.length === 1 && q.cols[0].kind === 'circle' && 'vx' in q.cols[0] && q.hit);
+        goose = goose && goose.cols[0];
+        if (goose) for (let i = 0; i < 30; i++) path.push([goose.x + (tx / tl) * i * 0.1, goose.z + (tz / tl) * i * 0.1]);
+        kids.forEach((k, i) => { const [x, z] = slot(i); k.x = x; k.z = z; k.yaw = Math.atan2(goose ? goose.x - x : 0, goose ? goose.z - z : -1); k.g.visible = !!goose; });
+      }
+      // the light
+      let clear = true;
+      for (const k of cars) {
+        const sp = Math.abs(k.c.vx), was = k.moving;
+        k.moving = sp > 0.01;
+        if (k.moving) { k.v = sp; k.dir = Math.sign(k.c.vx); k.still = 0; }
+        else { if (was) k[k.dir > 0 ? 'hiEnd' : 'loEnd'] = k.c.x; k.still += dt; }
+        const ext = Math.abs(k.c.hz * Math.sin(k.c.rot || 0)) + Math.abs(k.c.hx * Math.cos(k.c.rot || 0)) + BALL_R + zone;
+        for (let s = t0; s <= t1 + 1e-6 && clear; s += 0.05) if (Math.abs(ahead(k, s) - p.x) < ext) clear = false;
+      }
+      clearFor = clear ? clearFor + dt : 0;
+      const go = clear && (green || clearFor >= 0.15); // (red at once, green once it has held a moment)
+      if (go !== green) { green = go; stop.material = F.stop[go ? 1 : 0]; walk.material = F.walk[go ? 0 : 1]; }
+      // the goslings: along the goose's way, or back in a line behind it once it is home
+      if (!goose) return;
+      const last = path[0];
+      if (Math.hypot(goose.x - last[0], goose.z - last[1]) > 0.1) { path.unshift([goose.x, goose.z]); if (path.length > 40) path.pop(); }
+      homeFor = Math.hypot(goose.vx, goose.vz) > 0.01 ? 0 : homeFor + dt;
+      kids.forEach((k, i) => {
+        const [gx, gz] = homeFor > 1.2 ? slot(i) : along(0.45 + i * 0.36);
+        const dx = gx - k.x, dz = gz - k.z, dd = Math.hypot(dx, dz);
+        const moving = dd > 0.04;
+        if (moving) {
+          const st = Math.min(dd, 1.9 * dt);
+          k.x += (dx / dd) * st; k.z += (dz / dd) * st;
+          k.yaw += angDiff(k.yaw, Math.atan2(dx, dz)) * Math.min(1, dt * 9);
+          k.step += dt * 16;
+        } else k.yaw += angDiff(k.yaw, Math.atan2(goose.x - k.x, goose.z - k.z)) * Math.min(1, dt * 3);
+        // (a ball rolling by: a hop, and a peep, once a stroke each)
+        if (game.state === 'roll' && k.heard !== game.strokes && Math.hypot(ball.vx, ball.vz) > 0.6 && Math.hypot(ball.x - k.x, ball.z - k.z) < 0.5) {
+          k.heard = game.strokes; k.hop = 1;
+          const a = ctx.audio, ac = a.ctx;
+          if (a.running && !a.muted && ac.currentTime > peeped) { peeped = ac.currentTime + 0.25; try { squeak(ac, a.m.sfx, ac.currentTime + 0.01, Math.random, { vel: SQUEAK * 0.6, pitch: 1.9, pan: Math.max(-0.6, Math.min(0.6, k.x * 0.3)) }); } catch {} }
+        }
+        k.hop = Math.max(0, k.hop - dt * 3.5);
+        const wob = moving ? Math.sin(k.step) : 0;
+        k.g.position.set(k.x, course.Y(k.x, k.z) + Math.abs(wob) * 0.02 + Math.sin(k.hop * Math.PI) * 0.12, k.z);
+        k.g.rotation.set(0, k.yaw, wob * 0.16);
+      });
+    },
+  };
+  // (gosling i's place in the line behind the goose at home; and the point `s` metres back along its way)
+  function slot(i) { const k = 0.42 + i * 0.32; return [goose ? goose.x + (tx / tl) * k : p.x, goose ? goose.z + (tz / tl) * k : p.z]; }
+  function along(s) {
+    let x = goose.x, z = goose.z;
+    for (const [px, pz] of path) {
+      const l = Math.hypot(px - x, pz - z);
+      if (l >= s) return [x + ((px - x) / l) * s, z + ((pz - z) / l) * s];
+      s -= l; x = px; z = pz;
+    }
+    return [x, z];
+  }
+};
