@@ -140,8 +140,9 @@ function backdrop(ctx, lawnThings) {
     const g = stand(ctx, id, x + dx, z + dz, rot, { size });
     if (g) course.deco.push({ g, far: true });
   }
-  // behind: a few bushes, and further back a line of the park's tall trees with gaps in it (one draw a kind)
-  const trees = { tree_plane: [], tree_camphor: [], tree_peach: [] }, kinds = Object.keys(trees);
+  // behind: a few bushes, and further back a line of the park's tall trees with gaps in it (each a model of its
+  // own: drawn instanced, they would need a shader the duck pond has no other use for, compiled as the game starts)
+  const kinds = ['tree_plane', 'tree_camphor', 'tree_peach'];
   for (let i = 0, n = 0; i < 40 && n < 6; i++) {
     const bx = x0 - 5 + S() * (x1 - x0 + 10), bz = z0 - 4 - S() * 4;
     if (Math.abs(bx - x) < 3.5 || !ctx.free(bx, bz, 1.6)) continue;
@@ -151,9 +152,9 @@ function backdrop(ctx, lawnThings) {
   for (let tx = x0 - 16 + S() * 3; tx < x1 + 16; tx += 3.2 + S() * 3.5) {
     if (S() < 0.22) { tx += 3; continue; } // (a gap)
     const id = kinds[Math.floor(S() * 3)], size = { tree_plane: 7, tree_camphor: 7.5, tree_peach: 4.5 }[id] * (0.85 + S() * 0.3);
-    trees[id].push([tx, LAWN, z0 - 12 - S() * 9, S() * 6, size]);
+    const g = stand(ctx, id, tx, z0 - 12 - S() * 9, S() * 6, { size, r: 1.5 });
+    if (g) { g.children[0].castShadow = false; course.deco.push({ g, far: true }); }
   }
-  for (const id of kinds) many(ctx, id, trees[id]);
 }
 
 /** x moved, if need be, so that a thing `half` metres either side of it doesn't stand right behind the flag
@@ -176,7 +177,8 @@ function stand(ctx, id, x, z, rot, { size, k = 1, y = LAWN, r = 0.6 } = {}) {
   return g;
 }
 
-/** many of one catalog model as one draw, far behind: spots [[x, y, z, rot, metres across its largest side], ...] */
+/** many of one catalog model as one draw, far behind: spots [[x, y, z, rot, metres across its largest side], ...]
+ *  (instanced: a look whose yard draws the models instanced anyway, such as the pool's fence) */
 export function many(ctx, id, spots, { shadow = false } = {}) {
   if (!spots.length) return null;
   let proto;
