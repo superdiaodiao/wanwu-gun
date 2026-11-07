@@ -32,7 +32,7 @@
 //   goose's: 'chase' | 'nudge'; where it looks at home, deg, 180 = up the hole), e, wobble, near, call
 //   and pop (an obj's: near, metres: a ball going by that close rocks it, once a stroke; call: the
 //   sound it makes then, and when hit, in place of a thud: 'squeak'; pop, the id of a model of its
-//   own that a hard hit knocks off its top): see props.js
+//   own that a hard hit knocks off its top; long, its length to look at, times its own): see props.js
 // and the shape of the ground, where it isn't flat: ground: [ramps, hills, ridges] (see ground.js);
 // coins: more coins, at [c, r] each (on a green square), or 'tops': one on top of every mound. Every
 // hole has at least one coin (a warning at the bottom says if not, or if one is off the green).
@@ -108,7 +108,7 @@ export const HOLES = [
     props: [
       // (the seesaw lies across the far corner, a bank that gives the ball all its speed back: up the
       // leg, off it, along the bar to the cup. The hydrants stand in the corners behind the cup)
-      { t: 'obj', id: 'seesaw', at: [0.56, 0.56], rot: 45, s: 1.35, e: 1.0, wobble: true },
+      { t: 'obj', id: 'seesaw', at: [0.56, 0.56], rot: 45, s: 1.35, e: 1.0, wobble: true, long: 0.84 }, // (its ends on the rails)
       { t: 'obj', id: 'fire_hydrant', at: [2.6, 3.6] },
       { t: 'obj', id: 'fire_hydrant', at: [11.15, -0.15] },
       { t: 'obj', id: 'fire_hydrant', at: [11.15, 2.15] },

@@ -1134,7 +1134,7 @@ function onMove(e) {
   const p = groundAt(r.left + ((ballV.x + 1) / 2) * r.width + e.clientX - a.sx, r.top + ((1 - ballV.y) / 2) * r.height + e.clientY - a.sy, by);
   if (!p) return;
   const px = Math.hypot(e.clientX - a.sx, e.clientY - a.sy);
-  a.p = Math.max(0, Math.min(1, (px - 10) / G.full)); // (G.full: aim)
+  a.p = power(a, e, px);
   const dx = b.x - p.x, dz = b.z - p.z;
   if (Math.hypot(dx, dz) > 1e-3) a.ang = Math.atan2(dx, -dz);
   // (the aim a moment ago, for the finger lifting off: see onUp)
@@ -1143,6 +1143,26 @@ function onMove(e) {
   was.push({ t: e.timeStamp, x: e.clientX, y: e.clientY, ang: a.ang, p: a.p });
   showAim(a.p > 0);
   drawAim();
+}
+/** the power of a pull px long: past the 10 px it starts at, in step with it up to full at G.full more
+ *  (G.full: aim). A finger pulling towards an edge of the screen nearer than that (a ball by the side
+ *  of a phone held upright, pulled sideways towards it) gets the top of it sooner, so that full power
+ *  is still a finger short of the edge (8 px, as G.full has it at the bottom from the tee): the pull
+ *  steepens more and more as it nears the edge, a short one (up to about 20 px) is as strong as ever.
+ *  A mouse goes on past the edge, and keeps G.full */
+function power(a, e, px) {
+  const q = Math.max(0, px - 10), F = G.full;
+  let p = q / F;
+  if (e.pointerType !== 'mouse' && px >= 1) {
+    const ux = (e.clientX - a.sx) / px, uy = (e.clientY - a.sy) / px;
+    const room = Math.min(ux > 1e-3 ? (innerWidth - a.sx) / ux : ux < -1e-3 ? -a.sx / ux : Infinity,
+      uy > 1e-3 ? (innerHeight - a.sy) / uy : uy < -1e-3 ? -a.sy / uy : Infinity);
+    // (R: where full power comes this way; no shorter than 0.1 of the screen's shorter side, for a ball
+    // 64 px from the side of a 360 px phone)
+    const R = Math.max(0.1 * Math.min(innerWidth, innerHeight), room - 18);
+    if (R < F) p += (1 - R / F) * (q / R) ** 3;
+  }
+  return Math.max(0, Math.min(1, p));
 }
 function onUp(e) {
   const a = G.aim;

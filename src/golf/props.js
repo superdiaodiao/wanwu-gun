@@ -38,7 +38,10 @@
 //          towards the tee, 90 to the right (not a cat's face, where 0 is up the map)
 //   obj    e: how bouncy it is (0.55; a snowbank 0.3); wobble: true — it rocks when hit, with a soft
 //          thud (or its call); near: metres — a ball going by that close (rolling, not crawling) rocks
-//          it too, away from the ball, once a stroke, and it calls; a part of it that comes off (its
+//          it too, away from the ball, with a little hop, once a stroke, and it calls (it hops when
+//          hit too); long: its length to look at, times its own (the seesaw's: its ends on the rails it
+//          lies across, not out over the water; what the ball meets is still the whole length, which
+//          only reaches on past the rails); a part of it that comes off (its
 //          model's spec.pop: a snowman's hat; or pop: '<id>', a model of its own standing on top of
 //          it; or a child of its group named 'pop') is knocked off by a hard hit and lands nearby.
 //          What the ball meets is the same either way
@@ -82,6 +85,9 @@ const callOf = (id, d) => d.call || (CALLS.find(([k]) => id.split('_').includes(
  *  patch's ambience has far off (sound/calls.js), here near, and not again while one is going; a
  *  rubber duck's squeak (sound/calls.js) the same way, panned to where it is (pan) */
 let cawing = 0, squeaking = 0;
+const FAN_TURN = 0.4, FAN_SWING = 0.2; // (radians: a fan's turn towards the camera, and its swing either way:
+// never side on, never straight at the tee)
+const HOP = 0.15; // (how high a thing rocked by the ball going by hops: a rubber duck, 0.6 m tall)
 const SQUEAK = 0.077; // (the squeak's loudness: its loudest 50 ms about 2 dB under a full-power putt's)
 function say(ctx, call, pan = 0) {
   if (call === 'squeak') {
@@ -117,6 +123,7 @@ const MAKERS = {
     const g = ctx.model(d.id, k, undefined, d.tint);
     g.position.set(p.x, course.Y(p.x, p.z), p.z);
     g.rotation.y = rot;
+    if (d.long) g.scale.x = d.long; // (only to look at: what the ball meets is the full length)
     course.group.add(g);
     const col = footprint(ctx, d.id, k, p.x, p.z, rot, d.e ?? 0.55);
     const me = { cols: [col], update() {}, model: g };
@@ -128,7 +135,11 @@ const MAKERS = {
   },
 
   fan(d, course, ctx) {
-    const p = course.at(...d.at), [dx, dz] = d.dir, yaw = Math.atan2(dx, dz);
+    const p = course.at(...d.at), [dx, dz] = d.dir;
+    // (one blowing across the hole is turned part of the way round to face the near end, where the
+    // camera is: seen side on, its head is a thin disc on a pole, and it reads as a post. The wind
+    // still blows straight across)
+    const yaw = Math.atan2(dx, dz) - (Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) * FAN_TURN : 0);
     const g = ctx.model('electric_fan', 1.6);
     g.position.set(p.x, -0.03, p.z);
     course.group.add(g);
@@ -150,7 +161,7 @@ const MAKERS = {
       cols: [], wind, tag: tag(ctx, '会吹偏球', 'electric_fan', 1.6, () => [p.x, -0.03, p.z]),
       update(dt) {
         t += dt;
-        g.rotation.y = yaw + Math.sin(t * 1.1) * 0.22; // an oscillating fan
+        g.rotation.y = yaw + Math.sin(t * 1.1) * FAN_SWING; // an oscillating fan
         for (const s of streaks) {
           s.u = (s.u + dt * (3.2 - (s.u / d.len) * 1.5)) % d.len;
           const x = p.x + dx * s.u - dz * s.side, z = p.z + dz * s.u + dx * s.side;
@@ -625,7 +636,8 @@ function popPart(ctx, d, k, g, id = d.id) {
  *  land beside it */
 function knocked(d, course, ctx, p, g, cap) {
   const up = new THREE.Vector3(0, 1, 0), yaw = new THREE.Quaternion().setFromAxisAngle(up, g.rotation.y), tilt = new THREE.Quaternion(), axis = new THREE.Vector3();
-  let ball = null, t = 9, amp = 0, dx = 0, dz = 1, thud = 0, fly = null, passed = -1;
+  let ball = null, t = 9, amp = 0, dx = 0, dz = 1, thud = 0, fly = null, passed = -1, jump = 0, lift = HOP, stroke = 0;
+  const y0 = g.position.y;
   const pan = Math.max(-0.6, Math.min(0.6, p.x * 0.3)); // (a call heard from where it stands)
   const launch = (ux, uz, vy) => {
     if (!cap || fly) return;
@@ -646,8 +658,15 @@ function knocked(d, course, ctx, p, g, cap) {
       if (speed < 0.3 || !ball) return;
       const bx = p.x - ball.x, bz = p.z - ball.z, bd = Math.hypot(bx, bz) || 1;
       if (d.wobble) {
-        dx = bx / bd; dz = bz / bd; t = 0;
-        amp = Math.min(0.32, 0.06 + speed * 0.05);
+        // (one still hopping isn't started again: it would drop back to the ground in a frame and hop a
+        // second time; one that hopped as the ball came by this stroke doesn't hop again, nor rock
+        // again till it has all but settled. A hit hops it as hard as it was hit)
+        const hopped = d.near && passed === stroke;
+        if (jump <= 0 && !(hopped && t < 0.6)) {
+          dx = bx / bd; dz = bz / bd; t = 0;
+          amp = Math.min(0.32, 0.06 + speed * 0.05);
+          if (d.near && !hopped) { jump = 1; lift = HOP * Math.min(1, speed / 1.5); }
+        }
         if (thud <= 0 && d.call) { say(ctx, d.call, pan); thud = 0.5; } // (a rubber duck squeaks instead)
         else if (thud <= 0) { ctx.audio.wall(Math.min(0.45, 0.12 + speed / 14)); thud = 0.25; }
       } else if (thud <= 0 && speed > 0.5) { ctx.audio.wall(Math.min(1, speed / 7)); thud = 0.07; }
@@ -656,12 +675,15 @@ function knocked(d, course, ctx, p, g, cap) {
     },
     update(dt, b, game) {
       ball = b;
+      if (game) stroke = game.strokes;
       thud -= dt;
       // (near: the ball rolling by rocks it away from itself, once a stroke, and it calls)
       if (d.near && game && game.state === 'roll' && passed !== game.strokes && Math.hypot(b.vx, b.vz) > 0.6 && Math.hypot(b.x - p.x, b.z - p.z) < d.near) {
         passed = game.strokes;
         const bx = p.x - b.x, bz = p.z - b.z, bd = Math.hypot(bx, bz) || 1;
-        dx = bx / bd; dz = bz / bd; t = 0; amp = 0.22;
+        // (rocked well over and hopping: a rubber duck seen small on a phone on its side still shows it;
+        // not started again in the air, from a hit just before)
+        if (jump <= 0) { dx = bx / bd; dz = bz / bd; t = 0; amp = 0.38; jump = 1; lift = HOP; }
         if (d.call && thud <= 0) { say(ctx, d.call, pan); thud = 0.5; }
       }
       if ((d.wobble || d.near) && t < 3) {
@@ -669,6 +691,10 @@ function knocked(d, course, ctx, p, g, cap) {
         const a = amp * Math.exp(-3.2 * t) * Math.sin(t * 10);
         tilt.setFromAxisAngle(axis.set(dz, 0, -dx), a);
         g.quaternion.copy(tilt).multiply(yaw);
+      }
+      if (jump > 0) {
+        jump = Math.max(0, jump - dt * 3.2);
+        g.position.y = y0 + Math.sin(jump * Math.PI) * lift;
       }
       if (fly && !fly.done) {
         fly.vy -= 9 * dt;
