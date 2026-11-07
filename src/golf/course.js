@@ -92,7 +92,8 @@ function turf(W, H, tiles, cell, green, R, gr, at, P, seed, steps) {
   const c = canvas(W * PX, H * PX), g = c.getContext('2d');
   const road = ch => ch === 'r';
   for (const t of tiles) {
-    const x = t.c * PX, y = t.r * PX, odd = (P.mow === 'rows' ? t.r : t.c + t.r) % 2;
+    // (P.mow: 'checker', or 'rows' across the hole, or 'cols': stripes down it, as a lawn mown up and down)
+    const x = t.c * PX, y = t.r * PX, odd = (P.mow === 'rows' ? t.r : P.mow === 'cols' ? t.c : t.c + t.r) % 2;
     g.fillStyle = road(t.ch) ? ((t.c + t.r) % 2 ? P.road[0] : P.road[1]) : odd ? P.green[0] : P.green[1];
     g.fillRect(x, y, PX, PX);
     // blades of grass, or grit in the tarmac
