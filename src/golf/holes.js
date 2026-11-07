@@ -403,15 +403,16 @@ export const HOLES = [
     ],
     props: [
       { t: 'spinner', at: [8.2, 4.8], len: 2, speed: 1.0 },
-      { t: 'spinner', at: [1.2, 6.8], len: 2, speed: -1.0, phase: 0.5 },
+      { t: 'spinner', at: [1.2, 6.4], len: 2, speed: -1.0, phase: 0.5 }, // (its arm's ends 0.1 m short of the near rail, not through it)
     ],
     coins: [[4.5, 5.5]],
   },
   {
     name: '割草机', tip: '割草机会撞开球，等它开过去', par: 4,
     // (a U round the pool's inlet: up the tee's leg, across the top, down to the cup. One mower crosses
-    // the top, where every ball goes by; the other two mow along the outer rails of the legs, flicking a
-    // ball that lies in their way back into the middle)
+    // the top, where every ball goes by; the other two mow up and down the legs by their outer rails, flicking
+    // a ball that lies in their way back into the middle. They keep a ball's width off the rail, so they turn
+    // round at the ends without going through it)
     map: [
       '..........',
       '..........',
@@ -428,8 +429,8 @@ export const HOLES = [
     ],
     props: [
       { t: 'bike', id: 'mower', s: 1.3, from: [0.4, 1], to: [8.6, 1], speed: 1.0, phase: 0.3 },
-      { t: 'bike', id: 'mower', s: 1.3, from: [9.15, 9.6], to: [9.15, 3.6], speed: 0.8, aside: true },
-      { t: 'bike', id: 'mower', s: 1.3, from: [-0.15, 3.6], to: [-0.15, 9.6], speed: 0.8, phase: 0.5, aside: true },
+      { t: 'bike', id: 'mower', s: 1.3, from: [8.85, 9.6], to: [8.85, 3.6], speed: 0.8, aside: true },
+      { t: 'bike', id: 'mower', s: 1.3, from: [0.15, 3.6], to: [0.15, 9.6], speed: 0.8, phase: 0.5, aside: true },
     ],
     coins: [[5, 1.6]],
   },
@@ -509,6 +510,10 @@ export const HOLES = [
     ground: [{ t: 'ramp', from: [4, 9.6], to: [4, 7.4], h: 0.25 }, { t: 'hill', at: [5.6, 1.2], r: 2.8, h: -0.24 }],
     props: [
       { t: 'windmill', at: [4, 3.555], s: 1.35, speed: 0.75 }, // (its front on the lane's end, its back on the terrace's)
+      // (a pot of roses in the corner of its front and the right-hand rail: the house is wider than the lane, so
+      // a sail sweeping a ball along the front would end a little short of that rail and squeeze the ball out
+      // through it; it meets the pot instead and comes away)
+      { t: 'obj', id: 'rose_pot', at: [5.42, 4.68], s: 1.4 },
     ],
     coins: [[4, 6.2], [4.6, 1.4]],
   },
