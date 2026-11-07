@@ -229,8 +229,9 @@ function backGarden(ctx) {
 // corner, turned to the pool), metres behind the pool's far edge to its middle]. All of them low: on a phone
 // on its side the HUD's top bar comes down to the lawn just past the deck, and of anything standing there not
 // two metres shows whole below it (the house that stood behind, 7.5 m to its chimney, only ever showed its
-// walls), on hole 12 (the windmill's) not 1.65 m; beside the deck's far corners about 2.1 m. Then a few low
-// plants towards the fence, and the neighbours' trees over it ----
+// walls), on hole 12 (the windmill's) not 1.65 m; beside the deck's far corners about 2.1 m. Hole 18 has
+// none: the camera looks down from high over its big windmill, and the lawn a metre past the deck is under
+// the top bar already. Then a few low plants towards the fence, and the neighbours' trees over it ----
 const BACK = [
   [['shed', 0.4, 4], ['beds', -0.42, 3.9]],
   [['cabana', 'L', 1], ['towels', 0.4, 3.9]],
@@ -240,7 +241,7 @@ const BACK = [
   [['cabana', 'R', 1], ['beds', -0.4, 3.9]],
   [['swings', 0.38, 4], ['towels', -0.4, 3.9]],
   [['playhouse', -0.42, 4], ['pergola', 'R', 1.1]],
-  [['cabana', 'L', 1], ['goal', 0.72, 4.3]],
+  [],
 ];
 const HALF = { shed: 1, cabana: 1.1, playhouse: 0.8, pergola: 1.3, swings: 1.4, goal: 1, towels: 1.4, beds: 1.4, paddling: 1.2 };
 // (the sheds', cabanas', playhouses' colours, the first and the second time each comes)
