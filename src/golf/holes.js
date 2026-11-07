@@ -28,7 +28,8 @@
 //   { t: 'tunnel', id, at, s, fill }    the windmill's tunnel without its sails, under any model built to
 //                                        the windmill's footprint (a giant pumpkin, a snow fort)
 //   and on any of them: tag (what it says over it), tint, call (false: none, a bike just knocks), walk (a bike that is an animal walking),
-//   aside (a bike's: flicks a resting ball out of its way; a walker's unless false), mode and face (a
+//   aside (a bike's: flicks a resting ball out of its way; a walker's unless false; 'in': always towards
+//   the green's middle, for one beside a rail), mode and face (a
 //   goose's: 'chase' | 'nudge'; where it looks at home, deg, 180 = up the hole), e, wobble, near, call
 //   and pop (an obj's: near, metres: a ball going by that close rocks it, once a stroke; call: the
 //   sound it makes then, and when hit, in place of a thud: 'squeak'; pop, the id of a model of its
@@ -417,9 +418,10 @@ export const HOLES = [
   {
     name: '割草机', tip: '割草机会撞开球，等它开过去', par: 4,
     // (a U round the pool's inlet: up the tee's leg, across the top, down to the cup. One mower crosses
-    // the top, where every ball goes by; the other two mow up and down the legs by their outer rails, flicking
-    // a ball that lies in their way back into the middle. They keep a ball's width off the rail, so they turn
-    // round at the ends without going through it)
+    // the top, where every ball goes by, flicking a ball that lies in its way off to the side; the other two
+    // mow up and down the legs by their outer rails, flicking a ball that lies in their way back into the
+    // middle. They keep a ball's width off the rail, so they turn round at the ends without going through it.
+    // None of them carries a ball along while the player aims)
     map: [
       '..........',
       '..........',
@@ -435,9 +437,9 @@ export const HOLES = [
       '....  ....',
     ],
     props: [
-      { t: 'bike', id: 'mower', s: 1.3, from: [0.4, 1], to: [8.6, 1], speed: 1.0, phase: 0.3 },
-      { t: 'bike', id: 'mower', s: 1.3, from: [8.85, 9.6], to: [8.85, 3.6], speed: 0.8, aside: true },
-      { t: 'bike', id: 'mower', s: 1.3, from: [0.15, 3.6], to: [0.15, 9.6], speed: 0.8, phase: 0.5, aside: true },
+      { t: 'bike', id: 'mower', s: 1.3, from: [0.4, 1], to: [8.6, 1], speed: 1.0, phase: 0.3, aside: true },
+      { t: 'bike', id: 'mower', s: 1.3, from: [8.85, 9.6], to: [8.85, 3.6], speed: 0.8, aside: 'in' },
+      { t: 'bike', id: 'mower', s: 1.3, from: [0.15, 3.6], to: [0.15, 9.6], speed: 0.8, phase: 0.5, aside: 'in' },
     ],
     coins: [[5, 1.6]],
   },

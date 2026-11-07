@@ -30,7 +30,9 @@
 //          round at each end, and stops there for `pause` seconds (0.2; a vehicle 0.6);
 //          aside: true — it flicks a ball lying (or creeping) in its way off to the side it is on,
 //          rather than shoving it along in front of it (on a walker unless aside: false; a car, a
-//          bike or a mower only if said: the wheelbarrow, the sled, the snowplough)
+//          bike or a mower only if said: the wheelbarrow, the sled, the snowplough); aside: 'in' — always
+//          towards the middle of the green (a mower going up and down beside a rail, a ball between it
+//          and the rail: flicked towards the rail it would bounce back and be carried along)
 //   goose  mode: 'chase' (it chases the ball and pecks it away: the goose's own) or 'nudge' (it goes
 //          only for a ball lying still 2.5 s, once a stroke, never while it is being aimed: a dog's,
 //          a pig's); s: its size (the goose 1.3 times life, others 1.4); face: which way it looks
@@ -192,6 +194,13 @@ const MAKERS = {
     // (a robot mower turns round on the spot at each end, and chimes; a bike rings, a car hoots; an
     // animal walking to and fro turns round too, waddling as it goes, and calls)
     const bike = d.id.includes('bike'), mower = d.id === 'mower', walk = !!d.walk, aside = d.aside ?? walk;
+    // (aside: 'in', one going up and down beside a rail: which way the green's middle is from its way, the
+    // side where the green goes on a metre out from the middle of it)
+    let inX = 0, inZ = 0;
+    if (d.aside === 'in') {
+      const s = course.onGreen((A.x + B.x) / 2 - uz, (A.z + B.z) / 2 + ux) ? 1 : -1;
+      inX = -uz * s; inZ = ux * s;
+    }
     // (call: false, one that makes no call of its own (a sled, a wheelbarrow): it knocks, like a rail)
     const ring = d.call === false ? null : d.call || (bike || mower ? 'bell' : walk ? callOf(d.id, d) : 'horn');
     // (at the easy difficulty slower, and stopping longer at each end: a shot that isn't timed meets a car
@@ -222,9 +231,12 @@ const MAKERS = {
         // keeping a little of the mover's speed: it isn't carried along for seconds while the player waits.
         // Slow against the mover, not the ground: one riding along at the mover's speed is flicked again)
         if (aside && moving && ball && (game.state === 'aim' || game.state === 'roll') && Math.hypot(ball.vx - col.vx, ball.vz - col.vz) < 0.6 && contact(col, ball.x, ball.z, BALL_R + 0.03)) {
-          const fx = ux * dir, fz = uz * dir, rx = ball.x - col.x, rz = ball.z - col.z;
-          if (rx * fx + rz * fz > 0) {
-            const side = Math.sign(rx * -fz + rz * fx) || 1;
+          const fx = ux * dir, fz = uz * dir, rx = ball.x - col.x, rz = ball.z - col.z, across = rx * -fz + rz * fx;
+          // ('in': towards the middle, whichever side it lies; one lying beside it on the rail's side, not
+          // ahead of it, is out of its way already: flicked into its side, it would bounce back and forth
+          // between it and the rail and be carried along)
+          const side = !(inX || inZ) ? Math.sign(across) || 1 : across * (-fz * inX + fx * inZ) < 0 && Math.abs(across) > col.hx ? 0 : Math.sign(-fz * inX + fx * inZ) || 1;
+          if (side && rx * fx + rz * fz > 0) {
             ball.vx = -fz * side * 0.8 + fx * sp; ball.vz = fx * side * 0.8 + fz * sp;
             me.hit(1);
             game.pushed();
