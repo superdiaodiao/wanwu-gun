@@ -392,7 +392,8 @@ export const HOLES = [
     name: '洒水器', tip: '转臂会把球扫开，看准空当', par: 3,
     // (an S: up the tee's leg, left along the middle, up the cup's leg. A sprinkler in each bend's outer
     // corner, turning opposite ways: they sweep a ball that runs on too far, not one that takes the bend
-    // on the inside; the coin lies on that line, in the middle)
+    // on the inside; the coin lies on that line, in the middle. No tee shot reaches the cup, so a shallow
+    // bowl round it takes in a putt that is nearly there: the second shot is the one that counts)
     map: [
       '....      ',
       '.H..      ',
@@ -409,6 +410,7 @@ export const HOLES = [
       '      ..T.',
       '      ....',
     ],
+    ground: [{ t: 'hill', at: [1, 1], r: 1.3, h: -0.08 }],
     props: [
       { t: 'spinner', at: [8.2, 4.8], len: 2, speed: 1.0 },
       { t: 'spinner', at: [1.2, 6.4], len: 2, speed: -1.0, phase: 0.5 }, // (its arm's ends 0.1 m short of the near rail, not through it)
