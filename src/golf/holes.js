@@ -333,9 +333,9 @@ export const HOLES = [
     name: '风车', tip: '穿过风车，或从旁边绕', par: 3,
     // (the cup off to one side behind it: the windmill never stands in front of it, so the camera can look
     // along the hole as low as on any other. Past the water on its right a path goes round it, the way
-    // without sails; behind it the ground falls from the windmill's side to that path's end, the cup on
-    // the slope between them, no bowl: a ball through the door runs on downhill past the cup, one up the
-    // path has to climb to it)
+    // without sails; the ground falls gently from the windmill's side to the path's, all down the hole
+    // (the tee and the windmill on the high flat, the path at the foot), the cup on the slope behind, no
+    // bowl: a ball through the door runs on downhill past the cup, one up the path has to climb to it)
     map: [
       '  ........',
       '  ....H...',
