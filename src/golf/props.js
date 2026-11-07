@@ -782,16 +782,18 @@ function angDiff(a, b) {
 }
 
 // ---- Rush Hour's set piece (Duck Pond's last hole): the zebra crossing ---------------------------------
-//   { t: 'crossing', at: [c, r], w, d, zone, ahead, light: [c, r], goslings: n, trail: [dx, dz] }
+//   { t: 'crossing', at: [c, r], w, d, zone, ahead, hold, light: [c, r], goslings: n, trail: [dx, dz] }
 // White bars painted over the road where the ball crosses it, at `at` (the road's middle), w metres along
 // the road (2.4) and d across it (2): bars along the road, one after another across it, as at a real
 // zebra crossing. Its pedestrian light stands at `light`, off the green on a block of its own, its face
 // to the tee: the green man shows while a ball putted over the crossing now would get past the cars, by
 // where each car is, which way it is going and how fast (a car about to come by in the time a putt takes
 // to get there, `ahead` [0.3, 1.4] s on, within `zone` metres of the bars' middle (0.7) shows the red man), so
-// waiting for it helps. And `goslings` goslings waddle after the hole's goose in a line, wherever it
-// goes, settling back into a line behind it (the way `trail` says from it, [-1, 1]: behind and to the
-// left as seen from the tee) once it is home; they hop and peep as the ball rolls by. Only to look at:
+// waiting for it helps; it turns green only when that holds for a putt hit any time in the next `hold`
+// seconds (0.7), about the time a person takes to see it and putt, so it never shows green for a blink.
+// And `goslings` goslings waddle after the hole's goose in a line, wherever it goes, settling back into a
+// line behind it (the way `trail` says from it, [-1, 1]: behind and to the left as seen from the tee) once
+// it is home; they hop and peep as the ball rolls by. Only to look at:
 // nothing here touches the ball. The road runs across the hole (along x), as every road does.
 const ZEBRA = new THREE.MeshLambertMaterial({ color: 0xf4f1e8, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
 const SIGNAL = { pole: new THREE.MeshLambertMaterial({ color: 0x8e959d }), head: new THREE.MeshLambertMaterial({ color: 0x2f3338 }), button: new THREE.MeshLambertMaterial({ color: 0xffc928 }) };
@@ -818,7 +820,7 @@ function signalFaces() {
   return (FACES = { stop: face(false, '#ff4434'), walk: face(true, '#46e88a') });
 }
 MAKERS.crossing = function crossing(d, course, ctx) {
-  const p = course.at(...d.at), w = d.w || 2.4, depth = d.d || 2, zone = d.zone ?? 0.7, [t0, t1] = d.ahead || [0.3, 1.4];
+  const p = course.at(...d.at), w = d.w || 2.4, depth = d.d || 2, zone = d.zone ?? 0.7, [t0, t1] = d.ahead || [0.3, 1.4], hold = d.hold ?? 0.7;
   // the bars: 0.22 m across, five over the 2 m of a road two lanes wide (the middle one over the dashed line)
   const n = Math.max(2, Math.round(depth / 0.42)), gap = (depth - 0.32) / (n - 1);
   for (let i = 0; i < n; i++) {
@@ -857,7 +859,7 @@ MAKERS.crossing = function crossing(d, course, ctx) {
     return { g, x: 0, z: 0, yaw: 0, step: i * 1.7, hop: 0, heard: -1 };
   });
   const [tx, tz] = d.trail || [-1, 1], tl = Math.hypot(tx, tz);
-  let goose, cars, green = false, clearFor = 0, path = [], homeFor = 0, peeped = 0;
+  let goose, cars, green = false, path = [], homeFor = 0, peeped = 0;
   const PAUSE = 0.6 * (easy(ctx) ? 3 : 1), lo = course.bounds.x0 + 0.22 + 1.1, hi = course.bounds.x1 - 0.22 - 1.1;
   // where a car will be s seconds on: on to the end of its way, its stop there, and back (its ends where it
   // has been seen to stop, till then the road's, a car's length in from the rails)
@@ -887,18 +889,19 @@ MAKERS.crossing = function crossing(d, course, ctx) {
         if (goose) for (let i = 0; i < 30; i++) path.push([goose.x + (tx / tl) * i * 0.1, goose.z + (tz / tl) * i * 0.1]);
         kids.forEach((k, i) => { const [x, z] = slot(i); k.x = x; k.z = z; k.yaw = Math.atan2(goose ? goose.x - x : 0, goose ? goose.z - z : -1); k.g.visible = !!goose; });
       }
-      // the light
-      let clear = true;
+      // the light: green while a putt hit now would get by (`now`), but turned green only when one hit at any
+      // moment in the next `hold` seconds would too (`soon`): a person sees the green man, then aims and lets
+      // go, so it never shows for a blink, and the shot that waited for it gets over
+      let now = true, soon = true;
       for (const k of cars) {
         const sp = Math.abs(k.c.vx), was = k.moving;
         k.moving = sp > 0.01;
         if (k.moving) { k.v = sp; k.dir = Math.sign(k.c.vx); k.still = 0; }
         else { if (was) k[k.dir > 0 ? 'hiEnd' : 'loEnd'] = k.c.x; k.still += dt; }
         const ext = Math.abs(k.c.hz * Math.sin(k.c.rot || 0)) + Math.abs(k.c.hx * Math.cos(k.c.rot || 0)) + BALL_R + zone;
-        for (let s = t0; s <= t1 + 1e-6 && clear; s += 0.05) if (Math.abs(ahead(k, s) - p.x) < ext) clear = false;
+        for (let s = t0; s <= t1 + hold + 1e-6 && now; s += 0.05) if (Math.abs(ahead(k, s) - p.x) < ext) { soon = false; if (s <= t1 + 1e-6) now = false; else break; }
       }
-      clearFor = clear ? clearFor + dt : 0;
-      const go = clear && (green || clearFor >= 0.15); // (red at once, green once it has held a moment)
+      const go = green ? now : soon; // (red at once)
       if (go !== green) { green = go; stop.material = F.stop[go ? 1 : 0]; walk.material = F.walk[go ? 0 : 1]; }
       // the goslings: along the goose's way, or back in a line behind it once it is home
       if (!goose) return;
