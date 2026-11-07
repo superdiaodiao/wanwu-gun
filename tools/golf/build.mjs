@@ -78,7 +78,7 @@ let what = path.relative(REPO, tree) ? `tree ${tree}` : 'repo';
 try {
   const head = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
   if (tree === REPO) {
-    const dirty = execFileSync('git', ['status', '--porcelain', '--', 'src', 'build.mjs', 'tools/cdn-loader.mjs'], { cwd: REPO, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+    const dirty = execFileSync('git', ['status', '--porcelain', '--', 'src', 'build.mjs', 'tools/cdn-loader.mjs'], { cwd: REPO, encoding: 'utf8' }).split('\n').filter(l => l.trim());
     what += ` at ${head}` + (dirty.length ? ` + ${dirty.length} changed: ${dirty.map(l => l.slice(3)).join(', ')}` : ' (clean)');
   }
 } catch {}

@@ -2,7 +2,7 @@
 // it straight down to the edge of the screen, with real input (scope step 3, D1).
 //
 //   node tools/golf/reach.mjs <golf.html> [--sizes=844x390,1920x1080,390x844] [--holes=0-35] [--lang=en]
-//        [--touch=auto|on|off] [--margin=4] [--steps=8] [--putt=844x390|none] [--out=<file.txt>] [--json=<file>]
+//        [--touch=auto|on|off] [--margin=4] [--steps=8] [--putt=844x390|none] [--dirs=down] [--out=<file.txt>] [--json=<file>]
 //
 // For each size (one fresh page each, its storage empty; a phone, i.e. touch events, (pointer: coarse) and
 // a mobile viewport, when a side is under 600 px, as shots.mjs does; --touch=on|off to force) and each hole
@@ -27,6 +27,12 @@
 // pull = 10 + p * full. Then a real drag of that many px, released after 120 ms still (so the touch
 // lift-off rule in onUp keeps the aim), and the distance the ball really rolled.
 //
+// --dirs=down,near,far,up: which ways to pull from the ball, each to --margin px from that edge of the screen
+// (down: the bottom, the default and the only one before; near / far: sideways, to the side edge nearer to /
+// further from the ball; up: the top). Every way but down is printed with its own header, the room and pull
+// along that way, and p; no calc (main.js power(): on a touch screen a pull towards an edge nearer than
+// G.full + 18 px steepens towards full power 8 px short of that edge; G.full is only its straight part).
+//
 // --json: every row and the putt as JSON, for comparing runs. One Chrome at a time (tools/golf/cdp.mjs),
 // reused for every size. Run from the repo root: cd <repo> && node tools/golf/reach.mjs <golf.html>.
 // Base numbers (fc46371): .cache/golf-work/p5/reach-base.txt; how to run: .cache/golf-work/p5/README.md.
@@ -48,6 +54,7 @@ function range(v, d) {
 const SIZES = list(opt.sizes, '844x390,667x375,740x360,568x320,821x462,1280x720,1920x1080,390x844,360x780').map(s => s.split('x').map(Number));
 const HOLES = range(opt.holes, '0-35');
 const LANG = opt.lang || 'en', MARGIN = +(opt.margin ?? 4), STEPS = +(opt.steps ?? 8);
+const DIRS = list(opt.dirs, 'down');
 const PUTT = opt.putt === 'none' ? null : String(opt.putt || '844x390').split('x').map(Number);
 const BALL_R = 0.14; // physics.js BALL_R: the ball's centre above the ground under it
 const touchOf = (w, h) => opt.touch === 'on' ? true : opt.touch === 'off' ? false : Math.min(w, h) < 600;
@@ -77,27 +84,28 @@ const PLACE = i => `(async () => {
 })()`;
 const AIM = `(() => { const a = __golf.G.aim; return a ? { p: a.p, ang: a.ang } : null; })()`;
 
-/** a real drag on the page: press at (x, y0), move to y1 in `steps` moves a frame apart, read the aim, then
- *  (release: true) let go there after `hold` ms still, or (default) go back to the press point and let go */
-async function drag(b, touch, x, y0, y1, { steps = STEPS, release = false, hold = 120 } = {}) {
-  const T = (type, y) => b.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1, radiusX: 1, radiusY: 1, force: 1 }] });
-  const M = (type, y, buttons = 1) => b.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons, clickCount: type === 'mouseMoved' ? 0 : 1, pointerType: 'mouse' });
-  if (touch) await T('touchStart', y0);
-  else { await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y: y0, button: 'none', buttons: 0 }); await M('mousePressed', y0); }
+/** a real drag on the page: press at (x, y0), move to y1 (and x1: straight down unless given) in `steps`
+ *  moves a frame apart, read the aim, then (release: true) let go there after `hold` ms still, or (default)
+ *  go back to the press point and let go */
+async function drag(b, touch, x, y0, y1, { steps = STEPS, release = false, hold = 120, x1 = x } = {}) {
+  const T = (type, xx, y) => b.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: xx, y, id: 1, radiusX: 1, radiusY: 1, force: 1 }] });
+  const M = (type, xx, y, buttons = 1) => b.send('Input.dispatchMouseEvent', { type, x: xx, y, button: 'left', buttons, clickCount: type === 'mouseMoved' ? 0 : 1, pointerType: 'mouse' });
+  if (touch) await T('touchStart', x, y0);
+  else { await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y: y0, button: 'none', buttons: 0 }); await M('mousePressed', x, y0); }
   await sleep(20);
   for (let k = 1; k <= steps; k++) {
-    const y = y0 + ((y1 - y0) * k) / steps;
-    if (touch) await T('touchMove', y); else await M('mouseMoved', y);
+    const y = y0 + ((y1 - y0) * k) / steps, xx = x + ((x1 - x) * k) / steps;
+    if (touch) await T('touchMove', xx, y); else await M('mouseMoved', xx, y);
     await sleep(18);
   }
   await sleep(40);
   const aim = await b.evaluate(AIM);
   if (release) {
     await sleep(hold);
-    if (touch) await T('touchEnd', y1); else await M('mouseReleased', y1, 0);
+    if (touch) await T('touchEnd', x1, y1); else await M('mouseReleased', x1, y1, 0);
   } else {
-    if (touch) { await T('touchMove', y0); await sleep(18); await T('touchEnd', y0); }
-    else { await M('mouseMoved', y0); await sleep(18); await M('mouseReleased', y0, 0); }
+    if (touch) { await T('touchMove', x, y0); await sleep(18); await T('touchEnd', x, y0); }
+    else { await M('mouseMoved', x, y0); await sleep(18); await M('mouseReleased', x, y0, 0); }
   }
   await sleep(30);
   return aim;
@@ -110,6 +118,34 @@ say(`full: G.full if the page has it, else 0.3*min(W,H) (fc46371's rule, marked 
 
 const rows = [], sums = [];
 let b = null, putt = null;
+
+/** one size, pulling from the ball another way than down (--dirs): to --margin px from that edge */
+async function other(b, touch, w, h, dir) {
+  say('');
+  say(`${w}x${h} ${touch ? 'touch' : 'mouse'}, pulled ${dir}${dir === 'near' || dir === 'far' ? ' (sideways, to the side edge ' + (dir === 'near' ? 'nearer to' : 'further from') + ' the ball)' : ''}`);
+  say(`  hole  ball x  ball y   room   pull      p`);
+  const mine = [];
+  for (const i of HOLES) {
+    const at = await b.evaluate(PLACE(i));
+    if (at.error) throw new Error(`hole ${i + 1} at ${w}x${h}: ${at.error}`);
+    const x = Math.round(at.x), y0 = Math.round(at.y);
+    const left = dir === 'near' ? at.x < at.W / 2 : dir === 'far' ? at.x >= at.W / 2 : null;
+    const x1 = left == null ? x : left ? MARGIN : at.W - MARGIN, y1 = dir === 'up' ? MARGIN : y0;
+    const room = dir === 'up' ? at.y : left ? at.x : at.W - at.x;
+    const aim = at.state === 'aim' ? await drag(b, touch, x, y0, y1, { x1 }) : null;
+    const after = await b.evaluate('({ strokes: __golf.G.strokes, state: __golf.G.state, aim: !!__golf.G.aim })');
+    const pull = Math.hypot(x1 - x, y1 - y0);
+    const row = { size: `${w}x${h}`, touch, dir, side: left == null ? null : left ? 'left' : 'right', hole: i + 1, x: at.x, ballY: at.y, room, pull, full: at.full,
+      p: aim ? aim.p : null, ang: aim ? aim.ang : null, target: at.target, shot: after.strokes !== 0 || after.state !== 'aim' || after.aim };
+    rows.push(row); mine.push(row);
+    say(`  ${String(i + 1).padStart(4)}  ${f1(at.x).padStart(6)}  ${f1(at.y).padStart(6)}  ${f1(room).padStart(5)}  ${f1(pull).padStart(5)}  ${f3(row.p).padStart(5)}${!aim ? ` ! no aim (state ${at.state}, pressed on ${at.target})` : row.shot ? ' ! a shot was played' : ''}`);
+  }
+  const ps = mine.map(r => r.p).filter(v => v != null), rooms = mine.map(r => r.room);
+  const s = { size: `${w}x${h}`, touch, dir, pMin: Math.min(...ps), pMax: Math.max(...ps), roomMin: Math.min(...rooms), roomMax: Math.max(...rooms),
+    full98: ps.filter(v => v >= 0.98).length, n: mine.length, noAim: mine.length - ps.length };
+  sums.push(s);
+  say(`  -> p ${f3(s.pMin)}-${f3(s.pMax)}, room ${f1(s.roomMin)}-${f1(s.roomMax)} px, p >= 0.98 on ${s.full98}/${s.n}${s.noAim ? `, NO AIM on ${s.noAim}` : ''}`);
+}
 try {
   for (const [w, h] of SIZES) {
     const touch = touchOf(w, h);
@@ -118,6 +154,8 @@ try {
     await b.navigate(fileUrl(html, LANG));
     if (!(await b.waitFor('window.__ready === true', 60000))) throw new Error(`page not ready at ${w}x${h}`);
     await sleep(800);
+    for (const dir of DIRS) {
+    if (dir !== 'down') { await other(b, touch, w, h, dir); continue; }
     say('');
     say(`${w}x${h} ${touch ? 'touch' : 'mouse'}`);
     say(`  hole  ball y   room   pull   full      p      calc`);
@@ -141,6 +179,7 @@ try {
       fullMin: Math.min(...fulls), fullMax: Math.max(...fulls), rule: 0.3 * Math.min(w, h), full98: ps.filter(v => v >= 0.98).length, n: mine.length, noAim: mine.length - ps.length };
     sums.push(s);
     say(`  -> p ${f3(s.pMin)}-${f3(s.pMax)}, room ${f1(s.roomMin)}-${f1(s.roomMax)} px, full ${f1(s.fullMin)}-${f1(s.fullMax)} (0.3*min ${f1(s.rule)}), p >= 0.98 on ${s.full98}/${s.n}${s.noAim ? `, NO AIM on ${s.noAim}` : ''}`);
+    }
   }
 
   if (PUTT) {
