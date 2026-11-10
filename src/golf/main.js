@@ -1558,9 +1558,27 @@ function hides(t, p) {
   return box2.containsPoint(flat.set(corner.x, corner.y));
 }
 
+/** the sky laid on the screen from its top down to the horizon (the camera's eye level), its last colour,
+ *  the haze's, held below that: it meets the hazed ground with no edge. Where the horizon is over the top
+ *  of the screen (looking down on a hole), only the haze shows. Every frame: the camera moves in, the
+ *  screen changes size */
+const horizon = new THREE.Vector3();
+function skyBand() {
+  const bg = engine.scene.background, c = engine.camera;
+  if (!bg?.isTexture) return;
+  c.getWorldDirection(horizon).setY(0);
+  let f = 0; // (how much of the screen, from the top, is above the horizon)
+  if (horizon.lengthSq() > 1e-8) {
+    horizon.normalize().multiplyScalar(1000).add(c.position).setY(c.position.y);
+    f = Math.min(1, (1 - horizon.project(c).y) / 2);
+  }
+  if (f > 0.001) { bg.repeat.y = 1 / f; bg.offset.y = 1 - 1 / f; } else { bg.repeat.y = 1; bg.offset.y = -1; }
+}
+
 function render() {
   MU.time.value = G.t;
   const r = engine.renderer, cam = engine.camera;
+  skyBand();
   fx.setViewport(r.domElement.clientHeight, cam.fov);
   placeTags();
   const bd = G.course.bounds;
