@@ -66,27 +66,29 @@ export const YARDS = [
 
 export const HOLES = [
   {
+    // (six metres from the tee to the cup: a new player's first pull, however timid, gets most of the way,
+    // and on easy the dotted guide reaches the flag. At ten metres any pull under four fifths stopped short)
     name: '热身', tip: '', par: 2,
     map: [
       '.....',
       '..H..',
       '.....',
       '.....',
-      '..o..',
       '.....',
-      '.....',
-      '.....',
-      '..o..',
       '.....',
       '.....',
       '..T..',
       '.....',
     ],
+    // (both on the line from the tee to the cup, the ducks between them. The nearer one last: the words
+    // "Get them all" go under it (main.js), and two and a half metres from the tee leave room for them
+    // between the coin and the ball on a phone held sideways; at two they were left out)
+    coins: [[2, 2], [2, 4.5]],
     props: [
       // (face to face: from the tee the ball meets a duck's round side. A putt between them rocks
       // them and they squeak; the goose by the cup hops as the ball comes up, and cheers it in)
-      { t: 'obj', id: 'rubber_duck', at: [1.1, 6], rot: 90, s: 6, wobble: true, near: 1.0, call: 'squeak' },
-      { t: 'obj', id: 'rubber_duck', at: [2.9, 6], rot: -90, s: 6, wobble: true, near: 1.0, call: 'squeak' },
+      { t: 'obj', id: 'rubber_duck', at: [1.1, 3.5], rot: 90, s: 6, wobble: true, near: 1.0, call: 'squeak' },
+      { t: 'obj', id: 'rubber_duck', at: [2.9, 3.5], rot: -90, s: 6, wobble: true, near: 1.0, call: 'squeak' },
       { t: 'watch', id: 'goose', at: [-1.25, 2.4], near: 3.6, cheer: true },
     ],
   },

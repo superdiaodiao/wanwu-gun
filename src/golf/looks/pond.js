@@ -76,6 +76,7 @@ const PARK = [
   ['kiosk', 0.55, -0.3], ['roses', -0.45, 0.15], ['gazebo', 0.4, 0], ['boathouse', 0.5, -0.25],
 ];
 const BACK_Z = 1.6; // (metres behind the bank, to the middle of the place)
+const SHORT = 0.72; // (a place's size behind a short hole: see backdrop)
 const HALF = { kiosk: 2.7, gazebo: 1.5, boathouse: 1.4, playground: 3, fountain: 1.3, roses: 1.6 }; // (how far each reaches either side)
 // (the kiosks', gazebos' and boathouses' colours, the first and the second time each comes)
 const KIOSK = [{ wall: 0xbfe6d2, stripe: 0xe8554a, sign: 0x2f8f9e, scoop: 0xffb3c7 }, { wall: 0xf8d9e2, stripe: 0x3a8fd8, sign: 0xe8554a, scoop: 0xfff1c9 }];
@@ -123,7 +124,11 @@ function backdrop(ctx, lawnThings) {
     picnicTable(k, -3.1, 0.3, 0.2);
     picnicTable(k, 2.9, -0.2, -0.3);
   }
-  place(ctx, k.parts, x, z, turn, { r: 2.6, name: what });
+  // (a short hole's camera stands nearer, so less shows whole below the bar: behind one under 11 squares
+  // long, the first hole, 1.6 m where its place stands on a phone on its side. Its place is built at
+  // SHORT of its size, the kiosk 1.5 m: it reads as standing a little further back)
+  const built = place(ctx, k.parts, x, z, turn, { r: 2.6, name: what });
+  if (ctx.H < 11) built.scale.setScalar(SHORT);
   // the boathouse's jetty out over the water, and its rowing boat pulled up on the grass beside it (in the
   // water, at the foot of the bank, the course hid it)
   if (what === 'boathouse') {
