@@ -81,9 +81,10 @@ export const HOLES = [
       '.....',
     ],
     // (both on the line from the tee to the cup, the ducks between them. The nearer one last: the words
-    // "Get them all" go under it (main.js), and two and a half metres from the tee leave room for them
-    // between the coin and the ball on a phone held sideways; at two they were left out)
-    coins: [[2, 2], [2, 4.5]],
+    // "Get them all" go under it (main.js), and three metres from the tee leave room for them between the coin
+    // and the ball on a phone held sideways down to 568x320, in Chinese too (its words stand 4 px taller
+    // than the English ones); at 2.5 m the Chinese ones were left out on phones 360 px tall, at 2 m both)
+    coins: [[2, 2], [2, 4]],
     props: [
       // (face to face: from the tee the ball meets a duck's round side. A putt between them rocks
       // them and they squeak; the goose by the cup hops as the ball comes up, and cheers it in)
