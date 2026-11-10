@@ -368,7 +368,9 @@ export const HOLES = [
       '..........',
     ],
     ground: [{ t: 'ramp', from: [8.5, 1], to: [3.5, 1], h: 0.15 }],
-    props: [{ t: 'windmill', at: [3, 3.7], fill: 1.5, speed: 0.6 }],
+    // (tag: false: its own words, "Wait for a gap", would ask for the shot through the door the tip tells
+    // the player not to take)
+    props: [{ t: 'windmill', at: [3, 3.7], fill: 1.5, speed: 0.6, tag: false }],
     coins: [[8.5, 3.5]],
   },
   {
