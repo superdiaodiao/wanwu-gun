@@ -41,7 +41,7 @@ export default {
         '....     ',
         '....     ',
         '....     ',
-        '.o..     ',
+        '....     ',
         '....     ',
         '....     ',
         '....     ',
@@ -53,7 +53,7 @@ export default {
         { t: 'obj', id: 'crate_apples', at: [8.1, 2.3], rot: 10, s: 1.2 },
         { t: 'obj', id: 'watering_can', at: [2.9, 0.2], rot: 200, s: 1.4 },
       ],
-      coins: [[4.5, 0.6]],
+      coins: [[3, 2]], // (at the corner, where the ball turns for the cup)
     },
     // 3: hens cross the middle of a zigzag; a step down into the cup's bed, mud at its foot
     {
@@ -79,7 +79,6 @@ export default {
         { t: 'bike', id: 'chicken', walk: true, len: 0.7, from: [2.7, 6], to: [5.6, 6], speed: 0.55, phase: 0, call: 'cluck', tag: '母鸡会挡路' },
         { t: 'bike', id: 'chicken', walk: true, len: 0.7, from: [5.6, 7.6], to: [2.7, 7.6], speed: 0.7, phase: 0.5, call: 'cluck', tag: '母鸡会挡路' },
       ],
-      coins: [[4.2, 5]],
     },
     // 4: a slalom up a staircase of beds through wobbling pumpkins; a coin in a muddy gap between two
     // of them (the risky way)
@@ -131,13 +130,13 @@ export default {
       ],
       ground: [{ t: 'ramp', from: [3.4, 1], to: [5.6, 1], h: 0.35 }],
       props: [
-        { t: 'goose', id: 'pig', at: [0, 0], aggro: 2.6, leash: 1.8, s: 1.25, call: 'oink', tag: '会拱走停下的球' },
+        { t: 'goose', id: 'pig', at: [0, 0], aggro: 2.6, leash: 1.8, s: 1.25, call: 'oink' },
       ],
-      coins: [[7, 7], [4.5, 0.4]],
+      coins: [[2.5, 2]], // (at the far bend, where every ball comes round)
     },
     // 6: the breather: two steps funnel down to the cup, crows watching from the posts
     {
-      name: '乌鸦窝', tip: '轻轻推，台阶会把球送下去', par: 2,
+      name: '乌鸦窝', tip: '打足劲，台阶会把球送进洞', par: 2,
       map: [
         ' ...   ',
         '..H..  ',
@@ -161,7 +160,7 @@ export default {
         { t: 'watch', id: 'bird_crow', at: [-0.95, 5.5], s: 2.1 },
         { t: 'watch', id: 'bird_crow', at: [7.25, 2.5], s: 2.1 },
       ],
-      coins: [[5, 6]],
+      coins: [[2.5, 7]], // (on the line from the tee to the cup)
     },
     // 7: an S down two steps, one at each bend; a wheelbarrow trundles across the middle bed
     {
@@ -190,12 +189,13 @@ export default {
         { t: 'bike', id: 'wheelbarrow', len: 1.4, from: [4.4, 6], to: [9.4, 6], speed: 0.8, pause: 1, call: false, aside: true },
         { t: 'obj', id: 'pumpkin', at: [0.8, 10.6], s: 1.35, wobble: true },
       ],
-      coins: [[3.4, 10.4], [9.4, 1]],
+      coins: [[4.2, 4]], // (in the gap up to the cup's bed, where every ball goes through)
     },
     // 8: leaf piles — round a raised bed in the middle, either side: the left way over a muddy mound,
-    // the right way past a cat on the fence by the cup
+    // the right way past a cat on the fence by the cup (the way that works: the tip says so, and the coin
+    // lies on it)
     {
-      name: '落叶堆', tip: '土包上有泥，绕开或者冲过去', par: 3, surfTags: false,
+      name: '落叶堆', tip: '土包上有泥，从右边绕', par: 3, surfTags: false,
       map: [
         '...........',
         '.........H.',
@@ -218,7 +218,7 @@ export default {
         { t: 'obj', id: 'pumpkin', at: [8.4, 6.6], s: 1.35, wobble: true },
         { t: 'obj', id: 'leaf_pile', at: [5, 6], s: 1.4 },
       ],
-      coins: [[1, 6], [5, 10.5]],
+      coins: [[10, 8]],
     },
     // 9: the finale — up the tee's bed and down a step into the hens' bed, then through the giant
     // pumpkin's door to the cup behind it; its lid pops off when the ball drops
@@ -260,21 +260,20 @@ export default {
     '泥巴路': 'Muddy Path',
     '打重一点穿过泥地': 'Putt firmly through the mud',
     '菜畦': 'Raised Beds',
-    '下了台阶再拐弯': 'Down the step, then round the corner',
+    '下了台阶再拐弯': 'Down the step, then around the corner',
     '母鸡过路': 'Hen Crossing',
     '等母鸡走过去再打': 'Wait for the hens to cross',
-    '母鸡会挡路': 'Hens get in the way',
+    '母鸡会挡路': 'Hens block the way',
     '南瓜阵': 'Slalom',
     '绕着南瓜走': 'Weave past the pumpkins',
     '猪圈': 'Pig Pen',
     '球别停在小猪的泥坑里': "Keep the ball out of the pig's mud",
-    '会拱走停下的球': 'Nudges a resting ball',
     '乌鸦窝': "Crow's Nest",
-    '轻轻推，台阶会把球送下去': 'Putt gently down the steps',
+    '打足劲，台阶会把球送进洞': 'Putt firmly: the steps funnel it in',
     '独轮车': 'Wheelbarrow',
     '等独轮车推过去再打': 'Let the wheelbarrow pass',
     '落叶堆': 'Leaf Piles',
-    '土包上有泥，绕开或者冲过去': 'Muddy mound: go round or blast through',
+    '土包上有泥，从右边绕': 'Muddy mound: go around on the right',
     '大南瓜': 'Giant Pumpkin',
     '穿过大南瓜的门': "Putt through the pumpkin's door",
   },

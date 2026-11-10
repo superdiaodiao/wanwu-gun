@@ -34,7 +34,7 @@ export default {
     // 2: a band of ice across, and a snowbank: the ball slides on and on over the one, and stops dead in the
     // other; a little snowman in the mouth of the cup's corner (so it takes a putt to the corner, then one in)
     {
-      name: '初雪', tip: '冰上轻点打', par: 3,
+      name: '初雪', tip: '冰上球会一直滑', par: 3,
       map: [
         '   ...',
         '   H..',
@@ -79,7 +79,7 @@ export default {
     },
     // 4: downhill onto ice, a sled sliding across it
     {
-      name: '滑雪坡', tip: '下坡上冰，轻点打', par: 2,
+      name: '滑雪坡', tip: '用力打下坡，滑过冰面', par: 2,
       map: [
         '.....   ',
         '.H...   ',
@@ -173,7 +173,7 @@ export default {
         { t: 'bike', id: 'sled', s: 1.2, from: [9.2, 6.8], to: [0.8, 6.8], speed: 1.8, phase: 0.4, tag: false, aside: true, call: false },
         short([6, -0.1]),
       ],
-      coins: [[9, 6.5]],
+      coins: [[6, 8]], // (on the line from the tee to the cup, before the sled's track)
     },
     // 8: up one icy lane, round the top, down the other
     {
@@ -235,20 +235,20 @@ export default {
     '溜冰场': 'Ice Rink',
     '借雪堆把球停住': 'Use the snowbank to stop the ball',
     '初雪': 'First Snow',
-    '冰上轻点打': 'Putt softly on ice',
+    '冰上球会一直滑': 'The ball keeps sliding on ice',
     '雪人': 'Snowmen',
     '绕过雪人': 'Weave between the snowmen',
     '滑雪坡': 'Sledding Hill',
-    '下坡上冰，轻点打': 'Downhill onto ice: putt softly',
+    '用力打下坡，滑过冰面': 'Send it down the hill and across the ice',
     '哈士奇': 'Husky',
-    '球别停在哈士奇旁边': 'Keep the ball away from the husky',
+    '球别停在哈士奇旁边': "Don't stop next to the husky",
     '冰碗': 'Ice Bowl',
-    '打进冰碗，球会滑进洞': 'Reach the bowl and it slides in',
+    '打进冰碗，球会滑进洞': 'Get the ball into the bowl and it slides in',
     '铲雪车': 'Snowplow',
     '等铲雪车过去再打': 'Let the snowplow pass',
     '冰上折返': 'Switchback',
-    '雪堆帮你转弯': 'Snowbanks help you turn',
+    '雪堆帮你转弯': 'Bank off the snowbanks to turn',
     '雪堡': 'Snow Fort',
-    '躲开雪橇，穿过雪堡': 'Dodge the sled, go through the fort',
+    '躲开雪橇，穿过雪堡': 'Dodge the sled, then through the fort',
   },
 };

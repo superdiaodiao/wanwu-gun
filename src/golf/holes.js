@@ -98,7 +98,7 @@ export const HOLES = [
       '............',
       '....        ',
       '....        ',
-      '.o..        ',
+      '....        ',
       '....        ',
       '....        ',
       '....        ',
@@ -106,6 +106,7 @@ export const HOLES = [
       '.T..        ',
       '....        ',
     ],
+    coins: [[1, 7.5]], // (on the way up the leg: a ball played for the seesaw takes it)
     props: [
       // (the seesaw lies across the far corner, a bank that gives the ball all its speed back: up the
       // leg, off it, along the bar to the cup. The hydrants stand in the corners behind the cup)
@@ -120,7 +121,7 @@ export const HOLES = [
     // The fan at the band's end blows along it, carrying the ball round towards the cup's bed, and
     // leaves a ball that stops in the band against the far rail, under the cup; the second blows across
     // the cup's bed below the cup, so the putt up to it goes through the wind. Both on the rail)
-    name: '电风扇', tip: '风会把球吹偏，往上风那边打', par: 3,
+    name: '电风扇', tip: '往上风那边瞄', par: 3,
     map: [
       '.....     ',
       '.H...     ',
@@ -166,14 +167,14 @@ export const HOLES = [
     ],
   },
   {
-    name: '大鹅', tip: '大鹅会追着球啄，打快点冲过去', par: 3,
+    name: '大鹅', tip: '用力打，冲过大鹅', par: 3,
     map: [
       '.......',
       '...H...',
       '.......',
       '.......',
       '.......',
-      '..o....',
+      '.......',
       '.......',
       ' ..... ',
       ' ..... ',
@@ -233,7 +234,7 @@ export const HOLES = [
       '....      ',
     ],
     props: [{ t: 'tires', corner: [-0.5, -0.5], leg: 2.5 }],
-    coins: [[1.5, 1.5]], // (just off the tyres: on the way, played off them)
+    coins: [[0.5, 2.2]], // (where the ball goes into the tyres: on the way, played off them)
   },
   {
     name: '两只猫', tip: '猫爪圈里会被拍，看准空当再打', par: 3,
@@ -267,13 +268,13 @@ export const HOLES = [
       '.......H.  ',
       '.........  ',
       '.........  ',
-      '....o....  ',
+      '.........  ',
       '.........  ',
       'rrrrrrrrrrr',
       'rrrrrrrrrrr',
       '  .....    ',
       '  .....    ',
-      '  ..o..    ',
+      '  .....    ',
       '  .....    ',
       '  ..T..    ',
       '  .....    ',
@@ -283,8 +284,9 @@ export const HOLES = [
       { t: 'bike', id: 'toy_car', len: 1.5, from: [9.4, 7.0], to: [0.6, 7.0], speed: 1.7, phase: 0.7 },
       { t: 'goose', at: [4.8, 3.4], aggro: 1.7, leash: 2 },
       { t: 'obj', id: 'traffic_cone', at: [8.1, 4.2] },
-      { t: 'crossing', at: [4.5, 6.5], w: 2.6, zone: 0.4, ahead: [0.35, 1.3], light: [1, 8.2], goslings: 3, trail: [1, -1] }, // (the goslings in a line up to the goose's right: off the coin at its left)
+      { t: 'crossing', at: [4.5, 6.5], w: 2.6, zone: 0.4, ahead: [0.35, 1.3], light: [1, 8.2], goslings: 3, trail: [1, -1] }, // (the goslings in a line up to the goose's right)
     ],
+    coins: [[5.3, 8.5]], // (on the line from the tee to the cup, before the road)
   },
 
   // ---- the pool party: slopes, and things that turn ----
@@ -309,11 +311,13 @@ export const HOLES = [
     ],
     ground: [{ t: 'ramp', from: [5.5, 8.6], to: [5.5, 5.6], h: 0.5 }],
     props: [{ t: 'watch', id: 'dog_shiba', at: [3.3, -1.25] }, { t: 'obj', id: 'beach_ball', at: [1.8, 0], s: 1.0 }],
-    coins: [[4.4, 7]],
+    coins: [[5, 7.5]], // (on the line up the ramp to the corner)
   },
   {
-    // (two ways round a little pool in the middle, a mound across each, a coin on its top: no straight
-    // line from the tee to the cup, so it takes a putt round and a putt in; the cup's bowl only shallow)
+    // (two ways round a little pool in the middle, a mound across each: no straight line from the tee to
+    // the cup, so it takes a putt round and a putt in; the cup's bowl only shallow. One coin, on the way
+    // round the right-hand mound, where a good first putt goes: a coin on each mound's top took a putt
+    // of its own each)
     name: '小土包', tip: '土包会把球拐开，绕过去或冲过去', par: 3,
     map: [
       '.........',
@@ -335,7 +339,7 @@ export const HOLES = [
       { t: 'hill', at: [4, 1], r: 1.2, h: -0.08 },
     ],
     props: [{ t: 'obj', id: 'garden_gnome', at: [8.2, -0.1], rot: -30, s: 1.2 }],
-    coins: 'tops',
+    coins: [[6.5, 8]],
   },
   {
     name: '风车', tip: '穿过风车，或从旁边绕', par: 3,
@@ -386,10 +390,10 @@ export const HOLES = [
       { t: 'obj', id: 'lawn_flamingo', at: [5.2, 2.6], rot: 20, s: 1 },
       { t: 'tires', corner: [10.5, -0.5], leg: 2, tag: false },
     ],
-    coins: [[8.5, 6]],
+    coins: [[9, 7]], // (on the way up the tee's leg to the tyres)
   },
   {
-    name: '洒水器', tip: '转臂会把球扫开，看准空当', par: 3,
+    name: '洒水器', tip: '看准空当再打', par: 3,
     // (an S: up the tee's leg, left along the middle, up the cup's leg. A sprinkler in each bend's outer
     // corner, turning opposite ways: they sweep a ball that runs on too far, not one that takes the bend
     // on the inside; the coin lies on that line, in the middle. No tee shot reaches the cup, so a shallow
@@ -415,10 +419,10 @@ export const HOLES = [
       { t: 'spinner', at: [8.2, 4.8], len: 2, speed: 1.0 },
       { t: 'spinner', at: [1.2, 6.4], len: 2, speed: -1.0, phase: 0.5 }, // (its arm's ends 0.1 m short of the near rail, not through it)
     ],
-    coins: [[4.5, 5.5]],
+    coins: [[3.5, 4.5]],
   },
   {
-    name: '割草机', tip: '割草机会撞开球，等它开过去', par: 4,
+    name: '割草机', tip: '等割草机开过去', par: 4,
     // (a U round the pool's inlet: up the tee's leg, across the top, down to the cup. One mower crosses
     // the top, where every ball goes by, flicking a ball that lies in its way off to the side; the other two
     // mow up and down the legs by their outer rails, flicking a ball that lies in their way back into the
@@ -466,7 +470,7 @@ export const HOLES = [
     ],
     ground: [{ t: 'hill', at: [5, 3.1], r: 3.2, h: -0.5 }, { t: 'hill', at: [5, 7.8], r: 1.1, h: 0.22 }],
     props: [{ t: 'obj', id: 'beach_ball', at: [1, 9.5], s: 1.2 }, { t: 'obj', id: 'beach_ball', at: [9.2, 8.8], s: 1.2 }],
-    coins: [[2.6, 3.1], [7.4, 3.1]],
+    coins: [[5, 5.5]], // (on the line from the tee to the cup, past the mound)
   },
   {
     name: '过山车', tip: '冲上坡顶，再拐弯进洞', par: 3,

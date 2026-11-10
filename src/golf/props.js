@@ -307,7 +307,7 @@ const MAKERS = {
     const face = d.face == null ? Math.PI : d.face * D;
     let x = home.x, z = home.z, yaw = face, cd = 0, peck = 0, walk = 0, honkCd = 0, t = Math.random() * 5, rest = 0, nosed = -1;
     const me = {
-      cols: [col], tag: tag(ctx, mode === 'chase' ? '会追着啄球' : '会追着拱球', id, K, () => [x, course.Y(x, z), z]),
+      cols: [col], tag: tag(ctx, mode === 'chase' ? '会追着啄球' : '会拱走停下的球', id, K, () => [x, course.Y(x, z), z]),
       hit(speed) { if (honkCd <= 0 && speed > 0.5) { say(ctx, call); honkCd = 1; } },
       update(dt, ball, game) {
         t += dt; cd -= dt; peck -= dt; honkCd -= dt;
