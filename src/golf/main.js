@@ -420,7 +420,7 @@ async function wake() {
 }
 
 // ---- the ball and the aiming guide -----------------------------------------------------------------
-let ballG, ballSpin, ghost, ballRim, trail, arrow, arrowMat, dots, ring;
+let ballG, ballSpin, ghost, ballRim, trail, arrow, arrowMat, dots, ring, ringBack;
 function makeBall(sc) {
   ballG = new THREE.Group();
   ballSpin = golfBall(BALL_R);
@@ -474,6 +474,14 @@ function makeAim(sc) {
   sc.add(dots);
   ring = new THREE.Mesh(new THREE.RingGeometry(BALL_R * 1.6, BALL_R * 1.9, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }));
   sc.add(ring);
+  // and, as the ball's ghost (makeBall), a fainter copy of it drawn only where something stands in front
+  // (a windmill): the ball is never lost behind it, nor where it is waiting to be hit. Only while the ball is
+  // behind one (not through the tee's mat, which hides the ring there on every hole: step); drawn before the
+  // ball, so not over it
+  ringBack = new THREE.Mesh(ring.geometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, depthWrite: false, depthFunc: THREE.GreaterDepth }));
+  ringBack.renderOrder = -1;
+  ringBack.visible = false;
+  ring.add(ringBack);
   showAim(false);
 }
 function showAim(on) {
@@ -1539,6 +1547,8 @@ function step(dt, draw = true) {
   ring.position.set(b.x, 0.012 + lift + ground(b.x, b.z), b.z);
   ring.quaternion.setFromUnitVectors(UP, upAt(b.x, b.z, tmpV));
   ring.material.opacity = 0.45 + Math.sin(G.t * 4) * 0.25;
+  ringBack.material.opacity = ring.material.opacity * 0.6;
+  ringBack.visible = ghost.visible && ring.visible && G.props.some(p => p.tall && hides(p.tall, tmpV.set(b.x, ground(b.x, b.z), b.z)));
   if (G.aim && G.state === 'aim') drawAim();
   fx.update(dt);
   if (draw) render();
