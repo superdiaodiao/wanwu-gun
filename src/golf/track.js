@@ -12,15 +12,19 @@
 //   retry   h<n>: hole n begun again
 //   done    h<n>/ace|under|par|over|skip|let-off, then /normal or /hard when not played easy (value:
 //           strokes)
-//   level   easy|normal|hard: the difficulty changed in the menu
+//   level   easy|normal|hard: the difficulty changed
 //   tip     row: the very first card's row of the three difficulties shown; under|yard: the card offered a
 //           harder difficulty, at the easy one (after a hole under par from hole 4 on, once a visit on the
 //           first three visits; on the yard's page after a yard all but swept); open: that offer tapped
 //           (it opens the difficulty's page)
+//   easier  show: the card offered the easy difficulty, at a harder one (a hole skipped or let off, once a
+//           visit); pick: that offer tapped (it changes to easy at once, with level/easy and lvpick/card)
 //   lvchip  open: the difficulty at the top right tapped (its page)
-//   lvpick  menu|map|chip|card: where a difficulty was picked (with level/<l> as before)
-//   map     hud|menu|card: the map of the yards opened from the stars at the top, the pause menu, or the
-//           yard's page
+//   lvpick  chip|card: where a difficulty was picked (with level/<l> as before): its page from the top
+//           right, or the card (its first row, its offers)
+//   map     pill|menu|card-hud: picking a hole opened from the yard at the top while playing, from the
+//           pause menu, or from the yard at the top while a card is up (till 11-10: hud|menu|card, the map
+//           of the yards from the stars at the top, the pause menu, the yard's page)
 //   medal   <yard>/bronze|silver|gold: a yard's medal won (bronze: every hole played; silver 18 ★; gold 27 ★)
 //   finale  every yard played through, the first time
 //   yard    <n>: yard n's whole round played

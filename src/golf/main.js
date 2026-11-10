@@ -8,10 +8,10 @@
 // how each looks: looks/), each yard a round: the best strokes for each hole and
 // for a whole round are kept, and a hole opens once the one before it is done; a yard opens once the
 // one before it has been played through (its last hole's card goes on to the yard's page: its medal,
-// bronze for playing it through, silver and gold for stars, and what opens next). The bars at the top
-// show the yard's holes as dots and its stars (tap: the map of the yards), and the difficulty (tap: pick
-// another). The menu (top left, or
-// Esc) pauses: start the hole again, sound and music, or pick a yard and a hole. On CrazyGames
+// bronze for playing it through, silver and gold for stars, and what opens next). The bar at the top,
+// always live (over the card and the menus too), shows the yard (its picture, name and holes as dots;
+// tap: pick a hole, in this yard or another) and the difficulty (tap: pick another). The menu (top left, or
+// Esc) pauses: start the hole again, pick a hole, sound and music. On CrazyGames
 // (node build.mjs golf-crazygames) their SDK hears when a hole is being played (game/portal.js).
 import * as THREE from 'three';
 import '../catalog/index.js';
@@ -99,13 +99,14 @@ const G = {
 // and the goose and the dog notice the ball nearer: props.js; the harder ones are as fast as the easy one
 // was, for moving things add luck, not skill). Each has its own stars, records and rounds; a hole opened at one is open at all of them.
 const LEVELS = {
-  easy: { name: '简单', note: '虚线一直画到第一次撞墙', guide: 7, capture: 3, pace: 0.75 },
-  normal: { name: '普通', note: '虚线只画一小段，进洞要轻一点', guide: 1.5, capture: 2.2, pace: 1 },
-  hard: { name: '困难', note: '没有虚线，只看箭头；进洞要很轻', guide: 0, capture: 1.6, pace: 1 },
+  easy: { name: '简单', guide: 7, capture: 3, pace: 0.75 },
+  normal: { name: '普通', guide: 1.5, capture: 2.2, pace: 1 },
+  hard: { name: '困难', guide: 0, capture: 1.6, pace: 1 },
 };
 const LEVEL_TIPS = 3; // (on how many visits a hole under par at the easy one says there are harder: see finish)
 let levelTold = false; // (and whether it has on this one)
 let rowShown = false; // (the first card's row of difficulties, once even where nothing can be stored)
+let easierTold = false; // ("too hard?" on a card at the harder ones: once a visit)
 /** a record's key at the difficulty being played (the easy one's as it always was) */
 const rec = (k, l = G.level) => (l === 'easy' ? k : `${k}.${l}`);
 /** play at this difficulty from now on: its records, its guide and its cup */
@@ -118,26 +119,27 @@ function useLevel(l) {
   for (let y = 0; y < YARDS.length; y++) G.rounds[y] = G.rounds[y] || [];
   recount();
 }
-/** the difficulty shown: lit wherever it is picked (the menu, the map, its own page, the card), with
- *  what it means, and named at the top right whichever it is */
+/** the difficulty shown: lit on its own page and on the first card's row, and named at the top right
+ *  whichever it is; its page says so when picking another would start the hole under way again */
 function showLevel() {
-  for (const b of document.querySelectorAll('#m-level button, #y-level button, #l-opts button, #card .levels button')) { const on = b.dataset.l === G.level; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
-  for (const id of ['m-level-note', 'y-level-note']) $(id).textContent = t(LEVELS[G.level].note);
+  for (const b of document.querySelectorAll('#l-opts button, #card .levels button')) { const on = b.dataset.l === G.level; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
   $('lv-name').textContent = t(LEVELS[G.level].name);
-  $('lv-chip').className = G.level;
+  for (const l in LEVELS) $('lv-chip').classList.toggle(l, l === G.level);
+  $('l-warn').hidden = !(G.strokes > 0 && G.state !== 'card');
 }
-/** play at difficulty l from now on, picked `where` (menu, map, chip, card) */
+/** play at difficulty l from now on, picked `where` (chip, card) */
 function pickLevel(l, where) {
   if (!LEVELS[l] || l === G.level) return;
   audio.tap();
   store.set('levelPicked', true); // (and so no more saying there are harder ones: see finish)
   // (the ball already in: the hole counts at the difficulty it was played at)
   if (G.state === 'sink') finish(true);
-  // (picked on a card, between holes: the yard's round so far goes on at the new difficulty, so a round
-  // begun at one, the difficulty changed on its first card, can still be played through)
-  const cy = yardOf(G.hole), carry = G.state === 'card' ? G.rounds[cy].slice() : null, pace = LEVELS[G.level].pace;
+  // (the yard's round so far goes on at the new difficulty, picked on a card or in the middle of a hole:
+  // a round begun at one can still be played through, to the yard's page)
+  const cy = yardOf(G.hole), carry = G.rounds[cy].slice(), pace = LEVELS[G.level].pace;
   useLevel(l);
-  if (carry) { G.rounds[cy] = carry; store.set(rec('rounds'), G.rounds); }
+  G.rounds[cy] = carry;
+  store.set(rec('rounds'), G.rounds);
   track('level', G.level);
   track('lvpick', where);
   showLevel();
@@ -229,7 +231,7 @@ async function boot() {
   // (the bars grow when the numbers' font arrives: what is placed under them moves down with them)
   if (window.ResizeObserver) {
     const ro = new ResizeObserver(() => { fitHud(); hudBottom(); placeLogo(); dropBanner(); });
-    for (const id of ['hole', 'score', 'stars', 'lv-chip']) ro.observe($(id));
+    for (const id of ['yard', 'score', 'lv-chip']) ro.observe($(id));
   }
   const cv = $('game');
   cv.addEventListener('pointerdown', onDown);
@@ -240,21 +242,18 @@ async function boot() {
   // (once each: a second tap, or Enter on a focused button as well as the key below, does nothing)
   $('card-btn').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); cardNext(); });
   $('card-retry').addEventListener('click', () => { if (G.state !== 'card' || G.paused || G.yardShown) return; audio.tap(); load(G.hole); });
-  $('card-holes').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); menu('holes'); });
-  $('card-map').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); track('map', 'card'); menu('map'); });
   // on the card: "too easy?" opens the difficulties; the first card has them in a row of its own
   $('card-best').addEventListener('click', e => {
     if (G.state !== 'card' || G.paused) return;
     const b = e.target.closest('.levels button');
     // (picked with a pointer, the pill lets the focus go: Enter and Space go on to the next hole again)
     if (b) { pickLevel(b.dataset.l, 'card'); if (e.detail) b.blur(); return; }
+    // ("too hard?": the easy one, at once)
+    if (e.target.closest('.easier')) { track('easier', 'pick'); pickLevel('easy', 'card'); return; }
     if (!e.target.closest('.harder')) return;
     audio.tap(); track('tip', 'open'); menu('level');
   });
   $('card-yard').addEventListener('click', e => { if (!e.target.closest('.harder') || G.state !== 'card' || G.paused) return; audio.tap(); track('tip', 'open'); menu('level'); });
-  // the bars at the top: the stars open the map of the yards, the difficulty its page
-  $('stars').addEventListener('click', () => { if (G.state === 'load' || G.paused) return; wake(); audio.tap(); track('map', 'hud'); menu('map'); });
-  $('lv-chip').addEventListener('click', () => { if (G.state === 'load' || G.paused) return; wake(); audio.tap(); track('lvchip', 'open'); menu('level'); });
   $('skip').addEventListener('click', () => { if (!canSkip()) return; audio.tap(); finish(false, true); });
   makeMenu();
   // (Enter and Space press a button that has the focus themselves; Cmd/Ctrl+R is the browser's)
@@ -263,10 +262,14 @@ async function boot() {
     // Esc (or P) opens the menu and backs out of it
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
       if (!G.paused) menu('main');
-      else back();
+      else unpause();
       return;
     }
-    if (G.paused || G.state !== 'card') return;
+    if (e.key === 'm' || e.key === 'M') return toggleSound();
+    if (G.paused) return;
+    // (R: the hole again, while aiming too once a stroke has been played)
+    if ((e.key === 'r' || e.key === 'R') && G.state === 'aim' && G.strokes > 0 && !dipping) return load(G.hole);
+    if (G.state !== 'card') return;
     // (a button keeps Enter for itself if it is on the card or was reached with Tab; one only clicked,
     // like the speaker, doesn't)
     const el = document.activeElement, onButton = el?.tagName === 'BUTTON' && ($('card').contains(el) || tabbed(el));
@@ -604,11 +607,7 @@ function showTags(list) {
 }
 /** where the bars at the top end */
 function hudBottom() {
-  // (the difficulty under the stars, at the right edge, is left out: the banner in the middle doesn't
-  // come down for it, and the tags keep off it as off the cup: placeTags)
-  const ids = ['hole', 'score', 'stars'];
-  if (!$('lv-chip').classList.contains('low')) ids.push('lv-chip');
-  tagTop = Math.max(...ids.map(id => $(id).getBoundingClientRect().bottom)) + 6;
+  tagTop = $('bar').getBoundingClientRect().bottom + 6;
 }
 function placeTags() {
   if (!tags.length) return;
@@ -632,7 +631,6 @@ function placeTags() {
   const coins = placed.slice(2), cup = placed[0], bare = { x: fx0, y: fy0, w: fx1 - fx0, h: fy1 - fy0 }, flag = { x: fx0 - 3, y: fy0 - 3, w: bare.w + 6, h: bare.h + 6 };
   placed.push(flag);
   const pin = { x0: Math.min(cup.x, flag.x), x1: Math.max(cup.x + cup.w, flag.x + flag.w) }; // (the cup and its flag, side to side)
-  if ($('lv-chip').classList.contains('low')) { const r = $('lv-chip').getBoundingClientRect(); placed.push({ x: r.left - 4, y: r.top - 4, w: r.width + 8, h: r.height + 8 }); }
   for (const tg of tags) {
     tagV.set(...tg.at()).project(engine.camera);
     // kept on the screen and off the bars at the top: a thing near an edge has its tag pushed in, one
@@ -700,18 +698,28 @@ function placeTags() {
   }
 }
 
-// ---- the menu: paused, the map of the yards, a yard's holes, or the difficulty ---------------------------
-let menuFrom = 'main'; // (the page it was opened at: Back goes up to it, or closes it)
+// ---- the menu: paused, picking a hole, or the difficulty ---------------------------------------------------
+let menuPage = ''; // (the page up: main, pick or level)
 const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>';
+const LOCK_S = LOCK.replace('<svg', '<svg class="lk"');
+/** a button of the bar pressed: its page comes up, or goes if it is the one up (true: it came up) */
+function toggle(page) {
+  if (G.state === 'load' || dipping) return false;
+  wake();
+  audio.tap();
+  if (G.paused && menuPage === page) { unpause(); return false; }
+  menu(page);
+  return true;
+}
 function makeMenu() {
-  $('menu-btn').addEventListener('click', () => { if (G.state === 'load' || G.paused) return; wake(); audio.tap(); menu('main'); });
+  // the bar at the top: pause, the yard (pick a hole), the difficulty (its page)
+  $('menu-btn').addEventListener('click', () => toggle('main'));
+  $('yard').addEventListener('click', () => { if (toggle('pick')) track('map', G.state === 'card' ? 'card-hud' : 'pill'); });
+  $('lv-chip').addEventListener('click', () => { if (toggle('level')) track('lvchip', 'open'); });
   $('m-resume').addEventListener('click', () => { audio.tap(); unpause(); });
   $('m-restart').addEventListener('click', () => { audio.tap(); load(G.hole); });
-  $('m-holes').addEventListener('click', () => { audio.tap(); track('map', 'menu'); menu('map'); });
-  $('m-level').addEventListener('click', e => { const b = e.target.closest('button'); if (b) pickLevel(b.dataset.l, 'menu'); });
-  // (the map stays up, unless the hole under way starts again: its best rounds are the new difficulty's)
-  $('y-level').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; pickLevel(b.dataset.l, 'map'); if (G.paused && !$('menu-map').hidden) mapPage(); });
-  // (its own page, from the top right or the card: picked, it closes; the one already played, too)
+  $('m-holes').addEventListener('click', () => { audio.tap(); track('map', 'menu'); menu('pick'); });
+  // (the difficulty's page, from the top right or the card: picked, it closes; the one already played, too)
   $('l-opts').addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -719,16 +727,16 @@ function makeMenu() {
     else pickLevel(b.dataset.l, G.state === 'card' ? 'card' : 'chip');
     if (G.paused) unpause();
   });
-  for (const id of ['h-back', 'y-back', 'l-back']) $(id).addEventListener('click', () => { audio.tap(); back(); });
-  $('menu').addEventListener('click', e => { if (e.target === $('menu')) back(); }); // (around the panel)
-  // (a yard on the map: its holes, if it is open)
-  $('yard-list').addEventListener('click', e => {
-    const c = e.target.closest('.yd');
+  for (const id of ['pick-x', 'l-x']) $(id).addEventListener('click', () => { audio.tap(); unpause(); });
+  $('menu').addEventListener('click', e => { if (e.target === $('menu')) unpause(); }); // (around the panel)
+  // (a yard's tab: its holes; one not open yet shakes, and the line says what opens it)
+  $('pick-tabs').addEventListener('click', e => {
+    const c = e.target.closest('.tab');
     if (!c) return;
     const y = +c.dataset.y;
-    if (!yardOpen(y)) { c.classList.remove('no'); void c.offsetWidth; c.classList.add('no'); audio.wall(0.3); return; }
+    pickPage(y);
+    if (!yardOpen(y)) { $('pick-tabs').children[y].classList.add('no'); audio.wall(0.3); return; }
     audio.tap();
-    menu('holes', y);
     warm(YARDS[y].look, 300); // (its shaders, while a hole is being picked)
   });
   $('hole-grid').addEventListener('click', e => {
@@ -737,76 +745,78 @@ function makeMenu() {
     const i = +tile.dataset.i;
     if (!opened(i)) { tile.classList.remove('no'); void tile.offsetWidth; tile.classList.add('no'); audio.wall(0.3); return; }
     audio.tap();
+    // (the hole being played: on with it as it stands, its strokes kept)
+    if (i === G.hole && G.state !== 'card') return unpause();
     unpause(); // (first: nothing in the menu can be pressed while the hole fades)
+    // (a yard's first hole starts a new round of it: said over the hole, if it isn't the yard's first)
+    if (i % PER === 0 && played(i)) G.welcome = t('新一轮 · {yard}', { yard: t(YARDS[yardOf(i)].name) });
     dip(() => load(i, i % PER === 0));
   });
 }
-let shownYard = 0;
-/** the map: every yard, with its holes as dots, its stars and medal, or what opens it (its best round is
- *  on its own page); how far along the whole of it is; and the difficulty */
-function mapPage() {
-  $('y-stars').textContent = `${starsAll()}/${HOLES.length * 3}`;
-  $('y-played').textContent = t('已打 {n}/{all} 洞', { n: playedCount(), all: HOLES.length });
-  $('yard-list').innerHTML = YARDS.map((yd, y) => {
-    const L = lookDef(yd.look), sky = `<span class="sky" style="background: ${L.card}">${L.icon}<b>${t(yd.name)}</b>${yardOpen(y) ? medal(medalOf(y)) : ''}</span>`;
-    if (!yardOpen(y)) return `<button class="yd locked" data-y="${y}" aria-label="${t(yd.name)} · ${t('打完{yard}开放', { yard: t(YARDS[y - 1].name) })}">${sky}`
-      + `<span class="lk">${LOCK}${t('打完{yard}开放', { yard: t(YARDS[y - 1].name) })}</span></button>`;
-    return `<button class="yd${y === G.yard ? ' cur' : ''}" data-y="${y}">${sky}${dotsOf(y)}`
-      + `<span class="ys"><i>★</i>${starsIn(y)}/${PER * 3}</span></button>`;
+/** picking a hole, one page: the yards as tabs (yard y's lit: its sky, picture and name, its medal once
+ *  won, a lock till it opens), a line on how that yard stands (its stars and what is left to do, or what
+ *  opens it), and its holes */
+function pickPage(y) {
+  $('pick-tabs').innerHTML = YARDS.map((yd, k) => {
+    const L = lookDef(yd.look), open = yardOpen(k), m = medalOf(k);
+    return `<button class="tab${k === y ? ' on' : ''}${open ? '' : ' locked'}" role="tab" aria-selected="${k === y}" data-y="${k}">`
+      + `<span class="sky" style="background: ${L.card}">${L.icon}<b>${t(yd.name)}</b></span>${!open ? LOCK_S : m ? medal(m) : ''}</button>`;
   }).join('');
-  showLevel();
-}
-/** a yard's page: its holes, and its round so far */
-function holesPage() {
-  const y = shownYard;
-  $('h-title').textContent = t(YARDS[y].name);
+  const m = medalOf(y);
+  $('pick-line').innerHTML = yardOpen(y)
+    ? `${m ? medal(m) : ''}<span class="ys"><i>★</i>${starsIn(y)}/${PER * 3}</span><span>${goal(y)}</span>`
+    : `${LOCK_S}<span>${t('打完{yard}开放', { yard: t(YARDS[y - 1].name) })}</span>`;
   $('hole-grid').innerHTML = holeGrid(y);
-  $('h-stars').textContent = `${starsIn(y)}/${PER * 3}`;
-  $('h-round').innerHTML = G.rounds[y].some(s => s != null) ? `<div class="lbl">${t('这一轮')}</div>${scorecard(y)}` : '';
 }
-const PAGES = ['main', 'map', 'holes', 'level'];
-/** pause and show one of the menu's pages (the holes: of yard y, the one played unless said) */
+const PAGES = ['main', 'pick', 'level'];
+/** pause and show one of the menu's pages (picking a hole: yard y's tab, the one played unless said).
+ *  The bar stays live over it: what opened a page closes it, and lights up while it is up */
 function menu(page, y = G.yard) {
   if (!G.paused) {
     G.paused = true;
-    menuFrom = page;
     G.aim = null;
     showAim(false);
     $('menu').hidden = false;
-    $('hud').inert = $('card').inert = true; // (Tab stays in the menu)
+    $('hud').inert = $('card').inert = true; // (Tab stays in the menu and the bar)
   }
+  menuPage = page;
   for (const p of PAGES) $('menu-' + p).hidden = page !== p;
-  if (page === 'map') mapPage();
-  if (page === 'holes') { shownYard = y; holesPage(); }
+  $('menu').className = page === 'main' ? '' : page === 'level' ? 'hang lv' : 'hang';
+  for (const [id, p] of [['yard', 'pick'], ['lv-chip', 'level']]) { $(id).classList.toggle('open', page === p); $(id).setAttribute('aria-expanded', page === p); }
+  // (over a card or a yard's page there is no hole under way to start again: the card has its own button)
+  if (page === 'main') $('m-restart').hidden = G.state === 'card';
+  if (page === 'pick') pickPage(y);
   if (page === 'level') showLevel();
-  // (for the keys: Enter presses the first button)
-  const first = { main: () => $('m-resume'), map: () => $('yard-list').querySelector('.cur') || $('y-back'), holes: () => $('hole-grid').querySelector('.cur') || $('h-back'), level: () => $('l-opts').querySelector('.on') };
+  // (for the keys: Enter presses the first button; picking a hole, the one to go on with)
+  const first = { main: () => $('m-resume'), pick: () => $('hole-grid').querySelector('.nx') || $('pick-tabs').querySelector('.on'), level: () => $('l-opts').querySelector('.on') };
   first[page]().focus({ preventScroll: true });
-}
-/** back a page: from a yard's holes to the map, from the map to the main page when it was opened from
- *  there; otherwise out of the menu */
-function back() {
-  if (!$('menu-holes').hidden) menu('map');
-  else if (menuFrom === 'main' && $('menu-main').hidden) menu('main');
-  else unpause();
 }
 function unpause() {
   G.paused = false;
+  menuPage = '';
   $('menu').hidden = true;
   $('hud').inert = $('card').inert = false;
+  for (const id of ['yard', 'lv-chip']) { $(id).classList.remove('open'); $(id).setAttribute('aria-expanded', false); }
   document.activeElement?.blur?.();
 }
 
-/** a yard's holes, each with its stars and its fewest strokes; those not reached yet locked */
+/** a yard's first hole not played yet (-1: all of it has been) */
+const firstNew = y => inYard(y, i => i).find(i => !played(i)) ?? -1;
+/** a yard's holes, each with its stars and its fewest strokes at any difficulty (as the stars are
+ *  counted, so changing the difficulty hides nothing; "skipped" for one let off); those not reached yet
+ *  locked; and the one to go on with ringed: in the yard being played the hole on screen (once its card
+ *  is up, the first not played yet), in another its first not played yet */
 function holeGrid(y) {
-  const fewest = store.get(rec('strokes'), []);
+  const fewest = Object.keys(LEVELS).map(l => store.get(rec('strokes', l), []));
+  const go = y === G.yard && G.state !== 'card' ? G.hole : firstNew(y);
   return HOLES.slice(y * PER, y * PER + PER).map((h, k) => {
-    const i = y * PER + k, cls = 'tile' + (i === G.hole ? ' cur' : '');
-    if (!opened(i)) return `<button class="${cls} locked" data-i="${i}" aria-label="${t('第 {n} 洞', { n: i + 1 })} · ${t('还没打到这洞')}"><b>${i + 1}</b>${LOCK}</button>`;
-    const st = G.any[i] || 0;
-    return `<button class="${cls}" data-i="${i}"><b>${i + 1}</b><span class="nm">${t(h.name)}</span>`
+    const i = y * PER + k, n = t('第 {n} 洞', { n: i + 1 });
+    if (!opened(i)) return `<button class="tile locked" data-i="${i}" aria-label="${n} · ${t('还没打到这洞')}"><b>${i + 1}</b>${LOCK}</button>`;
+    const st = G.any[i] || 0, best = Math.min(...fewest.map(f => f[i] || Infinity));
+    return `<button class="tile${i === go ? ' nx' : ''}" data-i="${i}" aria-label="${n}"><b>${i + 1}</b>`
       + `<span class="ss">${[0, 1, 2].map(k => `<i${k < st ? ' class="on"' : ''}>★</i>`).join('')}</span>`
-      + `<span class="bs">${fewest[i] ? t('最好 {n} 杆', { n: fewest[i] }) : t('标准 {n}', { n: h.par })}</span></button>`;
+      + (i === go ? `<span class="bs">${t('▶ 接着打')}</span>` : best < Infinity ? `<span class="bs">${t('最好 {n} 杆', { n: best })}</span>`
+        : played(i) ? `<span class="bs skip">${t('跳过')}</span>` : `<span class="bs">${t('标准 {n}', { n: h.par })}</span>`) + '</button>';
   }).join('');
 }
 
@@ -828,19 +838,31 @@ function scorecard(y) {
 /** a hole that has taken par + 3 offers to be let off (counting the strokes it took) */
 const canSkip = () => G.state === 'aim' && !G.paused && G.strokes >= HOLES[G.hole].par + SKIP;
 
-/** on to the next hole; after a yard's last, the next yard's first (after the last yard's, the map) */
-function next() {
-  const i = G.hole + 1;
-  if (i % PER) dip(() => load(i));
-  else if (i < HOLES.length && yardOpen(yardOf(i))) dip(() => load(i, true));
-  else { track('map', 'card'); menu('map'); }
+/** into yard y: on with it at its first hole not played yet, its round as it stands; one not begun, or
+ *  played through, from its first hole, a new round */
+function goYard(y) {
+  const i = firstNew(y);
+  if (i < 0 || i % PER === 0) load(y * PER, true);
+  else load(i);
 }
-/** the card's main button: the yard's page after its last hole, from there the next yard (or the map
- *  after the last), else the next hole */
+/** after a yard's last hole: what the big button says and where it goes. The next yard; after the
+ *  last one (or from the whole neighbourhood's page, `fin`), a yard not played through yet, then the
+ *  first one short of gold for another round of it, then the first hole of all */
+function onward(fin = false) {
+  const y = yardOf(G.hole), to = k => t('去{yard}', { yard: t(YARDS[k].name) }) + ' ›';
+  if (!fin && y + 1 < YARDS.length && yardOpen(y + 1)) return { text: to(y + 1), go: () => goYard(y + 1) };
+  const todo = YARDS.findIndex((yd, k) => yardOpen(k) && !yardDone(k));
+  if (todo >= 0) return { text: to(todo), go: () => goYard(todo) };
+  const w = YARDS.findIndex((yd, k) => medalOf(k) < 3);
+  if (w < 0) return { text: t('从第 1 洞再打') + ' ›', go: () => load(0, true) };
+  return { text: w === y ? t('再打一轮') + ' ›' : to(w), go: () => load(w * PER, true) };
+}
+/** the card's main button: the yard's page after its last hole, from there (or from the last hole's
+ *  card when there is no page) on to another yard, else the next hole */
 function cardNext() {
   if (G.yardPage) return showYard();
-  if (G.yardShown) { const y = yardOf(G.hole); if (y + 1 < YARDS.length) dip(() => load((y + 1) * PER, true)); else { track('map', 'card'); menu('map'); } return; }
-  next();
+  const i = G.hole + 1;
+  dip(G.yardShown || i % PER === 0 ? onward(G.yardShown === 'fin').go : () => load(i));
 }
 
 // ---- from one hole to another, by the card or the holes: a short fade, and the camera moving in ------
@@ -918,51 +940,40 @@ function camDone() {
   camMove = null;
 }
 
+let hudYard = -1;
 function hud() {
   const hole = HOLES[G.hole];
-  // (numbered through all the yards: from the first hole on, there are more than nine to play; and the
-  // yard's holes as dots, this one ringed, with the yard's stars at the right)
-  $('hole-num').textContent = t('{n}/{all} 洞', { n: G.hole + 1, all: HOLES.length });
-  $('hole-name').textContent = t(hole.name);
-  $('hole-dots').innerHTML = dotsOf(G.yard, G.hole);
+  // (where you are: the yard's picture on its sky and its name, and its holes as dots, this one ringed)
+  if (hudYard !== G.yard) {
+    const L = lookDef(YARDS[G.yard].look);
+    hudYard = G.yard;
+    $('yard-ic').innerHTML = L.icon;
+    $('yard-ic').style.background = L.card;
+    $('yard-name').textContent = t(YARDS[G.yard].name);
+  }
+  $('yard-dots').innerHTML = dotsOf(G.yard, G.hole);
   $('strokes-num').textContent = G.strokes;
   $('par').textContent = t('标准 {n}', { n: hole.par });
   $('sweets-num').textContent = `${G.got}/${G.sweets.length}`;
   $('score').classList.toggle('nocoin', !G.sweets.length); // (a hole with none: no count of them)
-  $('stars-yard').textContent = t(YARDS[G.yard].name);
-  $('stars-num').textContent = `${starsIn(G.yard)}/${PER * 3}`;
   fitHud();
 }
-/** the bars at the top made to fit (measured afresh each time, so they end up the same size): on a wide
- *  screen the difficulty stands left of the stars, and where they would run into the strokes in the
- *  middle, first the yard's name by the stars goes, then the difficulty's name (its dot stays), then it
- *  goes under the stars; on a narrow one it is at the top right, the stars under it. And where the hole's
- *  bar would run into the strokes or the difficulty, first the hole's name goes, then (narrow) the
- *  difficulty's name, then the yard's name by the stars, then the hole's dots */
+/** the bar at the top made to fit (measured afresh each time, so it ends up the same): one row on a wide
+ *  screen; on a phone held upright two, pause and the yard over the strokes and the difficulty. What
+ *  doesn't fit in a row gives way in this order: the yard's dots get smaller, the strokes and the
+ *  difficulty sit closer, the words by the strokes
+ *  and coins go (the numbers stay), the difficulty's name goes (its dot and arrow stay), the yard's dots
+ *  go. Never the yard's picture or name. And where the bar ends is told to the card and the menus, which
+ *  sit under it (--hud-b) */
 function fitHud() {
-  const hole = $('hole'), stars = $('stars'), chip = $('lv-chip'), score = $('score');
-  hole.classList.remove('tight', 'tighter');
-  stars.classList.remove('tight');
-  chip.classList.remove('tight', 'low');
-  // (8 px apart; the hole's bar and what is beside it, 5: a little slack, so a pixel's change in a number
-  // doesn't take the hole's dots away)
-  const hits = (a, b, gap = 8) => {
-    const r = a.getBoundingClientRect(), s = b.getBoundingClientRect();
-    return !!(r.width && s.width) && s.top < r.bottom && s.bottom > r.top && r.right + gap > s.left && s.right + gap > r.left;
-  };
-  const wide = innerWidth > 560, beside = () => { chip.style.right = wide && !chip.classList.contains('low') ? `${14 + stars.offsetWidth + 8}px` : ''; };
-  beside();
-  if (wide) for (const step of [() => stars.classList.add('tight'), () => chip.classList.add('tight'), () => chip.classList.add('low')]) {
-    if (!hits(score, chip) && !hits(score, stars)) break;
-    step();
-    beside();
-  }
-  // (the difficulty's name on a narrow screen, and the yard's name by the stars, go before the hole's
-  // dots do: the dots are how far along the yard is)
-  for (const step of [() => hole.classList.add('tight'), () => !wide && chip.classList.add('tight'), () => { stars.classList.add('tight'); beside(); }, () => hole.classList.add('tighter')]) {
-    if (!hits(hole, score, 5) && !hits(hole, chip, 5)) break;
-    step();
-  }
+  const bar = $('bar'), wide = innerWidth > 560;
+  bar.className = '';
+  $('yard').style.flex = 'none'; // (measured at its full width, its name not cut short)
+  const rows = wide ? [['menu-btn', 'yard', 'score', 'lv-chip']] : [['menu-btn', 'yard'], ['score', 'lv-chip']];
+  const over = ids => ids.reduce((a, id) => a + $(id).getBoundingClientRect().width, 8 * (ids.length - 1)) > bar.getBoundingClientRect().width;
+  for (const [cls, k] of [['dots-small', 0], ['snug', 1], ['score-bare', 1], ['chip-bare', 1], ['no-dots', 0]]) if (over(rows[wide ? 0 : k])) bar.classList.add(cls);
+  $('yard').style.flex = '';
+  document.documentElement.style.setProperty('--hud-b', Math.round(bar.getBoundingClientRect().bottom) + 'px');
 }
 
 /** the banner with the game's name hangs just under the bars at the top */
@@ -1435,7 +1446,8 @@ const cardTimers = [];
 
 /** the card between holes: the result in a big word (HOLE IN ONE!, BIRDIE!, PAR, BOGEY…), the
  *  three stars popping in one by one — one for sinking it, one for par or better, one for every coin
- *  or for beating par (so a hole in one always has all three) — what would earn the next, the
+ *  or for beating par (so a hole in one always has all three; named for the coins where the hole has
+ *  any, unless it was the birdie that earned it) — what would earn the next, the
  *  records, and Retry / Next */
 function finish(sunk, skipped = false) {
   if (G.state === 'card') return;
@@ -1453,7 +1465,6 @@ function finish(sunk, skipped = false) {
   // (a hole with no coins on it: the third star is for a birdie)
   const on = [sunk, sunk && d <= 0, sunk && (d < 0 || (all > 0 && G.got >= all))];
   const stars = on.filter(Boolean).length;
-  const starsWas = starsIn(y); // (the top bar's total: it goes up once the card's stars have popped in)
   G.best[G.hole] = Math.max(G.best[G.hole] || 0, stars);
   store.set(rec('best'), G.best);
   recount();
@@ -1469,7 +1480,7 @@ function finish(sunk, skipped = false) {
   // the stars come in one after another, each with a note higher than the last; all three, a fanfare
   // and confetti from both corners
   const at = i => 0.3 + i * 0.32;
-  $('card-stars').innerHTML = ['进洞', '标准杆内', all ? '金币全捡或小鸟球' : '小鸟球'].map((c, i) =>
+  $('card-stars').innerHTML = ['进洞', '标准杆内', all && !(sunk && d < 0 && G.got < all) ? '金币全捡' : '小鸟球'].map((c, i) =>
     `<span class="st${on[i] ? ' on' : ''}" style="--d:${at(i)}s"><i>★</i>${on[i] ? '<b>★</b>' : ''}<small>${t(c)}</small></span>`).join('');
   let n = 0;
   on.forEach((o, i) => { if (o) { const k = ++n; cardTimers.push(setTimeout(() => audio.sweet(k), at(i) * 1000 + 120)); } });
@@ -1523,9 +1534,7 @@ function finish(sunk, skipped = false) {
   const kept = lastHole && G.yardPage?.y === y ? G.yardPage : null;
   G.yardPage = lastHole && (roundDone || !wasDone) && yardDone(y) ? { y, roundLine, card: roundDone ? scorecard(y) : '', had, opens, fin } : kept;
   if (m > had && !G.yardPage) lines.push(`${medal(m, ' small')}<b>${t('新奖牌！')}</b> ${t('{yard}{medal}', { yard: t(YARDS[y].name), medal: t(MEDALS[m]) })}`);
-  const nx = YARDS[y + 1];
-  $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : !lastHole ? t('下一洞') : nx && yardOpen(y + 1) ? t('去{yard}', { yard: t(nx.name) }) : t('回到地图');
-  $('card-map').hidden = true;
+  $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : !lastHole ? t('下一洞') : onward().text;
   // the difficulty: on the very first card, the three in a row (the one played lit); afterwards at the
   // easy one, there are harder ones (a tap opens them): said after a hole under par (from hole 4 on)
   // once a visit for the first few visits, until a difficulty is picked
@@ -1543,19 +1552,22 @@ function finish(sunk, skipped = false) {
     levelTold = true;
     store.set('levelTips', told + 1);
     track('tip', 'under');
+  } else if (G.level !== 'easy' && !sunk && !easierTold) {
+    // (at a harder one, a hole skipped or let off: the easy one is a tap away, said once a visit)
+    lines.push(`<button class="harder easier" type="button">${t('太难？换成简单')}</button>`);
+    easierTold = true;
+    track('easier', 'show');
   }
   $('card-best').innerHTML = lines.map(l => `<div>${l}</div>`).join('');
   $('card-best').hidden = !lines.length;
   showLevel();
   hud();
-  $('stars-num').textContent = `${starsWas}/${PER * 3}`;
-  cardTimers.push(setTimeout(hud, at(2) * 1000 + 120));
   $('card').hidden = false;
   // (after a yard's last hole, the next yard's look has its shaders compiled while the card is up, so
   // its first hole doesn't stop to)
   if (lastHole && YARDS[y + 1]) warm(YARDS[y + 1].look);
 }
-// (and so is a yard's when its holes are opened on the map, and the next yard's when there is a moment
+// (and so is a yard's when its tab is opened to pick a hole, and the next yard's when there is a moment
 // to spare: from the start if it is open, else on this yard's last two holes. Not the yard being played
 // by then: its hole on screen has its shaders already)
 const warmed = new Set();
@@ -1570,16 +1582,15 @@ const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout
 
 /** a yard's page, after its last hole: its name, the medal (dropping in, and said if it is new), its
  *  stars and the round with its scorecard, then this visit's and the whole neighbourhood's count, what
- *  the next medal takes, what has opened; on to the next yard, or the map. After the last yard with
+ *  the next medal takes, what has opened; one big button on to the next yard (onward). After the last yard with
  *  every one played through, the whole neighbourhood's page: done, every yard's medal in a row, and
  *  how many holes and stars in all */
 function showYard() {
   const p = G.yardPage, y = p.y, name = t(YARDS[y].name), m = medalOf(y), nx = YARDS[y + 1], all = YARDS.every((yd, k) => yardDone(k));
   const fin = p.fin || (!nx && all);
   G.yardPage = null;
-  G.yardShown = true;
+  G.yardShown = fin ? 'fin' : true;
   for (const k of cardTimers.splice(0)) clearTimeout(k);
-  hud(); // (the top bar's star total, if the card's stars were skipped past)
   $('card').classList.add('yd-page');
   $('card-title').textContent = fin ? t('整个街区通关！') : t('{yard}通关！', { yard: name });
   $('card-title').className = 'title under' + (fin ? ' long' : '');
@@ -1591,10 +1602,11 @@ function showYard() {
   if (fin) lines.push(`<span class="fin">${t('已打 {n}/{all} 洞', { n: playedCount(), all: HOLES.length })} · ★ ${starsAll()}/${HOLES.length * 3}</span>`);
   else {
     if (G.visit.holes > 0) {
-      if (holes > 0) lines.push(pl('这次：+{n} 洞 · +{k} ★', holes, { k: stars })); // (pl's {s} is the plural)
-      else if (stars > 0) lines.push(t('这次：+{s} ★', { s: stars }));
+      if (holes > 0) lines.push(`<span class="visit">${pl('这次：+{n} 洞 · +{k} ★', holes, { k: stars })}</span>`); // (pl's {s} is the plural)
+      else if (stars > 0) lines.push(`<span class="visit">${t('这次：+{s} ★', { s: stars })}</span>`);
     }
-    lines.push(t('整个街区：{n}/{all} 洞 · ★ {s}/{S}', { n: playedCount(), all: HOLES.length, s: starsAll(), S: HOLES.length * 3 }));
+    // (left out on a short screen, so the goal under it stays in sight over the button: golf.css)
+    lines.push(`<span class="whole">${t('整个街区：{n}/{all} 洞 · ★ {s}/{S}', { n: playedCount(), all: HOLES.length, s: starsAll(), S: HOLES.length * 3 })}</span>`);
   }
   if (m < 3) lines.push(`<span class="goal">${goal(y)}</span>`);
   // (a yard all but swept at the easy difficulty: there are harder ones)
@@ -1606,8 +1618,7 @@ function showYard() {
     + `<div class="sum"><i>★</i> ${starsIn(y)}/${PER * 3}${p.roundLine ? ' · ' + p.roundLine : ''}</div>`
     + p.card
     + `<div class="lines">${lines.map(l => `<div>${l}</div>`).join('')}</div>`;
-  $('card-btn').textContent = nx ? t('去{yard}', { yard: t(nx.name) }) + ' ›' : t('回到地图');
-  $('card-map').hidden = !nx;
+  $('card-btn').textContent = onward(fin).text;
   $('card').classList.remove('again');
   // (a fanfare and confetti for it, a new medal or not)
   audio.fanfare();

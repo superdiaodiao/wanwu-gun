@@ -22,4 +22,20 @@ export const EN = {
   '洞在碗底再过去一点': 'The cup sits just past the bottom',
   '冲上坡顶，再拐弯进洞': 'Up over the top, then turn to the cup',
   '直直穿过大风车': 'Straight through the big windmill',
+  // (the card's third star on a hole with coins; with none, or won by a birdie, it says Birdie)
+  '金币全捡': 'All coins',
+  // (the difficulty's page: what each one means, and what picking another does to a hole under way)
+  '长瞄准线': 'Long aim line',
+  '短瞄准线': 'Short aim line',
+  '没有瞄准线': 'No aim line',
+  '换了会重打这洞': 'This hole restarts',
+  // (picking a hole: the tile to go on with, a hole let off, a yard's first hole played again)
+  '▶ 接着打': '▶ Play',
+  '跳过': 'Skipped',
+  '新一轮 · {yard}': 'New round · {yard}',
+  // (the card at a harder difficulty, a hole skipped or let off: one tap to the easy one)
+  '太难？换成简单': 'Too hard? Switch to Easy',
+  // (the big button after the last yard: another round of this yard, or every yard gold)
+  '再打一轮': 'Play again',
+  '从第 1 洞再打': 'Play from hole 1',
 };

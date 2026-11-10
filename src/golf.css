@@ -14,16 +14,45 @@ html, body { height: 100%; margin: 0; overflow: hidden; background: #cfeaf5; col
 canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud > div { position: absolute; }
-#hole, #score, #stars { top: 14px; display: flex; align-items: baseline; gap: 8px; padding: 7px 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); white-space: nowrap; }
-#hole { left: 64px; }
-#hole span, #score span { font-size: 15px; color: var(--dim); }
-#hole b { font: 800 20px var(--body); }
-#hole.tight b { display: none; }
-#score { left: 50%; transform: translateX(-50%); }
-#score b { font: 800 24px var(--num); }
+/* the bar at the top (#top: after the card and the menu, so over them and always live): pause, where you
+   are (the yard's picture on its sky, its name, its nine holes as dots; a tap: pick a hole), the strokes
+   and coins, the difficulty (a tap: pick another). The little arrow means "tap to change": only the yard
+   and the difficulty have one. One row on a wide screen; on a phone held upright, two (fitHud drops
+   what doesn't fit: golf/main.js) */
+#top { position: fixed; inset: 0; pointer-events: none; }
+#bar { position: absolute; left: 14px; right: 14px; top: 14px; display: flex; align-items: center; gap: 8px; }
+#bar > *, #mute { pointer-events: auto; }
+#bar .brk { display: none; }
+#yard, #score, #lv-chip { flex: none; display: flex; align-items: center; height: 42px; margin: 0; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); color: var(--ink); font-family: var(--body); white-space: nowrap; }
+#yard, #lv-chip { cursor: pointer; }
+#yard { flex: 0 1 auto; min-width: 0; gap: 7px; padding: 0 6px 0 5px; }
+#yard .ic { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.75); }
+#yard .ic svg { width: 23px; height: 19px; }
+#yard b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 800 17px var(--body); }
+#yard-dots { display: flex; margin: 0 2px; }
+#yard-dots .dots i { width: 8px; height: 8px; }
+.caret { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #eef3ef; }
+.caret svg { width: 13px; height: 13px; fill: none; stroke: var(--ink); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+#yard.open, #lv-chip.open { box-shadow: inset 0 0 0 3px #f2c94c, 0 4px 0 rgba(47, 58, 51, 0.1); }
+.open > .caret svg { transform: rotate(180deg); }
+#score { gap: 7px; margin: 0 auto; padding: 0 16px; }
+#score span { font-size: 15px; color: var(--dim); }
+#score b { font: 800 23px/1 var(--num); }
 #score b.small { font-size: 18px; }
-#score .sep { margin-left: 6px; padding-left: 12px; border-left: 2px solid #e3e8e4; }
+#score .sep { align-self: stretch; display: flex; align-items: center; margin: 9px 0 9px 4px; padding-left: 11px; border-left: 2px solid #e3e8e4; }
 #score.nocoin .sep, #score.nocoin #sweets-num { display: none; }
+#bar.dots-small #yard-dots { margin: 0; }
+#bar.dots-small #yard-dots .dots { gap: 2px; }
+#bar.dots-small #yard-dots .dots i { width: 7px; height: 7px; }
+#bar.snug #score { gap: 5px; padding: 0 10px; }
+#bar.snug #score span { font-size: 14px; }
+#bar.snug #score .sep { margin-left: 0; padding-left: 6px; }
+#bar.snug #lv-chip { gap: 5px; padding: 0 4px 0 10px; }
+#bar.snug #lv-chip .caret { width: 22px; }
+#bar.score-bare #score .lbl { display: none; }
+#bar.score-bare #score .sep { padding-left: 2px; }
+#bar.chip-bare #lv-name { display: none; }
+#bar.no-dots #yard-dots { display: none; }
 #tags { inset: 0; transition: opacity 0.5s; }
 #tags.out { opacity: 0; }
 #tags.dim:not(.out){opacity:.25;transition-duration:.15s}
@@ -31,21 +60,10 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 /* (its point at what it names: the middle, or --to along it when it is moved aside off the flag) */
 #tags .tag::after { content: ""; position: absolute; left: var(--to, 50%); bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
 #tags .tag.below::after { bottom: auto; top: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: #fff; }
-/* the yard's stars (a tap: the map of the yards), the yard's name by them where there is room */
-#hud > #stars { position: absolute; right: 14px; border: 0; font-family: var(--body); color: var(--ink); pointer-events: auto; cursor: pointer; }
-#stars i { font-style: normal; color: var(--gold); font-size: 20px; }
-#stars b { font: 800 22px var(--num); }
-#stars small { align-self: center; font: 700 14px var(--body); color: var(--dim); }
-#stars.tight small { display: none; }
-/* the difficulty, always in sight (a tap: pick another): its colour's dot and its name; left of the
-   stars on a wide screen (placed there by fitHud), at the top right on a narrow one */
-#hud > #lv-chip { position: absolute; top: 14px; right: 14px; display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 15px 0 13px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); color: var(--ink); font: 800 16px var(--body); white-space: nowrap; pointer-events: auto; cursor: pointer; }
-#lv-chip i { width: 12px; height: 12px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(61, 187, 108, 0.22); }
+#lv-chip { gap: 7px; padding: 0 6px 0 13px; font: 800 16px var(--body); }
+#lv-chip i { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(61, 187, 108, 0.22); }
 #lv-chip.normal i { background: #1f86d1; box-shadow: 0 0 0 3px rgba(31, 134, 209, 0.22); }
 #lv-chip.hard i { background: #e0524a; box-shadow: 0 0 0 3px rgba(224, 82, 74, 0.22); }
-#lv-chip.tight { padding: 0 14px; }
-#lv-chip.tight span { display: none; }
-#hud > #lv-chip.low { top: 72px; }
 /* a yard's holes as dots: hollow till played, grey let off, then pale, green, gold by the stars got */
 .dots { display: inline-flex; align-items: center; gap: 3px; }
 .dots i { flex: none; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 2px #c3cdc6; }
@@ -56,8 +74,6 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 .dots i.cur { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
 .dots i.cur.sn { box-shadow: inset 0 0 0 2px #c3cdc6, 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
 .dots i.now { animation: star-pop 0.45s cubic-bezier(0.2, 1.7, 0.4, 1) 1.1s both; }
-#hole-dots { align-self: center; display: flex; margin-left: 2px; }
-#hole.tighter #hole-dots { display: none; }
 #banner { left: 50%; top: 22%; width: max-content; max-width: calc(100vw - 32px); transform: translate(-50%, -50%); text-align: center; color: #fff; text-shadow: 0 3px 0 rgba(47, 58, 51, 0.3); white-space: nowrap; animation: pop 2.6s ease-out forwards; }
 /* (the name in a dark edge, as the line under it: white letters stay readable over snow) */
 #banner-title { font: 800 46px var(--body); text-shadow: 0 3px 0 rgba(31, 60, 40, 0.45), 0 0 10px rgba(31, 60, 40, 0.5), 0 0 2px rgba(31, 60, 40, 0.8), 0 0 1px rgba(31, 60, 40, 0.9); }
@@ -80,21 +96,22 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #hint { left: 50%; bottom: 26px; transform: translateX(-50%); padding: 8px 16px; border-radius: 14px; background: rgba(47, 58, 51, 0.7); color: #fff; font-size: 16px; white-space: nowrap; }
 #power { left: 50%; bottom: 30px; transform: translateX(-50%); width: 200px; height: 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.85); box-shadow: 0 3px 0 rgba(47, 58, 51, 0.12); overflow: hidden; }
 /* round white buttons at the corners: the menu (top left), the sound (bottom right) */
-#hud > #menu-btn { position: absolute; left: 14px; top: 14px; width: 42px; height: 42px; padding: 9px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); pointer-events: auto; cursor: pointer; }
-#menu-btn svg, #skip svg, #menu svg, #card-holes svg { display: block; fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+#menu-btn { flex: none; width: 42px; height: 42px; padding: 9px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); cursor: pointer; }
+#menu-btn svg, #skip svg, #menu svg { display: block; fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 #menu-btn svg { width: 100%; height: 100%; stroke-width: 3.2; }
 /* (offered once a hole has taken par + 3: on to the next one, this one let off) */
 #hud > #skip { position: absolute; left: 14px; bottom: 14px; display: flex; align-items: center; gap: 4px; height: 42px; padding: 0 12px 0 16px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--ink); font: 800 15px var(--body); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); pointer-events: auto; cursor: pointer; animation: rise 0.35s ease-out; }
 #skip svg { width: 20px; height: 20px; }
 #skip .fill, #menu .fill { fill: var(--ink); }
-#hud > #mute { position: absolute; right: 14px; bottom: 14px; width: 42px; height: 42px; padding: 9px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); pointer-events: auto; cursor: pointer; }
+#top > #mute { position: absolute; right: 14px; bottom: 14px; width: 42px; height: 42px; padding: 9px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(47, 58, 51, 0.1); pointer-events: auto; cursor: pointer; }
 #mute svg { display: block; width: 100%; height: 100%; fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 #mute .spk { fill: var(--ink); }
 #mute .no, #mute.off .on { display: none; }
 #mute.off .no { display: inline; }
 #power-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #ffd34d, #ff7a3d 60%, #ff3d3d); }
-#card { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(47, 58, 51, 0.28); }
-#card .inner { min-width: 300px; max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); overflow: hidden auto; padding: clamp(14px, 3vh, 24px) clamp(18px, 4vw, 34px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.35s ease-out; }
+/* (under the bar, which stays live over its dim) */
+#card { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: calc(var(--hud-b, 70px) + 6px) 12px 8px; background: rgba(47, 58, 51, 0.28); }
+#card .inner { min-width: 300px; max-width: 100%; max-height: 100%; overflow: hidden auto; padding: clamp(14px, 3vh, 24px) clamp(18px, 4vw, 34px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.35s ease-out; }
 /* the result, big: HOLE IN ONE! / BIRDIE! / PAR / BOGEY…, white in a thick edge of its colour */
 #card .title { --edge: #2c7a3a; font: 800 clamp(28px, min(8vh, 10vw), 50px) var(--num); line-height: 1.05; color: #fff; text-wrap: balance; animation: word-pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both;
   text-shadow: 3px 3px 0 var(--edge), -3px 3px 0 var(--edge), 3px -3px 0 var(--edge), -3px -3px 0 var(--edge), 0 3px 0 var(--edge), 0 -3px 0 var(--edge), 3px 0 0 var(--edge), -3px 0 0 var(--edge), 0 5px 0 var(--edge); }
@@ -127,12 +144,6 @@ html[lang="en"] #card .title.long { font-size: clamp(20px, min(6.5vh, 6.6vw), 44
 #card button.retry svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 /* (a stroke short of the next star: the retry button is the one to press) */
 #card.again button.retry { background: #fff6d6; box-shadow: inset 0 0 0 2px #f2c94c, 0 5px 0 #f2c94c; }
-/* (the holes, from the card's top left corner) */
-#card .inner { position: relative; }
-#card .title { padding: 0 40px; } /* (clear of it) */
-#card button.icon { position: absolute; z-index: 1; left: 12px; top: 12px; width: 40px; height: 40px; padding: 8px; background: #eef3ef; box-shadow: none; }
-#card button.icon:active { transform: translateY(1px); box-shadow: none; }
-#card button.icon svg { width: 24px; height: 24px; }
 /* the round's strokes, hole by hole, as on a scorecard: a birdie or better in a ring, a bogey or
    worse in a box */
 table.sc { margin: 0 auto; border-collapse: collapse; font: 700 14px var(--num); color: var(--ink); }
@@ -175,17 +186,15 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #card .yard .lines .fin { color: #e0670f; font-size: 18px; font-weight: 800; }
 #card .yard .lines button.harder { margin-top: 4px; padding: 7px 14px 7px 16px; font: 700 15px var(--body); background: #eef3ef; color: var(--ink); box-shadow: none; }
 #card .yard .lines button.harder::after { content: '\203A'; margin-left: 6px; font-size: 18px; line-height: 0; color: var(--dim); }
-/* the menu: paused over the hole, or picking a hole */
-#menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(47, 58, 51, 0.38); }
-#menu .panel { display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); overflow: hidden auto; padding: clamp(14px, 3vh, 22px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.25s ease-out; }
-#menu .panel.wide { width: 560px; }
-#menu #menu-map.panel { width: 820px; } /* (room for a row of four yards on a wide screen) */
-#menu .head { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; font: 800 24px var(--body); }
-#menu .head .back { position: absolute; left: 0; top: 0; width: 40px; height: 40px; padding: 8px; border: 0; border-radius: 50%; background: #eef3ef; cursor: pointer; }
-#menu .head .back svg { width: 100%; height: 100%; stroke-width: 3; }
-#menu .head .back::after { content: ""; position: absolute; inset: -5px; } /* (a bigger place to tap than it looks: 44 px or more) */
-#menu .head .tot { position: absolute; right: 0; top: 6px; font: 800 18px var(--num); }
-#menu .head .tot i { font-style: normal; color: var(--gold); margin-right: 3px; }
+/* the menu: paused over the hole, picking a hole, or the difficulty. Under the bar, which stays live:
+   the pause panel in the middle of what is left, the other two hung from the bar under what opened them */
+#menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: calc(var(--hud-b, 70px) + 6px) 12px 8px; background: rgba(47, 58, 51, 0.38); }
+#menu.hang { align-items: flex-start; }
+#menu .panel { position: relative; display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: 100%; max-height: 100%; overflow: hidden auto; padding: clamp(14px, 3vh, 22px); border-radius: 26px; background: #fff; text-align: center; box-shadow: 0 8px 0 rgba(47, 58, 51, 0.12); animation: rise 0.25s ease-out; }
+#menu .head { display: flex; align-items: center; justify-content: center; min-height: 36px; font: 800 24px var(--body); }
+#menu button.x { position: absolute; z-index: 1; right: 12px; top: 12px; width: 36px; height: 36px; padding: 9px; border-radius: 50%; background: #eef3ef; }
+#menu button.x svg { width: 100%; height: 100%; stroke-width: 3; }
+#menu button.x::after { content: ""; position: absolute; inset: -5px; } /* (a bigger place to tap than it looks: 44 px or more) */
 #menu button { font: 800 18px var(--body); border: 0; border-radius: 999px; cursor: pointer; color: var(--ink); }
 #menu button.go { padding: 13px; background: var(--green); color: #fff; font-size: 20px; box-shadow: 0 5px 0 #2a8f50; }
 #menu button.go:active { transform: translateY(3px); box-shadow: 0 2px 0 #2a8f50; }
@@ -201,46 +210,42 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #menu button.tog.off svg { stroke: #a3ada6; }
 #menu button.tog.off .fill { fill: #a3ada6; }
 #menu button.tog.off .x { display: inline; stroke: #e0524a; }
-/* the difficulty: three in a row, the one played lit; named by the stars at the top and over the holes
-   when it isn't the easy one */
-#menu .levels { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: #f1f3f2; }
-#menu .levels button { flex: 1; min-width: 0; padding: 9px 0; background: transparent; font-size: 17px; color: var(--dim); }
-#menu .lv-note { margin: -4px 0 0; font: 700 14px var(--body); color: var(--dim); }
-html[lang="en"] #menu .lv-note { min-height: 2lh; text-wrap: balance; } /* (two lines for each, so the menu doesn't jump) */
-#menu .levels button.on { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 3px #f2c94c; cursor: default; }
 /* the difficulty's own page: the three, each with what it means, the one played lit */
 #menu .lvopts { display: flex; flex-direction: column; gap: 8px; }
-#menu .lvopts button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 16px 11px; border-radius: 18px; background: #f1f3f2; text-align: left; box-shadow: inset 0 0 0 2px #e0e5e2; }
-#menu .lvopts button b { display: flex; align-items: center; gap: 8px; font: 800 18px var(--body); }
+#menu .lvopts button { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-radius: 18px; background: #f1f3f2; text-align: left; box-shadow: inset 0 0 0 2px #e0e5e2; }
+#menu .lvopts button b { flex: none; display: flex; align-items: center; gap: 8px; min-width: 76px; font: 800 18px var(--body); }
 #menu .lvopts button b::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--green); }
 #menu .lvopts button[data-l="normal"] b::before { background: #1f86d1; }
 #menu .lvopts button[data-l="hard"] b::before { background: #e0524a; }
-#menu .lvopts button small { font: 700 14px var(--body); color: var(--dim); }
+#menu .lvopts button small { font: 700 15px var(--body); color: var(--dim); }
 #menu .lvopts button.on { background: #fff6d6; box-shadow: inset 0 0 0 3px #f2c94c; }
-/* the map: a card for each yard, its sky (its look's, with its picture over its name, the medal in the
-   corner), then its holes as dots and its stars; one not open yet greyed, with what opens it. Four
-   in a row on a computer or a phone on its side, two on a phone held upright */
-#menu .played { margin: -6px 0 0; font: 700 14px var(--body); color: var(--dim); }
-#menu .yards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (min-width: 700px), (orientation: landscape) { #menu .yards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-#menu button.yd { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0 0 10px; overflow: hidden; border-radius: 20px; background: #fff; box-shadow: inset 0 0 0 2px #d9e2dc, 0 4px 0 #d9e2dc; }
-#menu button.yd:active { transform: translateY(2px); box-shadow: inset 0 0 0 2px #d9e2dc, 0 2px 0 #d9e2dc; }
-#menu button.yd.cur { box-shadow: inset 0 0 0 3px #f2c94c, 0 4px 0 #f2c94c; }
-#menu .yd .sky { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 78px; padding: 4px 14px; background: linear-gradient(#7fc2ee, #cfeaf5); } /* (each yard's own sky: its look's card, looks/) */
-#menu .yd .sky b { font: 800 18px/1.08 var(--body); color: #fff; text-wrap: balance; text-shadow: 0 2px 0 rgba(31, 60, 40, 0.45), 0 0 6px rgba(31, 60, 40, 0.35); }
-#menu .yd svg.ic { flex: none; width: 32px; height: 26px; stroke: none; }
-#menu .yd .sky .medal { position: absolute; right: 7px; top: 7px; }
-#menu .yd .sky .medal svg { width: 21px; height: 26px; }
-#menu .yd .dots { justify-content: center; margin: 10px 0 3px; }
-#menu .yd .ys { padding: 0 4px; font: 800 16px var(--num); }
-#menu .yd .ys i { font-style: normal; color: var(--gold); margin-right: 3px; }
-#menu .yd.locked { background: #f6f7f6; cursor: default; }
-#menu .yd.locked:active { transform: none; }
-#menu .yd.locked .sky { filter: grayscale(1) brightness(1.05); }
-#menu .yd.locked .sky b { color: var(--dim); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5); } /* (greyed, its name in grey: readable on any sky) */
-#menu .yd .lk { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 8px 2px; font: 700 13px var(--body); color: var(--dim); text-wrap: balance; }
-#menu .yd .lk svg { flex: none; width: 18px; height: 18px; stroke: #a3ada6; }
-#menu .yd.no { animation: shake 0.3s; }
+#menu .warn { font: 700 14px var(--body); color: #b0602a; }
+@media (min-width: 561px) { #menu.lv { justify-content: flex-end; padding-right: 14px; } } /* (under the difficulty at the right) */
+/* picking a hole: the four yards as tabs (each its sky, its picture and name, its medal in the corner
+   once won, a lock till it opens), a line saying how the one shown stands, and its nine holes: three
+   by three on a phone held upright, one row on its side or on a computer */
+#menu #menu-pick.panel { width: 820px; padding: 14px; overflow: visible; }
+#menu #menu-pick button.x { right: -6px; top: -10px; background: #fff; box-shadow: 0 3px 0 rgba(47, 58, 51, 0.15); }
+#menu .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#menu button.tab { position: relative; padding: 0; overflow: hidden; border-radius: 16px; background: #fff; box-shadow: 0 4px 0 #d9e2dc; }
+#menu .tab::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px rgba(47, 58, 51, 0.08); pointer-events: none; }
+#menu .tab .sky { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: 66px; padding: 4px; }
+#menu .tab svg.ic { flex: none; width: 28px; height: 23px; stroke: none; }
+#menu .tab .sky b { font: 800 14px/1.1 var(--body); color: #fff; white-space: nowrap; text-shadow: 0 2px 0 rgba(31, 60, 40, 0.45), 0 0 6px rgba(31, 60, 40, 0.35); }
+html[lang="en"] #menu .tab .sky b { white-space: normal; text-wrap: balance; font-size: 12.5px; line-height: 1.05; }
+#menu .tab.on { box-shadow: 0 4px 0 #f2c94c; }
+#menu .tab.on::after { box-shadow: inset 0 0 0 3px #f2c94c; }
+#menu .tab.locked .sky { filter: grayscale(1) brightness(1.06); }
+#menu .tab.locked .sky b { color: var(--dim); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5); }
+#menu .tab .medal { position: absolute; right: 4px; top: 3px; }
+#menu .tab .medal svg { width: 15px; height: 19px; }
+#menu .tab svg.lk { position: absolute; right: 6px; top: 6px; width: 16px; height: 16px; stroke: #7d877f; stroke-width: 2.4; }
+#menu .tab.no { animation: shake 0.3s; }
+#menu .line { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0 8px; min-height: 24px; font: 700 15px var(--body); color: var(--dim); text-wrap: balance; }
+#menu .line .ys { font: 800 17px var(--num); color: var(--ink); }
+#menu .line .ys i { font-style: normal; color: var(--gold); margin-right: 3px; }
+#menu .line .medal svg { width: 17px; height: 21px; }
+#menu .line svg.lk { flex: none; width: 16px; height: 16px; stroke: var(--dim); stroke-width: 2.4; }
 /* a yard's medal: bronze, silver, gold on a red ribbon; not won yet, a dashed ring */
 .medal { display: inline-block; vertical-align: middle; }
 .medal svg { display: block; width: 26px; height: 32px; stroke: none; }
@@ -256,23 +261,24 @@ html[lang="en"] #menu .lv-note { min-height: 2lh; text-wrap: balance; } /* (two 
 .medal.small svg { width: 18px; height: 22px; }
 .medal.small { margin-right: 4px; vertical-align: -5px; }
 .medal.big svg { width: 58px; height: 72px; }
-/* the holes: each with its stars and best, the ones not reached yet locked */
-#menu .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
-#menu .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px 7px; border-radius: 16px; background: #eef8f1; box-shadow: inset 0 0 0 2px #bfe5cc, 0 4px 0 #bfe5cc; }
+/* the holes: each with its stars and its best (at any difficulty), "skipped" in grey, the one to play
+   next ringed in gold, the ones not reached yet locked */
+#menu .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+#menu .tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; min-height: 74px; padding: 6px 2px 7px; border-radius: 16px; background: #eef8f1; box-shadow: inset 0 0 0 2px #bfe5cc, 0 4px 0 #bfe5cc; }
 #menu .tile:active { transform: translateY(2px); box-shadow: inset 0 0 0 2px #bfe5cc, 0 2px 0 #bfe5cc; }
-#menu .tile.cur { background: #fff6d6; box-shadow: inset 0 0 0 3px #f2c94c, 0 4px 0 #f2c94c; }
 #menu .tile b { font: 800 24px/1 var(--num); }
-#menu .tile .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 12px var(--body); color: var(--dim); }
 #menu .tile .ss { font-size: 15px; line-height: 1.1; letter-spacing: 1px; color: #d3dbd5; }
 #menu .tile .ss .on { color: var(--gold); }
 #menu .tile .ss i { font-style: normal; }
-#menu .tile .bs { font: 700 12px var(--body); color: var(--ink); }
+#menu .tile .bs { font: 700 12px var(--body); color: var(--ink); white-space: nowrap; }
+#menu .tile .bs.skip { color: #8b968f; }
+#menu .tile.nx { background: #fff6d6; box-shadow: inset 0 0 0 3px #f2c94c, 0 4px 0 #f2c94c; }
+#menu .tile.nx:active { box-shadow: inset 0 0 0 3px #f2c94c, 0 2px 0 #f2c94c; }
+#menu .tile.nx .bs { color: #8a6a12; font-weight: 800; }
 #menu .tile.locked { background: #f1f3f2; box-shadow: inset 0 0 0 2px #e0e5e2, 0 4px 0 #e0e5e2; color: #a3ada6; cursor: default; }
 #menu .tile.locked:active { transform: none; }
-#menu .tile.locked svg { width: 22px; height: 22px; margin: 4px 0; stroke: #a3ada6; }
+#menu .tile.locked svg { width: 20px; height: 20px; margin: 3px 0; stroke: #a3ada6; stroke-width: 2.4; }
 #menu .tile.no { animation: shake 0.3s; }
-#menu .round:empty { display: none; }
-#menu .round .lbl { font: 700 13px var(--body); color: var(--dim); margin: 4px 0 2px; }
 /* (under the bars and the card, so they stay readable while it falls; hidden while there is none) */
 canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 /* between holes: the card fades as a haze the yard's colour comes up over the hole, the next hole is
@@ -291,35 +297,67 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 @keyframes rise { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes pop-top { 0% { transform: translate(-50%, 0) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, 0) scale(1.05); opacity: 1; } 20% { transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { transform: translate(-50%, -4px); opacity: 0; } }
 @keyframes pop { 0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(-50%, -62%); opacity: 0; } }
-@media (max-width: 560px) { #stars small { display: none; } #hole { padding: 7px 12px; gap: 6px; } #hole-dots .dots { gap: 2px; } #hole-dots .dots i { width: 8px; height: 8px; } #score { top: 62px; left: 14px; transform: none; padding: 7px 12px; gap: 6px; } #score .sep { margin-left: 2px; padding-left: 8px; } #stars { top: 62px; padding: 7px 12px; } #hint { bottom: 70px; } #banner-title { font-size: 36px; } #banner-sub { font-size: 15px; } }
-@media (max-width: 374px) { #score, #stars { padding: 7px 10px; } }
-@media (max-width: 359px) { #score, #stars { padding: 6px 9px; } #score { gap: 4px; } #score .sep { margin-left: 0; padding-left: 6px; } #score span { font-size: 12px; } #score b { font-size: 20px; } #score b.small { font-size: 16px; } #stars b { font-size: 19px; } #stars i { font-size: 17px; } }
-@media (max-width: 359px) { table.sc th, table.sc td { min-width: 19px; padding: 0; } table.sc td span { min-width: 18px; } #menu .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } #menu-holes .head { flex-direction: column; gap: 0; } }
+@media (max-width: 560px) {
+  #bar { flex-wrap: wrap; row-gap: 0; }
+  #bar .brk { display: block; flex-basis: 100%; height: 0; }
+  #score { margin: 8px 0 0; padding: 0 12px; gap: 6px; }
+  #score .sep { margin-left: 2px; padding-left: 8px; }
+  #lv-chip { margin: 8px 0 0 auto; }
+  #hint { bottom: 70px; } #banner-title { font-size: 36px; } #banner-sub { font-size: 15px; }
+}
+@media (max-width: 359px) { #score { padding: 0 9px; gap: 4px; } #score .sep { margin-left: 0; padding-left: 6px; } #score span { font-size: 12px; } #score b { font-size: 20px; } #score b.small { font-size: 16px; } #lv-chip { padding-left: 10px; gap: 5px; } table.sc th, table.sc td { min-width: 19px; padding: 0; } table.sc td span { min-width: 18px; } #menu .grid, #menu .tabs { gap: 6px; } }
 /* short screens (a phone on its side): the scorecard without its par row (the rings and boxes say
    how each hole went against par), the holes without their names, everything a little tighter */
 @media (max-height: 420px) {
   table.sc tr.par { display: none; }
   table.sc th, table.sc td { height: 22px; }
   #menu .panel { gap: 7px; padding: 12px 16px; }
-  #menu .head { min-height: 34px; font-size: 21px; }
-  #menu .head .back { width: 34px; height: 34px; padding: 6px; }
-  #menu .head .tot { top: 4px; }
+  #menu .head { min-height: 30px; font-size: 20px; }
+  #menu button.x { width: 32px; height: 32px; padding: 8px; right: 10px; top: 10px; }
   #menu button.go { padding: 10px; }
   #menu button.row { padding: 8px; }
-  #menu .levels button { padding: 6px 0; }
-  #menu .lv-note { margin: -3px 0 0; font-size: 13px; }
+  #menu .lvopts { gap: 6px; }
+  #menu .lvopts button { padding: 7px 16px; }
   #menu button.tog { flex-direction: row; justify-content: center; gap: 6px; padding: 7px 0; }
   #menu button.tog svg { width: 22px; height: 22px; }
-  #menu .tile .nm { display: none; }
-  #menu .yd .sky { height: 62px; gap: 1px; }
-  #menu .yd .sky .medal { top: 4px; right: 4px; } /* (smaller, in the corner: clear of a name in the low sky) */
-  #menu .yd .sky .medal svg { width: 17px; height: 21px; }
-  #menu .yd svg.ic { width: 26px; height: 21px; }
-  #menu .yd .dots { margin: 7px 0 2px; }
-  #menu .round .lbl { margin: 0; }
-  #menu .tabs button { flex-direction: row; justify-content: center; gap: 8px; padding: 6px; }
+  #menu #menu-pick.panel { padding: 12px; gap: 8px; }
+  #menu .tile { min-height: 66px; }
+  /* (the card under the bar: a little tighter, so it still fits without scrolling) */
+  #card { padding-top: calc(var(--hud-b, 56px) + 4px); padding-bottom: 6px; }
+  #card .inner { padding: 10px 24px; }
+  #card .st i, #card .st b { font-size: 32px; }
+  #card .sub { margin: 2px 0 6px; }
+  #card .prog, #card .best, #card .tip { margin-bottom: 6px; }
+  #card button { padding: 10px 30px; }
+  #card button.retry { padding: 10px 18px; }
+  #card .btns { padding-bottom: 5px; }
+  /* (a yard's page with no scrolling: the medal beside its name, and without the scorecard, this visit's
+     count and the whole neighbourhood's, so what has opened and the goal stay in sight over the button) */
+  #card.yd-page table.sc, #card .yard .lines .whole, #card .yard .lines .visit { display: none; }
+  #card.yd-page .title { font-size: clamp(22px, 7.5vh, 32px); }
+  #card .yard .ym { flex-direction: row; justify-content: center; gap: 10px; margin: 4px 0 2px; }
+  #card .yard .ym .medal.big svg { width: 34px; height: 42px; }
+  #card .yard .ym .row .medal svg { width: 30px; height: 37px; }
+  #card .yard .ym .row { gap: 6px; }
+  #card .yard .sum { margin-bottom: 4px; }
+  #card .yard .lines { margin: 4px 0 8px; line-height: 1.5; }
+  #card .yard .lines button.harder { margin-top: 2px; padding: 5px 12px 5px 14px; }
 }
 @media (max-height: 360px) { #menu-main .head { display: none; } } /* (the green 接着打 says it is paused) */
-@media (max-height: 310px) { #menu .lv-note { display: none; } }
-@media (max-height: 340px) { #card .st small { display: none; } #card .st i, #card .st b { font-size: 30px; } #card .sub { margin: 2px 0 6px; } }
-@media (orientation: landscape) { #menu .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } } /* (two rows, whatever the width) */
+@media (max-height: 340px) { #card .st small { display: none; } #card .st i, #card .st b { font-size: 30px; } #card .sub { margin: 2px 0 6px; } #card .inner { padding: 6px 24px; } #card .title, #card.yd-page .title { font-size: 24px; } #card .prog, #card .best, #card .tip { margin-bottom: 4px; } #card .yard .lines { margin: 2px 0 4px; line-height: 1.35; } }
+/* a phone on its side, a computer: the tabs low with the picture beside the name, the nine holes in a row */
+@media (orientation: landscape) {
+  #menu .tabs .sky { flex-direction: row; gap: 8px; height: 46px; padding: 4px 22px 4px 8px; } /* (clear of the lock or the medal in the corner) */
+  #menu .tab .sky b, html[lang="en"] #menu .tab .sky b { white-space: nowrap; font-size: 16px; }
+  #menu .grid { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 7px; }
+}
+@media (orientation: landscape) and (max-width: 700px) {
+  #menu .tab .sky b, html[lang="en"] #menu .tab .sky b { font-size: 12px; }
+  #menu .tabs .sky { gap: 4px; padding: 4px 16px 4px 4px; }
+  #menu .tab svg.ic { width: 20px; height: 17px; }
+  #menu .tab svg.lk { right: 3px; top: 4px; width: 13px; height: 13px; }
+  #menu .tab .medal { right: 2px; top: 2px; }
+  #menu .grid { gap: 5px; }
+  #menu .tile .bs { font-size: 11px; letter-spacing: -0.3px; }
+  #menu .tile .ss { font-size: 13px; letter-spacing: 0; }
+}
