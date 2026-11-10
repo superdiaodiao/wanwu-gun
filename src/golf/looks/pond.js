@@ -420,7 +420,7 @@ function fountain(k) {
   k.cyl(0.98, 0.98, 0.02, 0x7fcbe6, 0, 0.4, 0, 16);
   k.cyl(0.13, 0.2, 0.78, STONE, 0, 0.78, 0, 8);
   k.cyl(0.42, 0.16, 0.16, 0xe2dccd, 0, 1.2, 0, 12);
-  k.cyl(0.38, 0.38, 0.02, 0x9fdcf0, 0, 1.27, 0, 12);
+  k.cyl(0.38, 0.38, 0.02, 0x9fdcf0, 0, 1.275, 0, 12); // (its top 5 mm over the bowl's own flat top: level with it, the two flickered)
   k.cone(0.05, 0.26, 0xeaf8ff, 0, 1.4, 0, 6);
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; k.ball(0.035, 0xdff4ff, Math.sin(a) * 0.3, 1.38 - (i % 2) * 0.06, Math.cos(a) * 0.3); }
 }
