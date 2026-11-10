@@ -51,9 +51,10 @@ export default {
       props: [short([4.6, 3.4], 90), kid([3.8, 2.6])],
       coins: [[1, 4]],
     },
-    // 3: snowmen to weave between, the cup on a little rink of ice a step down
+    // 3: snowmen to weave between, the cup on a little rink of ice a step down (a par 3: a full-length hole
+    // with six snowmen, a step and ice; as a par 2 the casual player's average was exactly par)
     {
-      name: '雪人', tip: '绕过雪人', par: 2,
+      name: '雪人', tip: '绕过雪人', par: 3,
       map: [
         '   ..iii',
         '   ..iHi',
