@@ -6,12 +6,13 @@
 // very low noise, quicker the faster the ball) roughens it, as the ball runs over blades and ruts; the ice
 // stays smooth. The noises run only while the ball moves: they are let go a moment after it stops (or
 // drops into the cup) and started again on the next putt; the filters and gains stay (idle, they cost
-// nothing). Loud enough to be heard over the music (k): re-check with the level test after a change.
+// nothing). Loud enough to be heard over the music (k: a 3 m/s roll on grass sits a few dB under the song,
+// a full-power one level with it, and nowhere near the limiter): re-check with the level test after a change.
 // makeRoll(ctx, dest) -> roll.set(speed m/s, surface 'm' | 'i' | null, now, dt, quick) every frame.
 import { noiseBuf, clamp } from '../../audio/core.js';
 
 // per surface: its filter, how it follows the speed, and its loudness at full speed
-const KG = 0.16, KM = 0.36, KI = 0.065, KMID = 0.48, LO_ICE = 0.35;
+const KG = 0.5, KM = 1.1, KI = 0.2, KMID = 0.48, LO_ICE = 0.35;
 const SURF = {
   g: { type: 'bandpass', f: v => 380 + 90 * v, q: 0.6, k: KG },
   m: { type: 'lowpass', f: v => 250 + 40 * v, q: 0.8, k: KM },

@@ -6,6 +6,8 @@
 //   - the ball rolling (roll.js): with its speed, duller on mud, a hiss on ice; silent once it stops.
 //   - a music layer per look over the golf song (layer.js): electric-piano off-beats and bongos at the
 //     pool party, strings and claps in the pumpkin patch, a glockenspiel and a pad on the snow day.
+// The golf song plays 3 dB under the level src/audio gives its music (MUSIC below), so the roll and the
+// yard can be heard through it.
 // They hang off the game's mixer (audio.m): the bed and the roll off the effects bus, so the sound
 // switch, CrazyGames' mute and a hidden tab (the context suspended) silence them just as they do the
 // effects (and under the mute the bed is let go altogether, to come back when the sound does); the
@@ -16,6 +18,11 @@ import { audio } from '../../audio/audio.js';
 import { makeBed, liveEvents } from './beds.js';
 import { makeRoll } from './roll.js';
 import { makeLayer, stringBuf, STRING_NOTES } from './layer.js';
+
+// the music bus's level for golf (src/audio's own is 0.6: this is 3 dB under it). Set before the mixer
+// is made (audio.init, on the first tap), which then starts at it.
+const MUSIC = 0.42;
+try { audio.setVolume('music', MUSIC); } catch { /* as it was */ }
 
 const AHEAD = 0.5; // s: how far ahead the bed's sounds are put in
 const XFADE = 3; // s: one yard's bed into the next
