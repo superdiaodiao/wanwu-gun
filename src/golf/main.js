@@ -95,8 +95,10 @@ function tinted(c) {
 
 const G = {
   hole: 0, level: 'easy', state: 'load', strokes: 0, got: 0, best: [], rounds: [], paused: false, course: null, props: [], cols: [], sweets: [],
-  ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, hitT: 0, t: 0, sinkT: 0, live: true,
-  pushed() { if (G.state === 'aim') { G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
+  ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, pending: null, hitT: 0, t: 0, sinkT: 0, live: true,
+  // (a press still held when the goose or a cat pushes the ball is kept as one made while it rolls: once it
+  // stops, the aim starts again from where the pointer is then, so it never shoots by itself)
+  pushed() { if (G.state === 'aim') { if (G.aim) G.pending = { id: G.aim.id, x: G.aim.x, y: G.aim.y, touch: G.aim.touch }; G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
 };
 
 // the difficulty: how far along a shot's run the dotted guide shows it (no further than its first
@@ -251,7 +253,7 @@ async function boot() {
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('pointermove', onMove);
   addEventListener('pointerup', onUp);
-  addEventListener('pointercancel', () => { G.aim = null; showAim(false); });
+  addEventListener('pointercancel', e => { if (G.pending?.id === e.pointerId) G.pending = null; G.aim = null; showAim(false); });
   // (once each: a second tap, or Enter on a focused button as well as the key below, does nothing)
   $('card-btn').addEventListener('click', () => { if (G.state !== 'card' || G.paused) return; audio.tap(); cardNext(); });
   $('card-retry').addEventListener('click', () => { if (G.state !== 'card' || G.paused || G.yardShown) return; audio.tap(); load(G.hole); });
@@ -573,7 +575,7 @@ function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   ballRim.visible = rimA > 0;
   ballRim.material.opacity = rimA || 0;
   ballRim.scale.setScalar(BALL_R * 1.3); // (and sized to the screen as it goes: step)
-  G.strokes = 0; G.got = 0; G.still = 0; G.aim = null; G.state = 'aim'; G.live = true;
+  G.strokes = 0; G.got = 0; G.still = 0; G.aim = null; G.pending = null; G.state = 'aim'; G.live = true;
   showAim(false);
   $('card').hidden = true;
   $('card').classList.remove('yd-page');
@@ -815,6 +817,7 @@ function menu(page, y = G.yard) {
   if (!G.paused) {
     G.paused = true;
     G.aim = null;
+    G.pending = null;
     showAim(false);
     $('menu').hidden = false;
     $('hint').hidden = true; // (how to putt: not through the menu, nor the question whether to clear)
@@ -1233,14 +1236,30 @@ function onDown(e) {
   hush();
   camDone(); // (a press while the camera is still moving in puts it in place, and aims as usual)
   // one finger, the main mouse button; a second touch doesn't take the shot over
-  if (G.state !== 'aim' || G.aim || !e.isPrimary || e.button !== 0) return;
-  G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ang: 0, p: 0, was: [], touch: e.pointerType === 'touch' };
+  // (a new press puts aside one kept from before: its letting go was missed)
+  if (G.aim || !e.isPrimary || e.button !== 0) return;
+  G.pending = null;
+  // (pressed while the ball is still rolling, in its last slow half second: kept, and the aim starts from
+  // where the pointer is once it has stopped, if it is still held then: aimFromPending)
+  if (G.state === 'roll' && !G.paused) G.pending = { id: e.pointerId, x: e.clientX, y: e.clientY, touch: e.pointerType === 'touch' };
+  else if (G.state === 'aim') G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, ang: 0, p: 0, was: [], touch: e.pointerType === 'touch' };
+  else return;
   try { e.target.setPointerCapture(e.pointerId); } catch {}
+}
+/** the ball has stopped: a press made while it rolled, still held, starts the aim, from where it is now
+ *  (the pull counts from there, so it takes a pull after this to shoot) */
+function aimFromPending() {
+  const q = G.pending;
+  G.pending = null;
+  if (q && !G.aim && G.state === 'aim') G.aim = { id: q.id, sx: q.x, sy: q.y, x: q.x, y: q.y, ang: 0, p: 0, was: [], touch: q.touch };
 }
 const ballV = new THREE.Vector3(), tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
 function onMove(e) {
+  const q = G.pending;
+  if (q && e.pointerId === q.id) { q.x = e.clientX; q.y = e.clientY; return; }
   const a = G.aim;
   if (!a || e.pointerId !== a.id) return;
+  a.x = e.clientX; a.y = e.clientY;
   // the pull is taken as if it started at the ball, wherever the press was: pulling straight down
   // the screen shoots straight up it (from the ground under the press, the camera's perspective
   // would bend a pull near the side of the screen by up to a quarter turn)
@@ -1280,6 +1299,7 @@ function power(a, e, px) {
   return Math.max(0, Math.min(1, p));
 }
 function onUp(e) {
+  if (G.pending?.id === e.pointerId) G.pending = null;
   const a = G.aim;
   if (!a || e.pointerId !== a.id) return;
   G.aim = null;
@@ -1424,7 +1444,7 @@ function step(dt, draw = true) {
       Object.assign(b, { x: G.from.x, z: G.from.z, vx: 0, vz: 0 });
       fx.pickup(b.x, 0.2 + ground(b.x, b.z), b.z, 0.05, 0.25);
       G.still = 0;
-      if (G.state === 'roll') { if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false); else G.state = 'aim'; }
+      if (G.state === 'roll') { if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false); else { G.state = 'aim'; aimFromPending(); } }
     }
     const sp = Math.hypot(b.vx, b.vz);
     if (G.state === 'aim' && sp > 0.3) G.pushed();
@@ -1441,7 +1461,7 @@ function step(dt, draw = true) {
       if ((G.still > 0.2 && !steep) || G.still > 1.5 || G.rollT > 25) {
         b.vx = 0; b.vz = 0;
         if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false);
-        else G.state = 'aim';
+        else { G.state = 'aim'; aimFromPending(); }
       }
     }
     // coins on the way
@@ -1561,6 +1581,7 @@ const cardTimers = [];
 function finish(sunk, skipped = false) {
   if (G.state === 'card') return;
   G.state = 'card';
+  G.pending = null;
   G.live = false;
   $('card').classList.remove('yd-page');
   G.yardShown = false;
