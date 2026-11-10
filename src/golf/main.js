@@ -46,9 +46,18 @@ const PLATFORM = typeof __PLATFORM__ !== 'undefined' ? __PLATFORM__ : 'site';
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 const GIVE_UP = 5; // strokes over par before the hole lets you off
 const SKIP = 3; // strokes over par before it offers to let you off
+// (kept in mind as well, written first and read first: where the page may store nothing, in another
+// site's frame with storage blocked, the progress still lasts the visit. As text, so that what is read
+// is a copy, as from the storage; another tab's changes drop what is kept here: boot)
+const mem = new Map();
 const store = {
-  get(k, d) { try { const v = localStorage.getItem('golf.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('golf.' + k, JSON.stringify(v)); } catch {} },
+  get(k, d) {
+    let v = mem.get(k);
+    if (v === undefined) { try { v = localStorage.getItem('golf.' + k); } catch { v = null; } }
+    try { return v === null ? d : JSON.parse(v); } catch { return d; }
+  },
+  set(k, v) { const s = JSON.stringify(v); mem.set(k, s); try { localStorage.setItem('golf.' + k, s); } catch {} },
+  forget(k) { mem.delete(k); },
 };
 
 /** where coming back goes on from (kept in mind as well, for where nothing can be stored) */
@@ -352,7 +361,12 @@ async function boot() {
   // with more in it starts again)
   load(at, at % PER === 0 && stale(yardOf(at)));
   // (cleared in another tab: this one starts over too, so that it can't write the old stars back)
-  addEventListener('storage', e => { if (e.key === 'golf.resetAt' && e.newValue) resetHere(); });
+  addEventListener('storage', e => {
+    // (what another tab wrote is read from the storage from now on, not what this one kept in mind)
+    if (e.key === null) mem.clear();
+    else if (e.key.startsWith('golf.')) store.forget(e.key.slice(5));
+    if (e.key === 'golf.resetAt' && e.newValue) resetHere();
+  });
   portalLoaded(); // (before the first frame, which says the hole is being played)
   requestAnimationFrame(loop);
   await nextFrame();
@@ -857,6 +871,7 @@ function unpause() {
  *  written in their place (a save from before the yards, found without its rounds, would be read as the
  *  first yard played through: boot), and the time, which tells the other tabs (boot's listener) */
 function resetProgress() {
+  for (const k of [...mem.keys()]) if (!KEEP.includes(k)) mem.delete(k);
   try {
     for (const k of Object.keys(localStorage)) if (k.startsWith('golf.') && !KEEP.includes(k.slice(5))) localStorage.removeItem(k);
   } catch {}
