@@ -14,7 +14,7 @@ import { shapes, place, hut, swings, many, clearOfCup } from './pond.js';
 const DECK = 3.2; // the boards round a pool
 
 export default {
-  sky: [[0, '#5a7fd6'], [0.42, '#d99ab8'], [0.75, '#ffbf8f'], [1, '#ffe0b0']], fog: 0xffd9b0, hemi: [0xffe2c8, 0xa59a74, 1.35],
+  sky: [[0, '#5a7fd6'], [0.42, '#d99ab8'], [0.75, '#ffbf8f'], [1, '#ffd9b0']], fog: 0xffd9b0, hemi: [0xffe2c8, 0xa59a74, 1.35],
   // the golden hour: the sun low (30 degrees up) and from the side, so the rails, parasols and the
   // ball cast long shadows (a touch paler than the duck pond's, as the pumpkin patch's)
   sun: [0xffc088, 3.4, [-0.85, 0.5, 0.22]], shadow: 0.9,

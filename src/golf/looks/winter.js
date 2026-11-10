@@ -11,7 +11,7 @@ import { LAWN, WATER, lam, rng, canvas, texture, soilSides } from './kit.js';
 import { foamBank } from './pond.js';
 
 export default {
-  sky: [[0, '#6aa9e6'], [0.5, '#bcd9f2'], [1, '#eef6fb']], fog: [0xeef4f9, 42, 95], hemi: [0xf2f8ff, 0xb9cadb, 1.4], sun: [0xfff3e2, 2.6, [-0.55, 0.75, 0.42]],
+  sky: [[0, '#6aa9e6'], [0.5, '#bcd9f2'], [1, '#eef4f9']], fog: [0xeef4f9, 42, 95], hemi: [0xf2f8ff, 0xb9cadb, 1.4], sun: [0xfff3e2, 2.6, [-0.55, 0.75, 0.42]],
   shadow: 0.8,
   // (the map card: a deeper winter blue at the top, so its white title reads)
   card: 'linear-gradient(#4f8fd8, #88b5e3 60%, #c9def0)',
@@ -403,7 +403,9 @@ function snowOnRails(ctx) {
     const n = r.sloped ? Math.max(2, Math.ceil(r.len / 0.5)) : 1, step = r.len / n;
     for (let i = 0; i < n; i++) {
       const u = (r.kind === 'h' ? r.x : r.z) - r.len / 2 + step * (i + 0.5), y = (r.sloped ? r.yAt(u) : r.y) + r.top + 0.02;
-      const g = new THREE.CylinderGeometry(r.w * 0.42, r.w * 0.5, step + 0.02, 7, 1).rotateZ(Math.PI / 2).scale(1, 0.45, 1);
+      // (5 mm past the rail's end each way, not 10: at an outer corner the post's outer face is 10 mm past it, and
+      // the ridge's flat end lay exactly in that face, flickering through it as a grey oval)
+      const g = new THREE.CylinderGeometry(r.w * 0.42, r.w * 0.5, step + 0.01, 7, 1).rotateZ(Math.PI / 2).scale(1, 0.45, 1);
       if (r.kind === 'v') g.rotateY(Math.PI / 2);
       g.translate(r.kind === 'h' ? u : r.x, y, r.kind === 'h' ? r.z : u);
       geos.push(g);

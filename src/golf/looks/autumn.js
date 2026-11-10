@@ -15,7 +15,7 @@ import { foamBank } from './pond.js';
 const LEAVES = ['#e8762c', '#d9472b', '#f0b43c', '#c0622a', '#b8402a'];
 
 export default {
-  sky: [[0, '#5a97d8'], [0.45, '#a8c9e4'], [0.8, '#efdcc2'], [1, '#f5e6d0']], fog: [0xeee2d0, 36, 88], hemi: [0xfff0dc, 0x9c8a5c, 1.3], sun: [0xffd6a0, 3, [0.72, 0.7, 0.42]],
+  sky: [[0, '#5a97d8'], [0.45, '#a8c9e4'], [0.8, '#efdcc2'], [1, '#eee2d0']], fog: [0xeee2d0, 36, 88], hemi: [0xfff0dc, 0x9c8a5c, 1.3], sun: [0xffd6a0, 3, [0.72, 0.7, 0.42]],
   shadow: 0.9,
   card: 'linear-gradient(#5a97d8, #efdcc2 55%, #e9a25a)',
   // (a pumpkin)
