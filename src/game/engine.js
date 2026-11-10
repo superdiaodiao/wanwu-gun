@@ -101,8 +101,8 @@ export class Engine {
     const w = window.innerWidth, h = window.innerHeight;
     this.width = w;
     this.height = h;
-    if (this.pixelBudget) this.renderer.setPixelRatio(this.pixelRatio());
-    this.renderer.setSize(w, h, false);
+    if (this.pixelBudget) this.renderer.setDrawingBufferSize(w, h, this.pixelRatio());
+    else this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
   }
