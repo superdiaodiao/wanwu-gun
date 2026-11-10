@@ -326,7 +326,8 @@ async function boot() {
   useLevel(store.get('level', 'easy'));
   showLevel();
   // (a difficulty picked before there was the levelPicked to say so: see finish)
-  if (G.level !== 'easy' || ['normal', 'hard'].some(l => ['best', 'rounds', 'strokes'].some(k => store.get(rec(k, l), null)))) store.set('levelPicked', true);
+  // (records with something in them: clearing the progress leaves empty ones, which say nothing)
+  if (G.level !== 'easy' || ['normal', 'hard'].some(l => ['best', 'rounds', 'strokes'].some(k => [store.get(rec(k, l), null)].flat(2).some(v => v != null)))) store.set('levelPicked', true);
   trackBoot(store, EN, () => G.hole);
   // (how far along on coming in, for what this visit has added; and back after a while, a welcome)
   G.visit = { holes: playedCount(), stars: starsAll() };
@@ -920,10 +921,16 @@ const canSkip = () => G.state === 'aim' && !G.paused && G.strokes >= HOLES[G.hol
  *  round as it stands; one with every hole played, at the first hole its round hasn't got yet; one not
  *  begun, or with its round played through, from its first hole, a new round */
 function goYard(y) {
-  let i = firstNew(y);
-  if (i < 0) { let k = 0; while (k < PER && G.rounds[y][k] != null) k++; i = y * PER + (k < PER ? k : 0); }
-  if (i % PER === 0) load(i, true);
-  else load(i);
+  const i = yardStart(y);
+  load(i, i % PER === 0);
+}
+/** the hole that going into yard y lands on (its first hole: a new round) */
+function yardStart(y) {
+  const i = firstNew(y);
+  if (i >= 0) return i;
+  let k = 0;
+  while (k < PER && G.rounds[y][k] != null) k++;
+  return y * PER + (k < PER ? k : 0);
 }
 /** a yard's round left over with more in it than a first go at its first hole */
 const stale = y => G.rounds[y].some((s, k) => k > 0 && s != null);
@@ -932,17 +939,20 @@ const resumeAt = () => {
   const at = Math.min(Math.max(0, G.saved | 0), HOLES.length - 1);
   return opened(at) ? at : Math.max(0, HOLES.findIndex((h, i) => opened(i) && !played(i)));
 };
-/** after a yard's last hole: what the big button says and where it goes. The next yard; after the
- *  last one (or from the whole neighbourhood's page, `fin`), a yard not played through yet, then the
- *  first one short of gold for another round of it, then the first hole of all */
+/** after a yard's last hole: what the big button says, where it goes, and the hole that is (`at`: where
+ *  coming back goes on from too, so that leaving on that card or page and coming back lands where the
+ *  button would have). The next yard; after the last one (or from the whole neighbourhood's page,
+ *  `fin`), a yard not played through yet, then the first one short of gold for another round of it,
+ *  then the first hole of all */
 function onward(fin = false) {
   const y = yardOf(G.hole), to = k => t('去{yard}', { yard: t(YARDS[k].name) }) + ' ›';
-  if (!fin && y + 1 < YARDS.length && yardOpen(y + 1)) return { text: to(y + 1), go: () => goYard(y + 1) };
+  const into = (k, text = to(k)) => ({ text, go: () => goYard(k), at: yardStart(k) });
+  if (!fin && y + 1 < YARDS.length && yardOpen(y + 1)) return into(y + 1);
   const todo = YARDS.findIndex((yd, k) => yardOpen(k) && !yardDone(k));
-  if (todo >= 0) return { text: to(todo), go: () => goYard(todo) };
+  if (todo >= 0) return into(todo);
   const w = YARDS.findIndex((yd, k) => medalOf(k) < 3);
-  if (w < 0) return { text: t('从第 1 洞再打') + ' ›', go: () => load(0, true) };
-  return { text: w === y ? t('再打一轮') + ' ›' : to(w), go: () => goYard(w) };
+  if (w < 0) return { text: t('从第 1 洞再打') + ' ›', go: () => load(0, true), at: 0 };
+  return into(w, w === y ? t('再打一轮') + ' ›' : to(w));
 }
 /** the card's main button: the yard's page after its last hole, from there (or from the last hole's
  *  card when there is no page) on to another yard; after a hole played again by the way, back to the
@@ -1052,8 +1062,9 @@ function hud() {
  *  screen; on a phone held upright two, pause and the yard over the strokes and the difficulty. What
  *  doesn't fit in a row gives way in this order: the yard's dots get smaller, the strokes and the
  *  difficulty sit closer, the words by the strokes
- *  and coins go (the numbers stay), the difficulty's name goes (its dot and arrow stay), the yard's dots
- *  go. Never the yard's picture or name. And where the bar ends is told to the card and the menus, which
+ *  and coins go (the numbers stay), the yard's dots go, the difficulty's name goes last (its dot and
+ *  arrow stay: a dot alone says little, so the name outlasts the yard's dots, which only count).
+ *  Never the yard's picture or name. And where the bar ends is told to the card and the menus, which
  *  sit under it (--hud-b) */
 function fitHud() {
   const bar = $('bar'), wide = innerWidth > 560;
@@ -1061,7 +1072,7 @@ function fitHud() {
   $('yard').style.flex = 'none'; // (measured at its full width, its name not cut short)
   const rows = wide ? [['menu-btn', 'yard', 'score', 'lv-chip']] : [['menu-btn', 'yard'], ['score', 'lv-chip']];
   const over = ids => ids.reduce((a, id) => a + $(id).getBoundingClientRect().width, 8 * (ids.length - 1)) > bar.getBoundingClientRect().width;
-  for (const [cls, k] of [['dots-small', 0], ['snug', 1], ['score-bare', 1], ['chip-bare', 1], ['no-dots', 0]]) if (over(rows[wide ? 0 : k])) bar.classList.add(cls);
+  for (const [cls, k] of [['dots-small', 0], ['snug', 1], ['score-bare', 1], ['no-dots', 0], ['chip-bare', 1]]) if (over(rows[wide ? 0 : k])) bar.classList.add(cls);
   $('yard').style.flex = '';
   document.documentElement.style.setProperty('--hud-b', Math.round(bar.getBoundingClientRect().bottom) + 'px');
 }
@@ -1603,9 +1614,6 @@ function finish(sunk, skipped = false) {
   const round = G.rounds[y], first = !G.detour && round[k] == null;
   if (first) round[k] = G.strokes;
   store.set(rec('rounds'), G.rounds);
-  // (coming back later goes on to the next hole, or after a yard's last to the next yard; after a hole
-  // played again by the way, to where it was before)
-  if (!G.detour) save((G.hole + 1) % HOLES.length);
   const roundDone = lastHole && first && inYard(y, (i, h) => round[i - y * PER] > 0).every(Boolean);
   let roundLine = '';
   if (roundDone) {
@@ -1624,6 +1632,10 @@ function finish(sunk, skipped = false) {
   // page next (its medal, the round, what opens); a medal won on any other hole is said here
   const kept = lastHole && G.yardPage?.y === y ? G.yardPage : null;
   G.yardPage = lastHole && (roundDone || !wasDone) && yardDone(y) ? { y, roundLine, card: roundDone ? scorecard(y) : '', had, opens, fin } : kept;
+  // (coming back later goes on to the next hole, or after a yard's last one to where the big button
+  // goes, on this card or on the yard's page after it: a round under way in the yard it goes to stays as
+  // it is; after a hole played again by the way, to where it was before)
+  if (!G.detour) save(lastHole ? onward(!!G.yardPage && (fin || (!YARDS[y + 1] && YARDS.every((yd, j) => yardDone(j))))).at : G.hole + 1);
   if (m > had && !G.yardPage) lines.push(`${medal(m, ' small')}<b>${t('新奖牌！')}</b> ${t('{yard}{medal}', { yard: t(YARDS[y].name), medal: t(MEDALS[m]) })}`);
   // (after a hole played again by the way the big button names the hole it goes back to, unless that is the next one)
   $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : G.detour && !(G.saved === G.hole + 1 && !lastHole) ? t('回到第 {n} 洞', { n: resumeAt() + 1 }) + ' ›'
