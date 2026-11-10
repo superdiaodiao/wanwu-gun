@@ -106,15 +106,18 @@ function crickets(ctx, out, t0, r, { level = 0.05 }) {
 // ---- the beds -------------------------------------------------------------------------------------------
 // level: the whole bed's gain; far: the low-pass (Hz) on things heard from further off (`far: true`);
 // loops: [maker, options]; events: { play, every: [s, s] between them, vel: [lo, hi], far, o: options }.
-// The loops are just loud enough to come through the music now and then (a gust's floor kept up, so
-// they don't drop out between gusts); a bed's loudest 400 ms stays 3 dB or more under a soft putt's, and
-// while the ball rolls the whole bed dips (DUCK) so the roll stays on top of the breeze. Calls like the
-// hen and the crow come rarely: with the music off they would soon be 'that hen again'.
+// The beds are loud enough to be heard under the music all the time, not only in its gaps (LEVEL: every
+// bed's gain, twice what it was at first, with the song itself 3 dB down: sound/index.js), so a yard is
+// known by its ducks, its lapping pool, its hens or its far dog; a gust's floor is kept up, so the loops
+// don't drop out between gusts, and while the ball rolls the whole bed dips (DUCK) so the roll stays on
+// top of the breeze. Calls like the hen and the crow come rarely: with the music off they would soon be
+// 'that hen again'.
+const LEVEL = 2;
 const birds = kinds => (ctx, d, t, r, o) => C.bird(ctx, d, t, r, { ...o, kind: kinds[Math.floor(r() * kinds.length)] });
 export const BEDS = {
   // the duck pond at midday: a light breeze, birds in the trees, a duck now and then
   pond: {
-    level: 1, far: 2400,
+    level: LEVEL, far: 2400,
     loops: [[wind, { color: 'pink', f: [380, 820], q: 0.5, level: 0.062, swell: [0.45, 1], every: [3, 7] }]],
     events: [
       { play: birds(['chirp', 'chirp', 'warble', 'whistle']), every: [2.5, 7], vel: [0.002, 0.0048] },
@@ -124,7 +127,7 @@ export const BEDS = {
   },
   // the pool at sundown: water lapping, crickets, a sprinkler across the gardens, a last bird
   pool: {
-    level: 1, far: 2400,
+    level: LEVEL, far: 2400,
     loops: [
       [lap, { level: 0.089 }],
       [crickets, { level: 0.0075 }],
@@ -138,7 +141,7 @@ export const BEDS = {
   },
   // the pumpkin patch: a breeze in the leaves, hens over the fence, a crow now and then
   autumn: {
-    level: 1, far: 2000,
+    level: LEVEL, far: 2000,
     loops: [[wind, { color: 'pink', f: [420, 1150], q: 0.5, level: 0.061, swell: [0.4, 1], every: [2.5, 6] }]],
     events: [
       { play: C.rustle, every: [2.5, 6.5], vel: [0.025, 0.05], o: { dur: 1.6, f: 3400 } },
@@ -149,7 +152,7 @@ export const BEDS = {
   },
   // the snow day: a soft wind and the hush of snow, a dog a few streets off, snow off a branch
   winter: {
-    level: 1, far: 900,
+    level: LEVEL, far: 900,
     loops: [
       [wind, { color: 'pink', type: 'bandpass', f: [360, 760], q: 3, level: 0.0805, swell: [0.35, 1], every: [3, 7] }],
       [wind, { color: 'brown', f: [180, 320], q: 0.6, level: 0.0537, swell: [0.6, 1], every: [4, 8] }],

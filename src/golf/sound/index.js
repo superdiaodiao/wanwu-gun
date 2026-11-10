@@ -4,8 +4,9 @@
 //     soft wind and a dog far off. Quiet, under the music and the effects; crossfaded when the yard's
 //     look changes, and left running from one hole of a yard to the next.
 //   - the ball rolling (roll.js): with its speed, duller on mud, a hiss on ice; silent once it stops.
-//   - a music layer per look over the golf song (layer.js): electric-piano off-beats and bongos at the
-//     pool party, strings and claps in the pumpkin patch, a glockenspiel and a pad on the snow day.
+//   - a music layer per look over the golf song (layer.js): a soft vibraphone at the duck pond,
+//     electric-piano off-beats and bongos at the pool party, strings and claps in the pumpkin patch, a
+//     glockenspiel and a pad on the snow day.
 // The golf song plays 3 dB under the level src/audio gives its music (MUSIC below), so the roll and the
 // yard can be heard through it.
 // They hang off the game's mixer (audio.m): the bed and the roll off the effects bus, so the sound

@@ -1,7 +1,8 @@
 // A music layer per yard over the golf song (src/audio/songs.js 'golf', which stays as it is): the
-// pool party adds electric-piano off-beats and bongos, the pumpkin patch picked strings and soft
-// claps, the snow day a glockenspiel and a soft pad; the duck pond plays the song as it is (one layer
-// at a time: the yard's own). The layers are a song of their own on the same 16 bars and chords,
+// duck pond adds a soft vibraphone holding two notes of each chord, the pool party electric-piano
+// off-beats and bongos, the pumpkin patch picked strings and soft claps, the snow day a glockenspiel
+// and a soft pad (one layer at a time: the yard's own, at UP times the level its notes are written
+// at, so that the yard can be told by its music). The layers are a song of their own on the same 16 bars and chords,
 // played by a Track (src/audio/sequencer.js) on the music bus (so the music
 // switch and the ducking under a fanfare act on it as on the song) and kept in step with the song:
 // it starts from the song's own position (audio.js keeps the playing Track as audio._track: only read
@@ -18,7 +19,10 @@ import { Voice, cached, mtof, prng } from '../../audio/core.js';
 const CH = ['G', 'Em7', 'Cmaj7', 'D7', 'G', 'E7', ['Am7', 'D7'], 'G', 'C', 'D7', 'Bm7', 'E7', 'Am7', 'Cm6', 'G', 'D7'];
 const halves = c => (Array.isArray(c) ? [[c[0], 0, 8], [c[1], 8, 8]] : [[c, 0, 16]]);
 const above = (pc, lo) => lo + ((pc - (lo % 12) + 12) % 12); // lowest midi >= lo with pitch class pc
-export const LAYERS = ['pool', 'autumn', 'winter'];
+export const LAYERS = ['pond', 'pool', 'autumn', 'winter'];
+// how loud the yard's layer plays against the notes as written below (+6 dB: as written they added
+// under 1 dB to the song and the four yards sounded the same)
+const UP = 2;
 // the pool party's bongos in a bar: [16th step, pitch Hz, velocity]
 const BONGOS = [[3, 330, 0.2], [7, 250, 0.24], [10, 330, 0.16], [11, 330, 0.2], [15, 250, 0.26]];
 
@@ -66,6 +70,11 @@ function build(variant) {
   CH.forEach((c, b) => {
     for (const [sym, s0, len] of halves(c)) {
       const ch = chord(sym), r = above(ch.root, 55);
+      // duck pond: a soft vibraphone holds two notes of the chord under the tune (its third, and its
+      // seventh or fifth, from the B below middle C up), the higher touched again late in a whole bar
+      const dy = [ch.ivs[1], ch.ivs[ch.ivs.length >= 4 ? 3 : 2]].map(i => above((ch.root + i) % 12, 59));
+      for (const midi of dy) ev(b, s0, 'pond', I.mallet, { midi, vel: 0.2, kind: 'vibes', pan: 0.3, send: 0.3 }, len - 1);
+      if (len === 16) ev(b, variant ? 6 : 10, 'pond', I.mallet, { midi: Math.max(...dy), vel: 0.13, kind: 'vibes', pan: 0.3, send: 0.3 }, variant ? 9 : 5);
       // pumpkin patch: broken chords in eighths on the plucked string, under the tune
       const tones = [r, r + ch.ivs[1], r + ch.ivs[2], r + 12, r + 12 + ch.ivs[1]].map(m => (m > 71 ? m - 12 : m));
       const pat = variant ? [0, 3, 2, 4, 1, 3, 2, 4] : [0, 2, 3, 1, 4, 2, 3, 1];
@@ -178,7 +187,7 @@ export function makeLayer(ctx, dest, audio, warn = (...a) => console.warn(...a))
           if (tr.t < now) tr.resync(now + 0.02);
         }
         tr.silent = !audio.musicOn;
-        for (const k of LAYERS) tr.setLayer(k, k === look ? 1 : 0, now, 1.2);
+        for (const k of LAYERS) tr.setLayer(k, k === look ? UP : 0, now, 1.2);
         tr.schedule(now + 0.3);
         if (!num(tr.t) || !(tr.t >= now)) quit('its clock went wrong (t ' + tr.t + ' at ' + now.toFixed(2) + ')', now);
       } catch (e) { quit(String(e), now); }
