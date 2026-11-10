@@ -228,7 +228,9 @@ async function boot() {
   if (EN) withoutHanzi(); // (no Chinese on the signs for players who can't read it)
   buildAtlas();
   material = objectMaterial(atlasTexture());
-  engine = new Engine($('game'), matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
+  // (a plain depth buffer, its near and far planes around what any hole puts in sight: nothing comes nearer
+  // than 1.4 m nor further than 220 m; and the canvas no bigger than 3.7 M pixels, a 1920x1080 screen at 200%)
+  engine = new Engine($('game'), matchMedia('(pointer: coarse)').matches ? 'medium' : 'high', { logDepth: false, near: 1, far: 400, pixelBudget: 3.7e6 });
   const sc = engine.scene;
   sc.fog = new THREE.Fog(0xd4effc, 45, 95); // (each yard colours it and the sky and the light: lookOf)
   fx = new FX(sc);
@@ -539,6 +541,7 @@ function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   const ctx = { model, spec, audio, fx, pace: LEVELS[G.level].pace };
   if (G.yard !== y) { G.yard = y; lookOf(YARDS[y].look); }
   sound.yard(YARDS[y].look); // (sound/: the yard's ambience and music layer, crossfaded when the look changes)
+  sound.hush(); // (and a yard's fireworks still to come, or still sounding, stop)
   G.course = buildCourse(hole, i, { scene: engine.scene, model, look: YARDS[y].look, aniso: Math.min(8, engine.renderer.capabilities.getMaxAnisotropy()) });
   G.props = buildProps(hole, G.course, ctx);
   G.cols = [...G.course.cols, ...G.props.flatMap(p => p.cols)];
@@ -576,7 +579,7 @@ function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   $('card').classList.remove('yd-page');
   G.yardShown = false;
   if (!retry) G.yardPage = null; // (the yard's page still to come, after a retry of its last hole)
-  $('hint').hidden = !hintDue;
+  $('hint').hidden = !hintDue || G.paused; // (not through a menu left up: unpause shows it again)
   if (fresh || (!retry && !G.detour && G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
   if (G.paused && !stay) unpause();
   hud();
@@ -814,6 +817,7 @@ function menu(page, y = G.yard) {
     G.aim = null;
     showAim(false);
     $('menu').hidden = false;
+    $('hint').hidden = true; // (how to putt: not through the menu, nor the question whether to clear)
     $('hud').inert = $('card').inert = true; // (Tab stays in the menu and the bar)
   }
   menuPage = page;
@@ -839,6 +843,7 @@ function unpause() {
   menuPage = '';
   $('menu').hidden = true;
   $('hud').inert = $('card').inert = false;
+  if (hintDue && G.state === 'aim') $('hint').hidden = false;
   for (const id of ['yard', 'lv-chip']) { $(id).classList.remove('open'); $(id).setAttribute('aria-expanded', false); }
   document.activeElement?.blur?.();
 }
@@ -1577,6 +1582,7 @@ function finish(sunk, skipped = false) {
       : d === 2 ? ['多了两杆', 'over'] : ['进洞了', 'over'];
   $('card-title').textContent = t(word);
   $('card-title').className = 'title ' + kind;
+  if (!sunk) sound.letOff(); // (given up or skipped: two soft notes 0.3 s on, not a buzzer)
   // the stars come in one after another, each with a note higher than the last; all three, a fanfare
   // and confetti from both corners
   const at = i => 0.3 + i * 0.32;
@@ -1725,8 +1731,9 @@ function showYard() {
     + `<div class="lines">${lines.map(l => `<div>${l}</div>`).join('')}</div>`;
   $('card-btn').textContent = onward(fin).text;
   $('card').classList.remove('again');
-  // (a fanfare and confetti for it, a new medal or not)
-  audio.fanfare();
+  // (a fanfare and confetti for it, a new medal or not; fireworks after the fanfare for a new medal, more
+  // for the whole neighbourhood done: sound/)
+  sound.medal(m > p.had, fin);
   confetti.burst(0, innerHeight, 70, { angle: -1.2, spread: 0.45, speed: innerHeight * 3.2 });
   confetti.burst(innerWidth, innerHeight, 70, { angle: -Math.PI + 1.2, spread: 0.45, speed: innerHeight * 3.2 });
   $('card').querySelector('.inner').scrollTop = 0;
