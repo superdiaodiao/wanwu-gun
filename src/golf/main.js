@@ -98,7 +98,7 @@ const G = {
   ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, pending: null, hitT: 0, t: 0, sinkT: 0, live: true,
   // (a press still held when the goose or a cat pushes the ball is kept as one made while it rolls: once it
   // stops, the aim starts again from where the pointer is then, so it never shoots by itself)
-  pushed() { if (G.state === 'aim') { if (G.aim) G.pending = { id: G.aim.id, x: G.aim.x, y: G.aim.y, touch: G.aim.touch }; G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
+  pushed() { if (G.state === 'aim') { if (G.aim) G.pending = { ...G.aim, sx: G.aim.x, sy: G.aim.y }; G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
 };
 
 // the difficulty: how far along a shot's run the dotted guide shows it (no further than its first
@@ -1235,14 +1235,17 @@ function onDown(e) {
   if (dipping) return;
   hush();
   camDone(); // (a press while the camera is still moving in puts it in place, and aims as usual)
-  // one finger, the main mouse button; a second touch doesn't take the shot over
-  // (a new press puts aside one kept from before: its letting go was missed)
-  if (G.aim || !e.isPrimary || e.button !== 0) return;
-  G.pending = null;
+  // one finger, the main mouse button. A second touch takes over only an aim not yet pulled past the 10 px
+  // it starts at (a thumb resting on the glass, holding the phone); a pull under way is never taken over
+  const touch = e.pointerType === 'touch';
+  if (e.button !== 0 || (!touch && !e.isPrimary)) return;
+  const held = G.aim || (G.pending?.id !== e.pointerId && G.pending); // (the same pointer again: its letting go was missed)
+  if (held && (!touch || !held.touch || held.far > 10)) return;
+  G.aim = G.pending = null;
   // (pressed while the ball is still rolling, in its last slow half second: kept, and the aim starts from
   // where the pointer is once it has stopped, if it is still held then: aimFromPending)
-  if (G.state === 'roll' && !G.paused) G.pending = { id: e.pointerId, x: e.clientX, y: e.clientY, touch: e.pointerType === 'touch' };
-  else if (G.state === 'aim') G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, ang: 0, p: 0, was: [], touch: e.pointerType === 'touch' };
+  if (G.state === 'roll' && !G.paused) G.pending = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, far: 0, touch };
+  else if (G.state === 'aim') G.aim = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, far: 0, ang: 0, p: 0, was: [], touch };
   else return;
   try { e.target.setPointerCapture(e.pointerId); } catch {}
 }
@@ -1251,15 +1254,16 @@ function onDown(e) {
 function aimFromPending() {
   const q = G.pending;
   G.pending = null;
-  if (q && !G.aim && G.state === 'aim') G.aim = { id: q.id, sx: q.x, sy: q.y, x: q.x, y: q.y, ang: 0, p: 0, was: [], touch: q.touch };
+  if (q && !G.aim && G.state === 'aim') G.aim = { id: q.id, sx: q.x, sy: q.y, x: q.x, y: q.y, far: q.far, ang: 0, p: 0, was: [], touch: q.touch };
 }
 const ballV = new THREE.Vector3(), tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
 function onMove(e) {
   const q = G.pending;
-  if (q && e.pointerId === q.id) { q.x = e.clientX; q.y = e.clientY; return; }
+  if (q && e.pointerId === q.id) { q.x = e.clientX; q.y = e.clientY; q.far = Math.max(q.far, Math.hypot(q.x - q.sx, q.y - q.sy)); return; }
   const a = G.aim;
   if (!a || e.pointerId !== a.id) return;
   a.x = e.clientX; a.y = e.clientY;
+  a.far = Math.max(a.far, Math.hypot(e.clientX - a.sx, e.clientY - a.sy)); // (how far it has gone: onDown)
   // the pull is taken as if it started at the ball, wherever the press was: pulling straight down
   // the screen shoots straight up it (from the ground under the press, the camera's perspective
   // would bend a pull near the side of the screen by up to a quarter turn)
