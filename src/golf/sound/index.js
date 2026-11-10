@@ -7,6 +7,9 @@
 //   - a music layer per look over the golf song (layer.js): a soft vibraphone at the duck pond,
 //     electric-piano off-beats and bongos at the pool party, strings and claps in the pumpkin patch, a
 //     glockenspiel and a pad on the snow day.
+//   - two one-shots of the game's own (stings.js): sound.letOff() as the card of a hole the game lets
+//     the player off comes up, sound.medal(isNew, finale) on a yard's results (the fanfare, and fireworks
+//     after it for a new medal or the last yard finished).
 // The golf song plays 3 dB under the level src/audio gives its music (MUSIC below), so the roll and the
 // yard can be heard through it.
 // They hang off the game's mixer (audio.m): the bed and the roll off the effects bus, so the sound
@@ -19,6 +22,7 @@ import { audio } from '../../audio/audio.js';
 import { makeBed, liveEvents } from './beds.js';
 import { makeRoll } from './roll.js';
 import { makeLayer, stringBuf, STRING_NOTES } from './layer.js';
+import { letOff, medal, hush, stingStats } from './stings.js';
 
 // the music bus's level for golf (src/audio's own is 0.6: this is 3 dB under it). Set before the mixer
 // is made (audio.init, on the first tap), which then starts at it.
@@ -64,12 +68,19 @@ export const sound = {
       if (warm.length && (look === 'pool' || look === 'autumn')) stringBuf(ctx, warm.pop());
     } catch (e) { if (errs++ < 5) console.warn('[golf sound]', e); }
   },
+  /** the card of a hole not sunk (given up for the player, or skipped) has come up: two soft notes */
+  letOff,
+  /** a yard's results are shown: the fanfare; isNew (a medal better than the one held) or finale (the
+   *  last yard played through): fireworks after it */
+  medal,
+  /** the fireworks and notes still to come are dropped (not needed between holes: they are short) */
+  hush,
   /** for the tests: what is playing */
   stats() {
     return {
       look, bed: bed && bed.look, fading: fading.length, bedNodes: (bed ? bed.nodes() : 0) + fading.reduce((n, b) => n + b.nodes(), 0),
       events: liveEvents(), roll: !!(roll && roll.on), layer: layer && layer.tr ? Object.fromEntries(Object.entries(layer.tr.lay).map(([k, L]) => [k, L.g])) : null,
-      inStep: layer ? layer.inStep() : null, layerOff: layer ? layer.off() : null,
+      inStep: layer ? layer.inStep() : null, layerOff: layer ? layer.off() : null, stings: stingStats(),
     };
   },
 };
