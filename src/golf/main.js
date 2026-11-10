@@ -11,7 +11,9 @@
 // bronze for playing it through, silver and gold for stars, and what opens next). The bar at the top,
 // always live (over the card and the menus too), shows the yard (its picture, name and holes as dots;
 // tap: pick a hole, in this yard or another) and the difficulty (tap: pick another). The menu (top left, or
-// Esc) pauses: start the hole again, pick a hole, sound and music. On CrazyGames
+// Esc) pauses: start the hole again, pick a hole, sound and music, and clear the progress (asked first).
+// Coming back goes on where it was left (G.saved), welcomed to the yard by name; a hole already played,
+// picked to play once more, doesn't move that, and its card goes back there. On CrazyGames
 // (node build.mjs golf-crazygames) their SDK hears when a hole is being played (game/portal.js).
 import * as THREE from 'three';
 import '../catalog/index.js';
@@ -48,6 +50,11 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('golf.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('golf.' + k, JSON.stringify(v)); } catch {} },
 };
+
+/** where coming back goes on from (kept in mind as well, for where nothing can be stored) */
+function save(i) { G.saved = i; store.set('hole', i); }
+/** what clearing the progress leaves: the sound, the music, the difficulty, and two things the stats go by */
+const KEEP = ['muted', 'music', 'level', 'firstDay', 'finale'];
 
 let engine, material, fx, confetti;
 const specs = new Map();
@@ -107,6 +114,7 @@ const LEVEL_TIPS = 3; // (on how many visits a hole under par at the easy one sa
 let levelTold = false; // (and whether it has on this one)
 let rowShown = false; // (the first card's row of difficulties, once even where nothing can be stored)
 let easierTold = false; // ("too hard?" on a card at the harder ones: once a visit)
+let hintDue = true; // (how to putt, said under the hole till the first stroke: to one who has never played one, or been away a week, or cleared the progress)
 /** a record's key at the difficulty being played (the easy one's as it always was) */
 const rec = (k, l = G.level) => (l === 'easy' ? k : `${k}.${l}`);
 /** play at this difficulty from now on: its records, its guide and its cup */
@@ -136,9 +144,10 @@ function pickLevel(l, where) {
   if (G.state === 'sink') finish(true);
   // (the yard's round so far goes on at the new difficulty, picked on a card or in the middle of a hole:
   // a round begun at one can still be played through, to the yard's page)
-  const cy = yardOf(G.hole), carry = G.rounds[cy].slice(), pace = LEVELS[G.level].pace;
+  // (and, from a hole played again by the way, the round of the yard to go back to)
+  const ys = [...new Set([yardOf(G.hole), ...(G.detour ? [yardOf(resumeAt())] : [])])], carry = ys.map(y => G.rounds[y].slice()), pace = LEVELS[G.level].pace;
   useLevel(l);
-  G.rounds[cy] = carry;
+  ys.forEach((y, k) => { G.rounds[y] = carry[k]; });
   store.set(rec('rounds'), G.rounds);
   track('level', G.level);
   track('lvpick', where);
@@ -148,7 +157,7 @@ function pickLevel(l, where) {
   // goes by load()'s rule: a yard's first hole, or any after its last, starts a new one)
   if (G.state !== 'card') {
     const y = yardOf(G.hole);
-    if (G.hole % PER === 0 || G.rounds[y][PER - 1] != null) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
+    if (!G.detour && (G.hole % PER === 0 || G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
     if (G.strokes > 0) load(G.hole, false, true);
     else if (LEVELS[G.level].pace !== pace) load(G.hole, false, true, true);
   } else {
@@ -227,12 +236,14 @@ async function boot() {
   makeBall(sc);
   makeAim(sc);
   engine.camera.fov = 40;
-  addEventListener('resize', () => { aim(); fitHud(); hudBottom(); placeLogo(); dropBanner(); G.redraw = true; });
+  addEventListener('resize', () => { aim(); fitHud(); placeBanner(); G.redraw = true; });
   // (the bars grow when the numbers' font arrives: what is placed under them moves down with them)
   if (window.ResizeObserver) {
-    const ro = new ResizeObserver(() => { fitHud(); hudBottom(); placeLogo(); dropBanner(); });
+    const ro = new ResizeObserver(() => { fitHud(); placeBanner(); });
     for (const id of ['yard', 'score', 'lv-chip']) ro.observe($(id));
   }
+  // (the banner once it has faded: gone, so that a press later has nothing to fade)
+  $('banner').addEventListener('animationend', e => { if (e.target === $('banner')) $('banner').hidden = true; });
   const cv = $('game');
   cv.addEventListener('pointerdown', onDown);
   cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -262,6 +273,7 @@ async function boot() {
     // Esc (or P) opens the menu and backs out of it
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
       if (!G.paused) menu('main');
+      else if (asking()) menu('main'); // (clearing the progress, not yet said yes to: back to the menu)
       else unpause();
       return;
     }
@@ -319,18 +331,23 @@ async function boot() {
   // (how far along on coming in, for what this visit has added; and back after a while, a welcome)
   G.visit = { holes: playedCount(), stars: starsAll() };
   const last = store.get('lastVisit', 0);
-  if (last && Date.now() - last > 30 * 60000 && G.visit.holes) G.welcome = t('欢迎回来！已打 {n}/{all} 洞', { n: G.visit.holes, all: HOLES.length });
-  // (back at a yard's first hole, its round starts again, as it does going there any other way; a
-  // hole that isn't open, from before the yards had gates, gives way to the first one still to play)
-  let at = Math.min(store.get('hole', 0), HOLES.length - 1);
-  if (!opened(at)) at = Math.max(0, HOLES.findIndex((h, i) => opened(i) && !played(i)));
+  hintDue = !store.get('shot', false) || (last > 0 && Date.now() - last > 7 * 86400000);
+  // (a hole that isn't open, from before the yards had gates, gives way to the first one still to play)
+  G.saved = store.get('hole', 0);
+  let at = resumeAt();
   // (one who had played every yard there was, back at the first hole after the last, comes back to the
   // first yard added since, and is told it is open: a yard after the first two, which came out together)
   if (at === 0 && played(0)) {
     const nx = HOLES.findIndex((h, i) => opened(i) && !played(i));
     if (nx >= 2 * PER && nx % PER === 0) { at = nx; G.welcome = t('{yard}开放了！', { yard: t(YARDS[yardOf(nx)].name) }); }
   }
-  load(at, at % PER === 0);
+  // (anyone who has played a hole is welcomed back, to the yard by name, every time)
+  if (G.visit.holes && !G.welcome) G.welcome = t('欢迎回来 · {yard}', { yard: t(YARDS[yardOf(at)].name) });
+  // (back at a yard's first hole its round stays as it is, a first go at that hole kept; one left over
+  // with more in it starts again)
+  load(at, at % PER === 0 && stale(yardOf(at)));
+  // (cleared in another tab: this one starts over too, so that it can't write the old stars back)
+  addEventListener('storage', e => { if (e.key === 'golf.resetAt' && e.newValue) resetHere(); });
   portalLoaded(); // (before the first frame, which says the hole is being played)
   requestAnimationFrame(loop);
   await nextFrame();
@@ -503,13 +520,16 @@ function coin() {
 }
 
 // ---- a hole ----------------------------------------------------------------------------------------------
-/** play hole i (`fresh`: a new round of its yard starts with it, as at a yard's first hole). A round
+/** play hole i (`fresh`: a new round of its yard starts with it, as at a yard's first hole; `detour`: a
+ *  hole already played, picked to play once more: it leaves alone the yard's round and the hole that
+ *  coming back goes on from, G.saved, and its card's big button goes back there). A round
  *  is over once its last hole has been played: whatever is played next in that yard starts the next
  *  one, unless it is that hole again (a retry, which doesn't touch the round). `quiet`: not the
  *  player's own retry (the difficulty changed), so not counted as one; `stay`: the menu it was changed
  *  in stays up, and the hole's name isn't said again */
-function load(i, fresh = false, quiet = false, stay = false) {
+function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   const retry = !!G.course && i === G.hole;
+  if (!retry) G.detour = detour; // (a retry of a hole played again by the way is still one)
   if (!quiet) trackHole(i, retry);
   if (G.course) G.course.dispose();
   for (const k of cardTimers.splice(0)) clearTimeout(k);
@@ -555,12 +575,12 @@ function load(i, fresh = false, quiet = false, stay = false) {
   $('card').classList.remove('yd-page');
   G.yardShown = false;
   if (!retry) G.yardPage = null; // (the yard's page still to come, after a retry of its last hole)
-  $('hint').hidden = i > 0 || store.get('shot', false);
-  if (fresh || (!retry && G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
+  $('hint').hidden = !hintDue;
+  if (fresh || (!retry && !G.detour && G.rounds[y][PER - 1] != null)) { G.rounds[y] = []; store.set(rec('rounds'), G.rounds); }
   if (G.paused && !stay) unpause();
   hud();
   aim();
-  // (the game's name over the first hole played, and a welcome back; a yard's name over its first hole)
+  // (the game's name over the first hole played, and a welcome back to the yard; a yard's name over its first hole)
   if (!stay) banner(t(hole.name), t(hole.tip), !G.titled, G.welcome || (i % PER ? '' : t(YARDS[y].name)));
   G.welcome = '';
   G.titled = true;
@@ -579,7 +599,7 @@ function load(i, fresh = false, quiet = false, stay = false) {
   if (i === 0 && G.sweets.length) { const s = G.sweets[G.sweets.length - 1]; list.push({ text: '全捡到 +1 ★', at: () => [s.x, 0, s.z], flat: true, under: true }); }
   showTags(list);
   if (stay) G.redraw = true; // (under the menu: drawn once, the hole built again behind it and its tags placed)
-  store.set('hole', i);
+  if (!G.detour) save(i); // (a hole played again by the way doesn't move where coming back goes on from)
   // (on a yard's last two holes, the next yard's shaders, when there is a moment: warm)
   if (i % PER >= PER - 2 && YARDS[y + 1] && !warmed.has(YARDS[y + 1].look)) idle(() => warm(YARDS[y + 1].look, 0));
 }
@@ -728,7 +748,18 @@ function makeMenu() {
     if (G.paused) unpause();
   });
   for (const id of ['pick-x', 'l-x']) $(id).addEventListener('click', () => { audio.tap(); unpause(); });
-  $('menu').addEventListener('click', e => { if (e.target === $('menu')) unpause(); }); // (around the panel)
+  // (around the panel: closes it; asked whether to clear the progress, back to the menu)
+  $('menu').addEventListener('click', e => { if (e.target !== $('menu')) return; if (asking()) menu('main'); else unpause(); });
+  // clearing the progress: the small grey words at the foot of the menu ask first, in the menu's own
+  // panel, No lit and under the keys; only Yes clears
+  $('m-reset').addEventListener('click', () => {
+    audio.tap();
+    track('reset', 'ask');
+    $('menu-main').classList.add('ask');
+    $('m-no').focus({ preventScroll: true });
+  });
+  $('m-no').addEventListener('click', () => { audio.tap(); menu('main'); });
+  $('m-yes').addEventListener('click', () => { if (!asking()) return; audio.tap(); resetProgress(); });
   // (a yard's tab: its holes; one not open yet shakes, and the line says what opens it)
   $('pick-tabs').addEventListener('click', e => {
     const c = e.target.closest('.tab');
@@ -748,9 +779,14 @@ function makeMenu() {
     // (the hole being played: on with it as it stands, its strokes kept)
     if (i === G.hole && G.state !== 'card') return unpause();
     unpause(); // (first: nothing in the menu can be pressed while the hole fades)
-    // (a yard's first hole starts a new round of it: said over the hole, if it isn't the yard's first)
-    if (i % PER === 0 && played(i)) G.welcome = t('新一轮 · {yard}', { yard: t(YARDS[yardOf(i)].name) });
-    dip(() => load(i, i % PER === 0));
+    // (a yard's first hole starts a new round of it, said over the hole if it has been played before;
+    // unless it is the hole to go on with, its round hardly begun. Any other hole already played is
+    // played once more by the way: where coming back goes on from stays put, and its card goes back there)
+    const fresh = i % PER === 0 && (i !== G.saved || stale(yardOf(i)));
+    const detour = i % PER !== 0 && i !== G.saved && i !== G.hole && played(i);
+    if (fresh && played(i)) G.welcome = t('新一轮 · {yard}', { yard: t(YARDS[yardOf(i)].name) });
+    if (detour) track('detour', 'go');
+    dip(() => load(i, fresh, false, false, detour));
   });
 }
 /** picking a hole, one page: the yards as tabs (yard y's lit: its sky, picture and name, its medal once
@@ -784,13 +820,19 @@ function menu(page, y = G.yard) {
   $('menu').className = page === 'main' ? '' : page === 'level' ? 'hang lv' : 'hang';
   for (const [id, p] of [['yard', 'pick'], ['lv-chip', 'level']]) { $(id).classList.toggle('open', page === p); $(id).setAttribute('aria-expanded', page === p); }
   // (over a card or a yard's page there is no hole under way to start again: the card has its own button)
-  if (page === 'main') $('m-restart').hidden = G.state === 'card';
+  if (page === 'main') {
+    $('m-restart').hidden = G.state === 'card';
+    $('menu-main').classList.remove('ask');
+    $('m-reset').hidden = !playedCount(); // (nothing to clear yet)
+  }
   if (page === 'pick') pickPage(y);
   if (page === 'level') showLevel();
   // (for the keys: Enter presses the first button; picking a hole, the one to go on with)
   const first = { main: () => $('m-resume'), pick: () => $('hole-grid').querySelector('.nx') || $('pick-tabs').querySelector('.on'), level: () => $('l-opts').querySelector('.on') };
   first[page]().focus({ preventScroll: true });
 }
+/** the menu is asking whether to clear the progress */
+const asking = () => G.paused && menuPage === 'main' && $('menu-main').classList.contains('ask');
 function unpause() {
   G.paused = false;
   menuPage = '';
@@ -800,15 +842,51 @@ function unpause() {
   document.activeElement?.blur?.();
 }
 
+// ---- clearing the progress ---------------------------------------------------------------------------
+/** every star, medal, record and round gone, at every difficulty, and back to the first hole as if new:
+ *  the game's own keys only, all but KEEP (never the other game's, nor the language), then empty ones
+ *  written in their place (a save from before the yards, found without its rounds, would be read as the
+ *  first yard played through: boot), and the time, which tells the other tabs (boot's listener) */
+function resetProgress() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('golf.') && !KEEP.includes(k.slice(5))) localStorage.removeItem(k);
+  } catch {}
+  for (const l in LEVELS) { store.set(rec('rounds', l), YARDS.map(() => [])); store.set(rec('best', l), []); }
+  store.set('hole', 0);
+  store.set('resetAt', Date.now());
+  track('reset', 'done');
+  resetHere();
+}
+/** and here, with no reload: what is kept in mind cleared as what is stored was, then the first hole
+ *  under the game's name, as on a first visit (the hint how to putt and the first card's difficulties too) */
+function resetHere() {
+  // (in a tab told by another one, in the middle of a fade: once it is over)
+  if (dipping) return setTimeout(resetHere, 150);
+  useLevel(G.level);
+  G.saved = 0;
+  G.visit = { holes: 0, stars: 0 };
+  G.yardPage = null;
+  G.yardShown = false;
+  G.detour = false;
+  G.titled = false;
+  rowShown = levelTold = easierTold = false;
+  hintDue = true;
+  swept.clear();
+  G.welcome = t('进度已清空');
+  if (G.paused) unpause();
+  dip(() => load(0, true));
+}
+
 /** a yard's first hole not played yet (-1: all of it has been) */
 const firstNew = y => inYard(y, i => i).find(i => !played(i)) ?? -1;
 /** a yard's holes, each with its stars and its fewest strokes at any difficulty (as the stars are
  *  counted, so changing the difficulty hides nothing; "skipped" for one let off); those not reached yet
- *  locked; and the one to go on with ringed: in the yard being played the hole on screen (once its card
- *  is up, the first not played yet), in another its first not played yet */
+ *  locked; and the one to go on with ringed: in the yard being played the hole on screen; once its card
+ *  is up, and in another yard, the hole that coming back goes on from if it is in that yard, else the
+ *  yard's first not played yet */
 function holeGrid(y) {
   const fewest = Object.keys(LEVELS).map(l => store.get(rec('strokes', l), []));
-  const go = y === G.yard && G.state !== 'card' ? G.hole : firstNew(y);
+  const go = y === G.yard && G.state !== 'card' ? G.hole : yardOf(resumeAt()) === y ? resumeAt() : firstNew(y);
   return HOLES.slice(y * PER, y * PER + PER).map((h, k) => {
     const i = y * PER + k, n = t('第 {n} 洞', { n: i + 1 });
     if (!opened(i)) return `<button class="tile locked" data-i="${i}" aria-label="${n} · ${t('还没打到这洞')}"><b>${i + 1}</b>${LOCK}</button>`;
@@ -838,13 +916,22 @@ function scorecard(y) {
 /** a hole that has taken par + 3 offers to be let off (counting the strokes it took) */
 const canSkip = () => G.state === 'aim' && !G.paused && G.strokes >= HOLES[G.hole].par + SKIP;
 
-/** into yard y: on with it at its first hole not played yet, its round as it stands; one not begun, or
- *  played through, from its first hole, a new round */
+/** into yard y, never throwing away a round under way: on with it at its first hole not played yet, its
+ *  round as it stands; one with every hole played, at the first hole its round hasn't got yet; one not
+ *  begun, or with its round played through, from its first hole, a new round */
 function goYard(y) {
-  const i = firstNew(y);
-  if (i < 0 || i % PER === 0) load(y * PER, true);
+  let i = firstNew(y);
+  if (i < 0) { let k = 0; while (k < PER && G.rounds[y][k] != null) k++; i = y * PER + (k < PER ? k : 0); }
+  if (i % PER === 0) load(i, true);
   else load(i);
 }
+/** a yard's round left over with more in it than a first go at its first hole */
+const stale = y => G.rounds[y].some((s, k) => k > 0 && s != null);
+/** the hole that coming back goes on from; one that isn't open gives way to the first still to play */
+const resumeAt = () => {
+  const at = Math.min(Math.max(0, G.saved | 0), HOLES.length - 1);
+  return opened(at) ? at : Math.max(0, HOLES.findIndex((h, i) => opened(i) && !played(i)));
+};
 /** after a yard's last hole: what the big button says and where it goes. The next yard; after the
  *  last one (or from the whole neighbourhood's page, `fin`), a yard not played through yet, then the
  *  first one short of gold for another round of it, then the first hole of all */
@@ -855,12 +942,15 @@ function onward(fin = false) {
   if (todo >= 0) return { text: to(todo), go: () => goYard(todo) };
   const w = YARDS.findIndex((yd, k) => medalOf(k) < 3);
   if (w < 0) return { text: t('从第 1 洞再打') + ' ›', go: () => load(0, true) };
-  return { text: w === y ? t('再打一轮') + ' ›' : to(w), go: () => load(w * PER, true) };
+  return { text: w === y ? t('再打一轮') + ' ›' : to(w), go: () => goYard(w) };
 }
 /** the card's main button: the yard's page after its last hole, from there (or from the last hole's
- *  card when there is no page) on to another yard, else the next hole */
+ *  card when there is no page) on to another yard; after a hole played again by the way, back to the
+ *  hole it was left for; else the next hole */
 function cardNext() {
   if (G.yardPage) return showYard();
+  // (after a hole played again by the way: back to where it was, its round as it stands)
+  if (G.detour) { track('detour', 'back'); return dip(() => { const n = resumeAt(); load(n, n % PER === 0 && stale(yardOf(n))); }); }
   const i = G.hole + 1;
   dip(G.yardShown || i % PER === 0 ? onward(G.yardShown === 'fin').go : () => load(i));
 }
@@ -976,35 +1066,32 @@ function fitHud() {
   document.documentElement.style.setProperty('--hud-b', Math.round(bar.getBoundingClientRect().bottom) + 'px');
 }
 
-/** the banner with the game's name hangs just under the bars at the top */
-function placeLogo() {
-  const b = $('banner');
-  if (!b.classList.contains('logo')) return;
+/** the banner (a hole's name, and over the first hole played the game's) hangs just under the bar at
+ *  the top, wherever that ends */
+function placeBanner() {
   hudBottom();
-  b.style.setProperty('--below-hud', tagTop + 8 + 'px');
+  $('banner').style.setProperty('--below-hud', tagTop + 8 + 'px');
+}
+/** the first press on the green: the banner, if it is still up, fades at once, out of the way of the
+ *  hole, and what the things on it do is said straight away */
+function hush() {
+  const b = $('banner');
+  if (b.hidden || b.classList.contains('out')) return;
+  b.classList.add('out');
+  if (G.state === 'aim' && G.strokes === 0) { clearTimeout(tagsTimer); $('tags').classList.remove('out'); }
 }
 
 function banner(title, sub, logo, kick = '') {
   const b = $('banner');
   b.hidden = true;
+  b.classList.remove('out');
   b.classList.toggle('logo', !!logo);
-  placeLogo();
+  placeBanner();
   $('banner-kick').textContent = kick;
   $('banner-title').textContent = title;
   $('banner-sub').textContent = sub || '';
   void b.offsetWidth;
   b.hidden = false;
-  dropBanner();
-}
-/** on a short screen the banner in the middle would run up into the bars at the top (it drifts up to
- *  62% of its height above its centre as it fades): it comes down below them, again whenever they grow */
-function dropBanner() {
-  const b = $('banner');
-  b.style.marginTop = '0px';
-  if (b.hidden || b.classList.contains('logo')) return;
-  hudBottom();
-  const top = b.offsetTop - b.offsetHeight * 0.62;
-  if (top < tagTop + 4) b.style.marginTop = `${tagTop + 4 - top}px`;
 }
 
 /** frame the whole hole from its near end, so the ball starts near the player and is hit away from
@@ -1127,6 +1214,7 @@ function groundAt(x, y, h = 0) {
 function onDown(e) {
   wake();
   if (dipping) return;
+  hush();
   camDone(); // (a press while the camera is still moving in puts it in place, and aims as usual)
   // one finger, the main mouse button; a second touch doesn't take the shot over
   if (G.state !== 'aim' || G.aim || !e.isPrimary || e.button !== 0) return;
@@ -1269,6 +1357,7 @@ function shoot(ang, p) {
   G.rollT = 0;
   audio.putt((v - PHYS.vmin) / (PHYS.vmax - PHYS.vmin));
   if (!store.get('shot', false)) { store.set('shot', true); }
+  hintDue = false;
   $('hint').hidden = true;
   $('tags').classList.add('out');
   hud();
@@ -1510,11 +1599,13 @@ function finish(sunk, skipped = false) {
   }
   // the round counts each hole's first go (a hole let off counts the strokes it took): a retry wins
   // stars and the hole's best, but doesn't remake the round's total, nor say it again
-  const round = G.rounds[y], first = round[k] == null;
+  // (nor does a hole played again by the way, picked from the holes: it isn't part of the round)
+  const round = G.rounds[y], first = !G.detour && round[k] == null;
   if (first) round[k] = G.strokes;
   store.set(rec('rounds'), G.rounds);
-  // (coming back later goes on to the next hole, or after a yard's last to the next yard)
-  store.set('hole', (G.hole + 1) % HOLES.length);
+  // (coming back later goes on to the next hole, or after a yard's last to the next yard; after a hole
+  // played again by the way, to where it was before)
+  if (!G.detour) save((G.hole + 1) % HOLES.length);
   const roundDone = lastHole && first && inYard(y, (i, h) => round[i - y * PER] > 0).every(Boolean);
   let roundLine = '';
   if (roundDone) {
@@ -1534,7 +1625,9 @@ function finish(sunk, skipped = false) {
   const kept = lastHole && G.yardPage?.y === y ? G.yardPage : null;
   G.yardPage = lastHole && (roundDone || !wasDone) && yardDone(y) ? { y, roundLine, card: roundDone ? scorecard(y) : '', had, opens, fin } : kept;
   if (m > had && !G.yardPage) lines.push(`${medal(m, ' small')}<b>${t('新奖牌！')}</b> ${t('{yard}{medal}', { yard: t(YARDS[y].name), medal: t(MEDALS[m]) })}`);
-  $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : !lastHole ? t('下一洞') : onward().text;
+  // (after a hole played again by the way the big button names the hole it goes back to, unless that is the next one)
+  $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : G.detour && !(G.saved === G.hole + 1 && !lastHole) ? t('回到第 {n} 洞', { n: resumeAt() + 1 }) + ' ›'
+    : !lastHole ? t('下一洞') : onward().text;
   // the difficulty: on the very first card, the three in a row (the one played lit); afterwards at the
   // easy one, there are harder ones (a tap opens them): said after a hole under par (from hole 4 on)
   // once a visit for the first few visits, until a difficulty is picked

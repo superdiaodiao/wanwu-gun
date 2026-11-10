@@ -74,15 +74,18 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 .dots i.cur { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
 .dots i.cur.sn { box-shadow: inset 0 0 0 2px #c3cdc6, 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
 .dots i.now { animation: star-pop 0.45s cubic-bezier(0.2, 1.7, 0.4, 1) 1.1s both; }
-#banner { left: 50%; top: 22%; width: max-content; max-width: calc(100vw - 32px); transform: translate(-50%, -50%); text-align: center; color: #fff; text-shadow: 0 3px 0 rgba(47, 58, 51, 0.3); white-space: nowrap; animation: pop 2.6s ease-out forwards; }
+/* a hole's name: hung from just under the bar at the top (--below-hud: main.js placeBanner), clear of the
+   hole; it fades by itself, or at once at the first press on the green (.out) */
+#banner { left: 50%; top: var(--below-hud, 80px); width: max-content; max-width: calc(100vw - 32px); transform: translate(-50%, 0); transform-origin: 50% 0; text-align: center; color: #fff; text-shadow: 0 3px 0 rgba(47, 58, 51, 0.3); white-space: nowrap; animation: pop-top 2.6s ease-out forwards; }
+#banner.out, #banner.logo.out { animation: banner-out 0.18s ease-out forwards; }
 /* (the name in a dark edge, as the line under it: white letters stay readable over snow) */
 #banner-title { font: 800 46px var(--body); text-shadow: 0 3px 0 rgba(31, 60, 40, 0.45), 0 0 10px rgba(31, 60, 40, 0.5), 0 0 2px rgba(31, 60, 40, 0.8), 0 0 1px rgba(31, 60, 40, 0.9); }
 #banner-kick { display: inline-block; margin-bottom: 4px; padding: 3px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--ink); text-shadow: none; font: 800 17px var(--body); }
 #banner-kick:empty { display: none; }
 #banner.logo #banner-kick { margin: 6px 0 2px; font-size: clamp(12px, 2.6vh, 16px); }
-/* with the game's name over it (the first hole played): hung from just under the bars at the top,
-   everything in it sized to the screen's height as well as its width, so it never reaches them */
-#banner.logo { top: var(--below-hud, 80px); transform: translate(-50%, 0); transform-origin: 50% 0; animation: pop-top 3.4s ease-out forwards; }
+/* with the game's name over it (the first hole played): up a little longer, and everything in it sized
+   to the screen's height as well as its width */
+#banner.logo { animation-duration: 3.4s; }
 #logo { display: none; margin-bottom: 8px; line-height: 0.92; }
 #banner.logo #logo { display: block; }
 #banner.logo #banner-title { font-size: clamp(20px, 5vh, 30px); }
@@ -220,6 +223,18 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #menu .lvopts button small { font: 700 15px var(--body); color: var(--dim); }
 #menu .lvopts button.on { background: #fff6d6; box-shadow: inset 0 0 0 3px #f2c94c; }
 #menu .warn { font: 700 14px var(--body); color: #b0602a; }
+/* clearing the progress: quiet grey words at the foot of the pause menu, not a button like the others; a
+   tap asks first, in the same panel (.ask: everything else in it gives way), No beside a red Yes */
+#menu button.link { align-self: center; margin: 0 0 -4px; padding: 8px 12px; background: none; font: 700 14px var(--body); color: #8b968f; text-decoration: underline; text-underline-offset: 3px; }
+#m-confirm { display: none; flex-direction: column; gap: 10px; }
+#menu #menu-main.ask > :not(#m-confirm) { display: none; }
+#menu #menu-main.ask > #m-confirm { display: flex; }
+#m-confirm p { margin: 0; font: 700 16px/1.45 var(--body); color: var(--ink); text-wrap: balance; }
+#m-confirm .two { display: flex; gap: 10px; margin-top: 4px; }
+#m-confirm .two button { flex: 1; min-width: 0; }
+#menu button.danger { padding: 11px; background: #e0524a; color: #fff; box-shadow: 0 4px 0 #b63a33; }
+#menu button.danger:active { transform: translateY(2px); box-shadow: 0 2px 0 #b63a33; }
+#menu button#m-no:focus-visible, #menu button#m-no:focus { outline: 3px solid #f2c94c; outline-offset: 2px; }
 @media (min-width: 561px) { #menu.lv { justify-content: flex-end; padding-right: 14px; } } /* (under the difficulty at the right) */
 /* picking a hole: the four yards as tabs (each its sky, its picture and name, its medal in the corner
    once won, a lock till it opens), a line saying how the one shown stands, and its nine holes: three
@@ -296,7 +311,7 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 @keyframes medal-drop { 0% { transform: translateY(-46px) scale(0.6) rotate(-12deg); opacity: 0; } 65% { transform: translateY(4px) scale(1.1) rotate(4deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
 @keyframes rise { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes pop-top { 0% { transform: translate(-50%, 0) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, 0) scale(1.05); opacity: 1; } 20% { transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { transform: translate(-50%, -4px); opacity: 0; } }
-@keyframes pop { 0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; } 12% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(-50%, -62%); opacity: 0; } }
+@keyframes banner-out { 0% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -4px); opacity: 0; } }
 @media (max-width: 560px) {
   #bar { flex-wrap: wrap; row-gap: 0; }
   #bar .brk { display: block; flex-basis: 100%; height: 0; }
@@ -343,7 +358,7 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
   #card .yard .lines { margin: 4px 0 8px; line-height: 1.5; }
   #card .yard .lines button.harder { margin-top: 2px; padding: 5px 12px 5px 14px; }
 }
-@media (max-height: 360px) { #menu-main .head { display: none; } } /* (the green 接着打 says it is paused) */
+@media (max-height: 360px) { #menu-main > .head { display: none; } #menu button.link { margin: -3px 0 -6px; padding: 5px 12px; } } /* (the green 接着打 says it is paused) */
 @media (max-height: 340px) { #card .st small { display: none; } #card .st i, #card .st b { font-size: 30px; } #card .sub { margin: 2px 0 6px; } #card .inner { padding: 6px 24px; } #card .title, #card.yd-page .title { font-size: 24px; } #card .prog, #card .best, #card .tip { margin-bottom: 4px; } #card .yard .lines { margin: 2px 0 4px; line-height: 1.35; } }
 /* a phone on its side, a computer: the tabs low with the picture beside the name, the nine holes in a row */
 @media (orientation: landscape) {

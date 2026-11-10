@@ -19,6 +19,9 @@
 //           (it opens the difficulty's page)
 //   easier  show: the card offered the easy difficulty, at a harder one (a hole skipped or let off, once a
 //           visit); pick: that offer tapped (it changes to easy at once, with level/easy and lvpick/card)
+//   detour  go: a hole already played picked from the holes to play once more (not a yard's first hole,
+//           which starts a new round, nor the hole to go on with); back: its card's "back to hole N" pressed
+//   reset   ask: "clear the progress" tapped in the pause menu (it asks first); done: said yes to
 //   lvchip  open: the difficulty at the top right tapped (its page)
 //   lvpick  chip|card: where a difficulty was picked (with level/<l> as before): its page from the top
 //           right, or the card (its first row, its offers)

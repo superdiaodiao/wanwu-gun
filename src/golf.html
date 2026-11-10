@@ -36,6 +36,12 @@
       <button id="m-sound" class="tog"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path class="x" d="M3 3l18 18"/></svg><span>音效</span></button>
       <button id="m-music" class="tog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17V6l10-2v11"/><circle class="fill" cx="6.5" cy="17" r="2.5"/><circle class="fill" cx="16.5" cy="15" r="2.5"/><path class="x" d="M3 3l18 18"/></svg><span>音乐</span></button>
     </div>
+    <button id="m-reset" class="link" hidden>清空进度</button>
+    <div id="m-confirm" role="alertdialog" aria-labelledby="m-ask">
+      <div class="head" id="m-ask">清空进度？</div>
+      <p>星星、奖牌和最好成绩都会清掉，从第 1 洞重新开始。</p>
+      <div class="two"><button id="m-no" class="row">取消</button><button id="m-yes" class="danger">清空</button></div>
+    </div>
   </div>
   <div class="panel" id="menu-pick" hidden>
     <button id="pick-x" class="x" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>

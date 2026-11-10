@@ -35,6 +35,16 @@ export const EN = {
   '新一轮 · {yard}': 'New round · {yard}',
   // (the card at a harder difficulty, a hole skipped or let off: one tap to the easy one)
   '太难？换成简单': 'Too hard? Switch to Easy',
+  // (coming back: the yard by name; a hole played once more by the way: the card's button back)
+  '欢迎回来 · {yard}': 'Welcome back · {yard}',
+  '回到第 {n} 洞': 'Back to hole {n}',
+  // (the pause menu: clearing the progress, asked first)
+  '清空进度': 'Reset progress',
+  '清空进度？': 'Reset progress?',
+  '星星、奖牌和最好成绩都会清掉，从第 1 洞重新开始。': 'All stars, medals and best scores are erased. You start again at hole 1.',
+  '取消': 'Cancel',
+  '清空': 'Reset',
+  '进度已清空': 'Progress reset',
   // (the big button after the last yard: another round of this yard, or every yard gold)
   '再打一轮': 'Play again',
   '从第 1 洞再打': 'Play from hole 1',
