@@ -1384,13 +1384,17 @@ let last = performance.now();
 function loop() {
   requestAnimationFrame(loop);
   const now = performance.now();
-  const dt = Math.min(0.033, (now - last) / 1000);
+  // (a slow computer, under 30 frames a second, doesn't slow the game down: a longer frame, up to 0.1 s,
+  // is played as that many steps of no more than 0.033 s, drawn once at the end; at 30 a second and
+  // over, one step as ever)
+  const gap = Math.min(0.1, (now - last) / 1000), n = gap > 0.034 ? Math.ceil(gap / 0.033) : 1;
+  const dt = n > 1 ? gap / n : Math.min(0.033, gap);
   last = now;
   // (held still under the menu: drawn again only if the window changes)
-  if (!G.paused) step(dt);
+  if (!G.paused) for (let k = 1; k <= n; k++) step(dt, k === n);
   else if (G.redraw) { G.redraw = false; render(); }
   sound.frame(G); // (sound/: the ball rolling, the ambience's and the music layer's next sounds)
-  confetti.update(dt);
+  for (let k = 0; k < n; k++) confetti.update(dt);
   playing();
   const skip = canSkip() && $('power').hidden; // (not over the power bar while pulling back)
   if (skip === $('skip').hidden) $('skip').hidden = !skip;
