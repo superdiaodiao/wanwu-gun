@@ -9,8 +9,8 @@ export const EN = {
   '再拿一颗星：捡齐金币': 'Next ★: grab every coin',
   // (hole 2's tip)
   '借跷跷板拐弯': 'Bank off the seesaw to turn the corner',
-  // (hole 12's tip: the windmill's door, or the path round it)
-  '穿过风车，或从旁边绕': 'Through the windmill, or around it',
+  // (hole 12's tip: the path round the windmill is the way; the door leads past the cup)
+  '从风车旁边绕过去': 'Go around the windmill',
   // (hole 9's tip: its crossing has a pedestrian light)
   '绿灯亮了再打，再绕开大鹅': 'Wait for the green light, then dodge the goose',
   // (the page after the last yard, every one played through)

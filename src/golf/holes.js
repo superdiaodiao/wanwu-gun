@@ -344,7 +344,10 @@ export const HOLES = [
     coins: [[6.5, 8]],
   },
   {
-    name: '风车', tip: '穿过风车，或从旁边绕', par: 3,
+    name: '风车', tip: '从风车旁边绕过去', par: 3,
+    // (the tip sends the player round it: of 205 tee shots through the door none drops or stops within a
+    // metre of the cup, and a bowl behind the door that brought them to it either made holes in one too
+    // common (over 15% on easy) or cost the casual player strokes: tried in s7, see the commit that set the tip)
     // (the cup off to one side behind it: the windmill never stands in front of it, so the camera can look
     // along the hole as low as on any other. Past the water on its right a path goes round it, the way
     // without sails; the ground falls gently from the windmill's side to the path's, all down the hole
