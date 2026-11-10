@@ -16,11 +16,20 @@ const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
 
 export class Engine {
-  constructor(canvas, quality = 'high') {
+  // options (the defaults are this game's; a small, near world such as the mini golf's passes its own):
+  //   logDepth     the logarithmic depth buffer (it writes each pixel's depth in the fragment shader, which
+  //                switches off the GPU's early depth test and MSAA's per-sample depth: a fifth to a third
+  //                more GPU time on a full screen, and jagged lines where two surfaces cross)
+  //   near, far    the camera's range in metres (without logDepth, depth is only as fine as near is far out:
+  //                at d metres about d x d / (near x 16.7 million) metres)
+  //   pixelBudget  the most pixels drawn (0: no limit): the pixel ratio is lowered until width x height x
+  //                ratio squared fits, and worked out again on every resize (see pixelRatio)
+  constructor(canvas, quality = 'high', { logDepth = true, near = 0.002, far = 60000, pixelBudget = 0 } = {}) {
+    this.pixelBudget = pixelBudget;
     const r = (this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
-      logarithmicDepthBuffer: true,
+      logarithmicDepthBuffer: logDepth,
       powerPreference: 'high-performance',
       stencil: true, // ground layers shade each pixel once (see ground.js)
       preserveDrawingBuffer: false,
@@ -33,7 +42,7 @@ export class Engine {
     r.autoClear = false;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, 1, 0.002, 60000);
+    this.camera = new THREE.PerspectiveCamera(55, 1, near, far);
     this.camera.position.set(0, 1, 2);
 
     this.hemi = new THREE.HemisphereLight(0xcfe6ff, 0xb59c7a, 1.2);
@@ -75,7 +84,11 @@ export class Engine {
   }
 
   pixelRatio() {
-    return Math.min(window.devicePixelRatio || 1, this.q.pr) * this.scale;
+    let pr = Math.min(window.devicePixelRatio || 1, this.q.pr);
+    // (a 2560x1440 window at 200% would be 5120x2880 with 4x MSAA: capped to the budget before the adaptive
+    // scale, so that scale still takes its share off whatever is drawn)
+    if (this.pixelBudget) pr = Math.min(pr, Math.sqrt(this.pixelBudget / Math.max(1, window.innerWidth * window.innerHeight)));
+    return pr * this.scale;
   }
 
   setScale(k) {
@@ -88,6 +101,7 @@ export class Engine {
     const w = window.innerWidth, h = window.innerHeight;
     this.width = w;
     this.height = h;
+    if (this.pixelBudget) this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
