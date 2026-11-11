@@ -1115,7 +1115,8 @@ function camDone() {
 
 // ---- the camera along with the ball: after a shot it drifts after the ball and comes a little closer
 // (the further the ball has gone, the more: a short putt hardly moves it), comes in on the cup when the
-// ball is slow near it and as it drops, and goes back to aim()'s view once the ball stops.
+// ball is slow near it and as it drops, and eases back to aim()'s view once the ball stops, quicker than it
+// follows (and at once on its way back if a finger is already down for the next shot).
 // It is only ever slid along the ground and moved in along its own line of sight, never turned, so the
 // course never swings round; and the ball and the cup are always kept clear of the
 // sides, the bottom and the bars at the top (cutting how far it goes). Held still while a finger is down
@@ -1165,9 +1166,9 @@ function camFollow(dt) {
   camPts[0].set(cup.x, cy, cup.z); camPts[1].set(cup.x, cy + 0.6, cup.z); camPts[2].set(b.x, by + BALL_R, b.z);
   // what it goes for: a point to slide towards (a of the way from aim()'s), k of the way in, and how
   // quickly (w: the spring's rate, about 4/w seconds to get there)
-  let fx = home.t.x, fz = home.t.z, a = 0, k = 0, w = 3.2, n = 3;
+  let fx = home.t.x, fz = home.t.z, a = 0, k = 0, w = 5.5, n = 3;
   const travel = Math.hypot(b.x - G.from.x, b.z - G.from.z);
-  if (st === 'roll') {
+  if (st === 'roll' && !G.pending) {
     const sp = Math.hypot(b.vx, b.vz), lead = Math.min(0.8, 0.15 * sp) / Math.max(sp, 1e-6);
     const g = smooth((travel - 0.5) / 2.5);
     cam.g = Math.max(cam.g, g);
@@ -1188,12 +1189,14 @@ function camFollow(dt) {
   }
   // as far towards it as keeps the ball and the cup in sight
   const tx = a * (fx - home.t.x), tz = a * (fz - home.t.z), m = camRoom(tx, tz, k, n);
-  // a spring to there, no faster than 2.5 m/s across and 0.25 of the way in a second
+  // a spring to there, no faster than 2.5 m/s across and 0.25 of the way in a second (on the way back
+  // to aim()'s view, half as fast again: the player is waiting for it)
   // (and it gathers speed and slows down gently: no more than 4 times that a second, each second)
   const spring = (x, v, to, lim) => { const dv = Math.max(-4 * lim * dt, Math.min(4 * lim * dt, (w * w * (to - x) - 2 * w * v) * dt)); v = Math.max(-lim, Math.min(lim, v + dv)); return [x + v * dt, v]; };
-  [cam.x, cam.vx] = spring(cam.x, cam.vx, tx * m, 2.5);
-  [cam.z, cam.vz] = spring(cam.z, cam.vz, tz * m, 2.5);
-  [cam.k, cam.vk] = spring(cam.k, cam.vk, k * m, 0.25);
+  const q = a ? 1 : 1.5;
+  [cam.x, cam.vx] = spring(cam.x, cam.vx, tx * m, 2.5 * q);
+  [cam.z, cam.vz] = spring(cam.z, cam.vz, tz * m, 2.5 * q);
+  [cam.k, cam.vk] = spring(cam.k, cam.vk, k * m, 0.25 * q);
   // (and where it has got to, held back as far as it takes if the ball has run on past what that keeps clear)
   cam.fit = camRoom(cam.x, cam.z, cam.k, n);
   camPut(cam.x * cam.fit, cam.z * cam.fit, cam.k * cam.fit);
