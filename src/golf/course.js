@@ -347,7 +347,8 @@ export function buildCourse(hole, index, { scene, model, num = index + 1, look =
       const mine = surf.filter(t => t.ch === ch);
       if (!mine.length) continue;
       const mc = mine.reduce((a, t) => a + t.c, 0) / mine.length, mr = mine.reduce((a, t) => a + t.r, 0) / mine.length;
-      const t = mine.reduce((a, b) => (Math.hypot(b.c - mc, b.r - mr) < Math.hypot(a.c - mc, a.r - mr) ? b : a)), p = at(t.c, t.r);
+      const t = (hole.surfTagAt && mine.find(m => m.c === hole.surfTagAt[0] && m.r === hole.surfTagAt[1])) || // (surfTagAt: [c, r], when the middle is where the ball is aimed)
+        mine.reduce((a, b) => (Math.hypot(b.c - mc, b.r - mr) < Math.hypot(a.c - mc, a.r - mr) ? b : a)), p = at(t.c, t.r);
       course.tags.push({ text: SURF[ch], at: () => [p.x, Y(p.x, p.z) + 0.3, p.z] });
     }
   }

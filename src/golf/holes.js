@@ -39,6 +39,8 @@
 // hole has at least one coin (a warning at the bottom says if not, or if one is off the green).
 // surfTags: false: no "Mud slows the ball" / "Ice is slippery" over its mud or ice (say it once, on the
 // hole that brings it in, and leave it unsaid after).
+// surfTagAt: [c, r]: put that tag on this square (one of its mud or ice) instead of the one nearest the
+// middle, when the middle is where the player aims.
 // tilt: how low the camera may look along the hole at most (radians from straight down; a windmill in
 // front of the cup already keeps the camera high enough to see the cup over it).
 // The yards: nine holes each, played one after another, each a round of its own. The first is a duck

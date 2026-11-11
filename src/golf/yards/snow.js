@@ -17,7 +17,7 @@ export default {
     // back of the terrace stops a ball that comes up too fast. (The cup is just behind the terrace's front
     // rail: tilt keeps the camera high enough to see it over the rail)
     {
-      name: '溜冰场', tip: '借雪堆把球停住', par: 3, tilt: 0.95,
+      name: '溜冰场', tip: '借雪堆把球停住', par: 3, tilt: 0.95, surfTagAt: [1, 8], // (the ice's tag off to the left, not on the ramp's foot)
       map: [
         '..........',
         '..........',
