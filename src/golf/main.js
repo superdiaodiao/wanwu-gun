@@ -1791,9 +1791,12 @@ function finish(sunk, skipped = false) {
   $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : G.detour && !(G.saved === G.hole + 1 && !lastHole) ? t('回到第 {n} 洞', { n: resumeAt() + 1 }) + ' ›'
     : !lastHole ? t('下一洞') : onward().text;
   // (a hole played again from a yard's page for its next medal: on to the next one still short of three
-  // stars, or once the medal is won, or none is left but this one, back to the page)
+  // stars and not yet tried in this go, or once the medal is won, or every one has been tried once, back
+  // to the page, whose big button goes on: never round and round the same holes)
   if (G.chase && G.detour && G.chase.y === y) {
-    const s = shortOf(y), nx = medalOf(y) > G.chase.had ? undefined : s.find(i => i > G.hole) ?? s.find(i => i !== G.hole);
+    const tried = G.chase.tried ||= [];
+    if (!tried.includes(G.hole)) tried.push(G.hole);
+    const s = shortOf(y).filter(i => !tried.includes(i)), nx = medalOf(y) > G.chase.had ? undefined : s.find(i => i > G.hole) ?? s[0];
     G.chase.next = nx;
     if (nx == null) G.yardPage = { y, roundLine: '', card: scorecard(y), had: G.chase.had, opens: false, fin: false };
     $('card-btn').textContent = nx == null ? t('看成绩') + ' ›' : t('重打第 {n} 洞', { n: nx + 1 }) + ' ›';
