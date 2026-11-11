@@ -24,7 +24,7 @@ import { objectMaterial, U as MU } from '../core/materials.js';
 import { buildSpec } from '../core/assets.js';
 import { Engine } from '../game/engine.js';
 import { FX } from '../game/fx.js';
-import { audio } from '../audio/audio.js';
+import { audio, DEFAULT_VOLUME } from '../audio/audio.js';
 import { t, translateDom, EN } from '../i18n/index.js';
 import { BALL_R, CUP_R, PHYS, stepBall, simulate, shotSpeed, windAt, slopeAt, holdAt } from './physics.js';
 import { buildCourse, warmLook } from './course.js';
@@ -62,8 +62,8 @@ const store = {
 
 /** where coming back goes on from (kept in mind as well, for where nothing can be stored) */
 function save(i) { G.saved = i; store.set('hole', i); }
-/** what clearing the progress leaves: the sound, the music, the difficulty, and two things the stats go by */
-const KEEP = ['muted', 'music', 'level', 'firstDay', 'finale'];
+/** what clearing the progress leaves: the sound, the music, the effects, the difficulty, and two things the stats go by */
+const KEEP = ['muted', 'music', 'sfx', 'level', 'firstDay', 'finale'];
 
 let engine, material, fx, confetti;
 const specs = new Map();
@@ -325,24 +325,34 @@ async function boot() {
     else if ((e.key === 'r' || e.key === 'R') && !G.yardShown) $('card-retry').click();
   });
   const mute = $('mute');
+  const fxOn = () => store.get('sfx', true);
   const showMute = () => {
     mute.classList.toggle('off', audio.muted);
     mute.setAttribute('aria-label', t(audio.muted ? '打开声音' : '关掉声音'));
-    $('m-sound').classList.toggle('off', audio.muted);
+    $('m-sound').classList.toggle('off', !fxOn());
     $('m-music').classList.toggle('off', !audio.musicOn);
+    // (greyed while everything is off: the speaker's mute, or CrazyGames')
+    for (const id of ['m-sound', 'm-music']) $(id).classList.toggle('dim', audio.muted);
   };
-  // muted by the button (kept) or by CrazyGames' own setting, which wins; the music can be turned
-  // off on its own in the menu
+  // muted by the button (kept) or by CrazyGames' own setting, which wins: everything. In the menu the
+  // effects (the ball, the yard's ambience, every sound but the music) and the music go off on their own
   let portalMute = false;
-  const applyMute = () => { audio.setMuted(portalMute || store.get('muted', false)); showMute(); };
+  const applyMute = () => {
+    audio.setMuted(portalMute || store.get('muted', false));
+    audio.setVolume('sfx', fxOn() ? DEFAULT_VOLUME.sfx : 0);
+    sound.fx(fxOn());
+    showMute();
+  };
   // (stores the opposite of what is heard: under CrazyGames' mute a tap never leaves it muted later)
   const toggleSound = () => { store.set('muted', !audio.muted); applyMute(); wake(); };
   mute.addEventListener('click', toggleSound);
-  $('m-sound').addEventListener('click', () => { toggleSound(); audio.tap(); });
-  $('m-music').addEventListener('click', () => { store.set('music', audio.toggleMusic()); showMute(); audio.tap(); wake(); });
+  // (under the speaker's mute a tap on either of the menu's turns the sound back on, with that one on)
+  const unmute = () => { if (!audio.muted || portalMute) return false; store.set('muted', false); return true; };
+  $('m-sound').addEventListener('click', () => { store.set('sfx', unmute() || !fxOn()); applyMute(); audio.tap(); wake(); });
+  $('m-music').addEventListener('click', () => { if (!unmute() || !audio.musicOn) store.set('music', audio.toggleMusic()); applyMute(); audio.tap(); wake(); });
   if (!store.get('music', true) && audio.musicOn) audio.toggleMusic();
   portalOnMute(m => { portalMute = m; applyMute(); });
-  showMute();
+  applyMute();
   // (a hidden tab goes quiet; CrazyGames sees it is hidden for itself, so gameplay isn't stopped)
   document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else audio.resume(); });
   G.best = store.get('best', []);

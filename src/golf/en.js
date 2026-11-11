@@ -69,4 +69,6 @@ export const EN = {
   // big button after it, to the next one)
   '{goal}：重打第 {n} 洞': '{goal}: replay hole {n}',
   '重打第 {n} 洞': 'Replay hole {n}',
+  // (the pause menu's switch for every sound but the music; the speaker in the corner is all of them)
+  '音效': 'Effects',
 };

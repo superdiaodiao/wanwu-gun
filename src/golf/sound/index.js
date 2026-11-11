@@ -31,6 +31,7 @@ try { audio.setVolume('music', MUSIC); } catch { /* as it was */ }
 
 const AHEAD = 0.5; // s: how far ahead the bed's sounds are put in
 const XFADE = 3; // s: one yard's bed into the next
+let fxOn = true; // (the menu's effects switch: off, no bed and no roll, as under the mute)
 let look = null, bed = null, fading = [], roll = null, layer = null, last = 0, beds = 0, hushed = false, errs = 0;
 const warm = [...STRING_NOTES];
 
@@ -45,7 +46,7 @@ export const sound = {
       const now = ctx.currentTime, dt = Math.min(0.1, Math.max(0, now - last));
       last = now;
       // the bed: the look's, unless the sound is off
-      const want = audio.muted ? null : look;
+      const want = audio.muted || !fxOn ? null : look;
       if (bed && bed.look !== want) { bed.stop(now, want ? XFADE : 0.05); fading.push(bed); bed = null; }
       // (in over 4 s the first time, 3 s from one yard to the next, 1 s when the sound comes back on)
       if (!bed && want) bed = makeBed(ctx, m.sfx, want, now, !beds++ ? 4 : hushed ? 1 : XFADE);
@@ -56,7 +57,7 @@ export const sound = {
         fading = fading.filter(b => { b.tick(now + AHEAD, now); if (!b.dead(now)) return true; b.dispose(); return false; });
       }
       // the ball rolling (not while it waits, under the menu, or once it drops; nor with the sound off)
-      const b = G.ball, on = G.course && !G.paused && !audio.muted && (G.state === 'roll' || G.state === 'aim');
+      const b = G.ball, on = G.course && !G.paused && !audio.muted && fxOn && (G.state === 'roll' || G.state === 'aim');
       const sp = on ? Math.hypot(b.vx, b.vz) : 0;
       if (!roll && sp > 0.12) roll = makeRoll(ctx, m.sfx);
       if (roll) roll.set(sp, sp > 0 && G.course.surfAt ? G.course.surfAt(b.x, b.z) : null, now, dt, G.state === 'sink');
@@ -68,6 +69,8 @@ export const sound = {
       if (warm.length && (look === 'pool' || look === 'autumn')) stringBuf(ctx, warm.pop());
     } catch (e) { if (errs++ < 5) console.warn('[golf sound]', e); }
   },
+  /** the menu's effects switch (main.js; the effects bus itself is set by audio.setVolume('sfx')) */
+  fx(on) { fxOn = !!on; },
   /** the card of a hole not sunk (given up for the player, or skipped) has come up: two soft notes */
   letOff,
   /** a yard's results are shown: the fanfare; isNew (a medal better than the one held) or finale (the
