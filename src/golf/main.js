@@ -120,7 +120,7 @@ const G = {
 // and the goose and the dog notice the ball nearer: props.js; the harder ones are as fast as the easy one
 // was, for moving things add luck, not skill). Each has its own stars, records and rounds; a hole opened at one is open at all of them.
 const LEVELS = {
-  easy: { name: '简单', guide: 7, capture: 3, pace: 0.75 },
+  easy: { name: '简单', guide: 7, capture: 3, pace: 0.75, lip: CUP_R + BALL_R },
   normal: { name: '普通', guide: 1.5, capture: 2.2, pace: 1 },
   hard: { name: '困难', guide: 0, capture: 1.6, pace: 1 },
 };
@@ -1555,7 +1555,11 @@ function step(dt, draw = true) {
       // going this long, but if it does, it stops)
       if ((G.still > 0.2 && !steep) || G.still > 1.5 || G.rollT > 25) {
         b.vx = 0; b.vz = 0;
-        if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false);
+        // (at the easy one a ball come to rest hanging over the hole, its centre within 0.44 m of the
+        // cup's, drops: no 10 cm tap-in)
+        const lip = LEVELS[G.level].lip, cup = G.course.cup;
+        if (lip && Math.hypot(b.x - cup.x, b.z - cup.z) < lip) sink();
+        else if (G.strokes >= HOLES[G.hole].par + GIVE_UP) finish(false);
         else { G.state = 'aim'; aimFromPending(); }
       }
     }
