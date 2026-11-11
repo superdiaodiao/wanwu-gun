@@ -1124,13 +1124,37 @@ function camDone() {
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 /** aim()'s view (where it looks: t), and how far the camera is from it now: slid by (x, z), and in along
  *  its line of sight by k of the way, with how fast each is changing */
-const home = { p: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3(), ok: false, cupHid: false };
+const home = { p: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3(), ok: false, cupHid: false, kMax: 0.5 };
 const cam = { x: 0, z: 0, k: 0, vx: 0, vz: 0, vk: 0, g: 0, sunk: false, fit: 1 };
 function camHome() {
   const c = engine.camera;
   home.p.copy(c.position); home.q.copy(c.quaternion); home.ok = true;
   home.cupHid = G.props.some(p => p.tall && hides(p.tall, tmpV.set(G.course.cup.x, ground(G.course.cup.x, G.course.cup.z), G.course.cup.z)));
   Object.assign(cam, { x: 0, z: 0, k: 0, vx: 0, vz: 0, vk: 0, fit: 1 });
+  // how far in it may come at most: no further than keeps a windmill near the cup to 0.15 of the screen
+  // (or what it has from here, if more) with the camera over at the cup, as when the ball drops. From a
+  // camera low behind the hole (a phone on its side) coming in on the cup would otherwise put the blades
+  // over a quarter of the screen
+  home.kMax = 0.5;
+  const talls = G.props.filter(p => p.tall).map(p => p.tall);
+  if (talls.length) {
+    const cover = () => Math.max(...talls.map(t => {
+      box2.makeEmpty();
+      for (let i = 0; i < 8; i++) {
+        corner.set(t.x + (i & 1 ? t.hx : -t.hx), i & 2 ? t.y : t.y0, t.z + (i & 4 ? t.hz : -t.hz)).project(c);
+        box2.expandByPoint(flat.set(corner.x, corner.y));
+      }
+      return Math.max(0, Math.min(1, box2.max.x) - Math.max(-1, box2.min.x)) * Math.max(0, Math.min(1, box2.max.y) - Math.max(-1, box2.min.y)) / 4;
+    }));
+    const most = Math.max(0.15, cover()), cup = G.course.cup, sx = 0.9 * (cup.x - home.t.x), sz = 0.9 * (cup.z - home.t.z);
+    camPut(sx, sz, 0.5);
+    if (cover() > most) {
+      let lo = 0, hi = 0.5;
+      for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; camPut(sx, sz, m); if (cover() > most) hi = m; else lo = m; }
+      home.kMax = lo;
+    }
+    camPut(0, 0, 0);
+  }
 }
 function camPut(x, z, k) {
   const c = engine.camera;
@@ -1182,6 +1206,7 @@ function camFollow(dt) {
   } else if (st === 'sink' || (st === 'card' && cam.sunk)) {
     fx = cup.x; fz = cup.z; a = 0.9; k = 0.3 + 0.2 * cam.g; w = 6; n = 2;
   } else cam.g = 0;
+  k = Math.min(k, home.kMax);
   // (back where aim() put it and staying there: left alone)
   if (!a && Math.abs(cam.x) + Math.abs(cam.z) + Math.abs(cam.k) + Math.abs(cam.vx) + Math.abs(cam.vz) + Math.abs(cam.vk) < 1e-4) {
     if (cam.x || cam.z || cam.k) { Object.assign(cam, { x: 0, z: 0, k: 0, vx: 0, vz: 0, vk: 0, fit: 1 }); camPut(0, 0, 0); }
