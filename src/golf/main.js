@@ -1464,9 +1464,41 @@ function shoot(ang, p) {
 
 // ---- per frame -------------------------------------------------------------------------------------------
 let last = performance.now();
+// ---- a way down when the frames are slow: the frame gaps watched while aiming or rolling (not for 2 s
+// after a hole loads, nor 0.5 s after a change); when their median over 1.5 s is above 24 ms the
+// drawing's resolution steps down, to 0.75 then 0.6; a step that doesn't make the frames 15% quicker
+// is put back, and then it stops trying for the visit (so a display at 30 a second ends at full scale).
+// A step is only taken while aiming with no pointer down, where a change can't be felt ------------------
+const STEPS = [1, 0.75, 0.6], SLOW = 24, WATCH = 1500;
+const res = { k: 0, done: false, course: null, from: 0, gaps: [], took: 0, before: 0, trial: false, want: -1, log: [] };
+function watchFrames(now, gap) {
+  if (res.course !== G.course) { res.course = G.course; res.from = now + 2000; res.gaps = []; res.took = 0; }
+  if (res.done && res.want < 0) return;
+  // (a step waiting for its moment)
+  if (res.want >= 0) {
+    if (G.state !== 'aim' || G.aim || G.pending || G.paused || camMove) return;
+    res.log.push({ t: Math.round(now), from: STEPS[res.k], to: STEPS[res.want], ms: res.before });
+    res.k = res.want; res.want = -1;
+    engine.setScale(STEPS[res.k]);
+    res.from = now + 500; res.gaps = []; res.took = 0;
+    return;
+  }
+  if (now < res.from || G.paused || document.hidden || (G.state !== 'aim' && G.state !== 'roll') || gap > 250) return;
+  res.gaps.push(gap); res.took += gap;
+  if (res.took < WATCH) return;
+  const g = res.gaps.sort((a, b) => a - b), med = g[g.length >> 1];
+  res.gaps = []; res.took = 0;
+  if (res.trial) {
+    res.trial = false;
+    // (not 15% quicker for it: back to the step before, and no more tries)
+    if (med > res.before / 1.15) { res.want = res.k - 1; res.done = true; res.before = med; return; }
+  }
+  if (med > SLOW && res.k < STEPS.length - 1) { res.want = res.k + 1; res.before = med; res.trial = true; }
+}
 function loop() {
   requestAnimationFrame(loop);
   const now = performance.now();
+  watchFrames(now, now - last);
   // (a slow computer, under 30 frames a second, doesn't slow the game down: a longer frame, up to 0.1 s,
   // is played as that many steps of no more than 0.033 s, drawn once at the end; at 30 a second and
   // over, one step as ever)
@@ -1863,6 +1895,7 @@ window.__golf = {
   get G() { return G; }, get engine() { return engine; }, step, shoot, load, simulate, spec, HOLES, YARDS, audio, PHYS,
   sound, // (sound/: sound.stats() for the tests)
   setLevel: l => useLevel(l), // (for the bots: a difficulty's records, cup and pace, without the menu)
+  res, // (the resolution's steps down: res.k, res.log; for the tests)
   camDone, // (the camera's move after a fade, done at once: for the tests, after a hole changed by the card or the holes)
 };
 
