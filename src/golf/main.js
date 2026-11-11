@@ -207,7 +207,12 @@ const parOf = y => inYard(y, (i, h) => h.par).reduce((a, b) => a + b, 0);
  *  gold with all of them */
 const MEDALS = ['', '铜牌', '银牌', '金牌'], MEDAL_IDS = ['', 'bronze', 'silver', 'gold'];
 const medalOf = y => (!yardDone(y) ? 0 : starsIn(y) >= PER * 3 ? 3 : starsIn(y) >= PER * 2 ? 2 : 1);
-const medal = (m, cls = '') => `<span class="medal m${m}${cls}"${m ? ` title="${t(MEDALS[m])}"` : ''}><svg viewBox="0 0 32 40" aria-hidden="true"><path class="rb" d="M8 1h7l3.5 13h-7zM24 1h-7l-3.5 13h7z"/><circle cx="16" cy="26" r="11.5"/><path class="st" d="M16 19l2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2-4.2 2.2.8-4.7-3.4-3.3 4.7-.7z"/></svg></span>`;
+// (the big one on a yard's page looks like a prize: lit from the top left, a darker rim and an inner ring
+// in its metal; golf.css puts a tinted disc behind it and sweeps a shine across it once it has dropped)
+const METAL = { 1: ['#f9cfa4', '#e2975a', '#a95d24', '#8d4c1c'], 2: ['#ffffff', '#dfe6ea', '#a9b7c1', '#7d8e99'], 3: ['#fff4b8', '#ffd24a', '#e09c0c', '#b47a04'] };
+const prize = m => { const [a, b, c, rim] = METAL[m]; return `<defs><radialGradient id="mdg${m}" cx="0.36" cy="0.3" r="0.85"><stop offset="0" stop-color="${a}"/><stop offset="0.5" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient></defs>`
+  + `<circle cx="16" cy="26" r="11.5" style="fill:url(#mdg${m});stroke:${rim};stroke-width:1.5;stroke-dasharray:none"/><circle cx="16" cy="26" r="8.9" style="fill:none;stroke:${rim};stroke-opacity:0.4;stroke-width:0.7;stroke-dasharray:none"/>`; };
+const medal = (m, cls = '') => `<span class="medal m${m}${cls}"${m ? ` title="${t(MEDALS[m])}"` : ''}><svg viewBox="0 0 32 40" aria-hidden="true"><path class="rb" d="M8 1h7l3.5 13h-7zM24 1h-7l-3.5 13h7z"/>${m && cls.includes('big') ? prize(m) : '<circle cx="16" cy="26" r="11.5"/>'}<path class="st" d="M16 19l2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2-4.2 2.2.8-4.7-3.4-3.3 4.7-.7z"/></svg></span>`;
 /** a yard's holes as dots: hollow till played, then grey (let off), pale, green, gold by the stars got;
  *  `cur` ringed, `now` (the one just played) popping in */
 const dotsOf = (y, cur = -1, now = -1) => '<span class="dots">' + inYard(y, i =>
