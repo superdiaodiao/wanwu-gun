@@ -67,7 +67,8 @@ export const EN = {
   '会拱走停下的球': 'Noses a stopped ball',
   // (a yard's page short of the next medal: a button to the first hole short of three stars, and the card's
   // big button after it, to the next one)
-  '{goal}：重打第 {n} 洞': '{goal}: replay hole {n}',
+  // (one line on a 320 px phone; the stars, e.g. 23/27, are on the line just over it)
+  '{goal}：重打第 {n} 洞': 'Replay hole {n} for {medal}',
   '重打第 {n} 洞': 'Replay hole {n}',
   // (the pause menu's switch for every sound but the music; the speaker in the corner is all of them)
   '音效': 'Effects',

@@ -1882,14 +1882,14 @@ function showYard() {
   // (short of gold: what the next medal takes, as a button to the first hole short of three stars; the
   // scorecard marks each with a hollow star)
   const short = shortOf(y);
-  if (m < 3 && short.length) lines.push(`<button class="goal" type="button" data-i="${short[0]}">${t('{goal}：重打第 {n} 洞', { goal: goal(y), n: short[0] + 1 })} ›</button>`);
+  if (m < 3 && short.length) lines.push(`<button class="goal" type="button" data-i="${short[0]}">${t('{goal}：重打第 {n} 洞', { goal: goal(y), n: short[0] + 1, medal: t(m === 2 ? '金牌' : '银牌').toLowerCase() })} ›</button>`);
   else if (m < 3) lines.push(`<span class="goal">${goal(y)}</span>`);
   // (a yard all but swept at the easy difficulty: there are harder ones)
   if (G.level === 'easy' && starsIn(y) >= PER * 3 - 4) { lines.push(`<button class="harder" type="button">${t('嫌简单？换个难度')}</button>`); track('tip', 'yard'); }
   const won = m > p.had ? `<small>${t('新奖牌！')}</small>` : '';
   $('card-yard').innerHTML = (fin
     ? `<div class="ym"><span class="row">${YARDS.map((yd, k) => `<span style="--k: ${k}">${medal(medalOf(k))}</span>`).join('')}</span><b>${t('{yard}{medal}', { yard: name, medal: t(MEDALS[m]) })}${won}</b></div>`
-    : `<div class="ym">${medal(m, ' big')}<b>${t(MEDALS[m])}${won}</b></div>`)
+    : `<div class="ym one">${medal(m, ' big')}<b>${t(MEDALS[m])}${won}</b></div>`)
     + `<div class="sum"><i>★</i> ${starsIn(y)}/${PER * 3}${p.roundLine ? ' · ' + p.roundLine : ''}</div>`
     + p.card
     + `<div class="lines">${lines.map(l => `<div>${l}</div>`).join('')}</div>`;
