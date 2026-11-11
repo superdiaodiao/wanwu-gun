@@ -60,6 +60,11 @@ const store = {
   forget(k) { mem.delete(k); },
 };
 
+/** the pause menu's 音效 (the effects; music is its own switch). The cup's and the fanfares' sounds dip
+ *  the music under them (src/audio), so with the effects off they are not played at all: the music
+ *  would dip under nothing */
+const effectsOn = () => store.get('sfx', true);
+
 /** where coming back goes on from (kept in mind as well, for where nothing can be stored) */
 function save(i) { G.saved = i; store.set('hole', i); }
 /** what clearing the progress leaves: the sound, the music, the effects, the difficulty, and two things the stats go by */
@@ -325,7 +330,7 @@ async function boot() {
     else if ((e.key === 'r' || e.key === 'R') && !G.yardShown) $('card-retry').click();
   });
   const mute = $('mute');
-  const fxOn = () => store.get('sfx', true);
+  const fxOn = effectsOn;
   const showMute = () => {
     mute.classList.toggle('off', audio.muted);
     mute.setAttribute('aria-label', t(audio.muted ? '打开声音' : '关掉声音'));
@@ -1681,7 +1686,7 @@ function sink() {
   G.state = 'sink';
   G.sinkT = 0;
   const cup = G.course.cup;
-  audio.cup();
+  if (effectsOn()) audio.cup();
   // confetti thrown up out of the cup: the better the score, the more
   const cy = ground(cup.x, cup.z), d = G.strokes - HOLES[G.hole].par, [sx, sy] = onScreen(cup.x, 0.3 + cy, cup.z);
   confetti.burst(sx, sy, G.strokes === 1 ? 200 : d < 0 ? 140 : d === 0 ? 90 : 35, { spread: 1.5, speed: innerHeight * (G.strokes === 1 ? 1.7 : 1.3) });
@@ -1735,7 +1740,7 @@ function finish(sunk, skipped = false) {
   let n = 0;
   on.forEach((o, i) => { if (o) { const k = ++n; cardTimers.push(setTimeout(() => audio.sweet(k), at(i) * 1000 + 120)); } });
   if (stars === 3) cardTimers.push(setTimeout(() => {
-    audio.fanfare();
+    if (effectsOn()) audio.fanfare();
     confetti.burst(0, innerHeight, 90, { angle: -1.2, spread: 0.45, speed: innerHeight * 3.4 });
     confetti.burst(innerWidth, innerHeight, 90, { angle: -Math.PI + 1.2, spread: 0.45, speed: innerHeight * 3.4 });
   }, at(2) * 1000 + 380));
@@ -1892,7 +1897,7 @@ function showYard() {
   $('card').classList.remove('again');
   // (a fanfare and confetti for it, a new medal or not; fireworks after the fanfare for a new medal, more
   // for the whole neighbourhood done: sound/)
-  sound.medal(m > p.had, fin);
+  if (effectsOn()) sound.medal(m > p.had, fin);
   confetti.burst(0, innerHeight, 70, { angle: -1.2, spread: 0.45, speed: innerHeight * 3.2 });
   confetti.burst(innerWidth, innerHeight, 70, { angle: -Math.PI + 1.2, spread: 0.45, speed: innerHeight * 3.2 });
   $('card').querySelector('.inner').scrollTop = 0;
