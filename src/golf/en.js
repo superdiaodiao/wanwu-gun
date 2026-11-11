@@ -65,4 +65,8 @@ export const EN = {
   '转臂会扫开球': 'Sweeps the ball',
   '会吹偏球': 'Blows the ball',
   '会拱走停下的球': 'Noses a stopped ball',
+  // (a yard's page short of the next medal: a button to the first hole short of three stars, and the card's
+  // big button after it, to the next one)
+  '{goal}：重打第 {n} 洞': '{goal}: replay hole {n}',
+  '重打第 {n} 洞': 'Replay hole {n}',
 };

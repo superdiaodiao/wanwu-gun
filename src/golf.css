@@ -187,6 +187,12 @@ table.sc td span.over { border: 2px solid #a3b2bc; border-radius: 4px; color: #6
 #card .yard .sum b { color: #e0670f; }
 #card .yard .lines { margin: clamp(6px, 1.6vh, 12px) 0 clamp(8px, 2vh, 14px); font: 700 15px var(--body); color: var(--dim); line-height: 1.65; text-wrap: balance; }
 #card .yard .lines .goal { display: inline-block; padding: 3px 12px; border-radius: 12px; background: #fff6d6; color: #8a6a12; }
+/* (short of gold: the goal is a button to the first hole short of three stars) */
+#card .yard .lines button.goal { max-width: 100%; padding: 6px 14px; font: 800 15px var(--body); line-height: 1.3; text-wrap: balance; box-shadow: inset 0 0 0 2px #f0d27a, 0 3px 0 #f0d27a; }
+#card .yard .lines button.goal:active { transform: translateY(2px); box-shadow: inset 0 0 0 2px #f0d27a, 0 1px 0 #f0d27a; }
+/* (and the scorecard marks each such hole: a small hollow star by its number) */
+table.sc tr.num td.short { position: relative; }
+table.sc tr.num td.short::after { content: '\2606'; position: absolute; right: -3px; top: -4px; font: 700 11px var(--body); color: #e0a10f; }
 #card .yard .lines .unlock { color: var(--ink); font-weight: 800; }
 #card .yard .lines .fin { color: #e0670f; font-size: 18px; font-weight: 800; }
 #card .yard .lines button.harder { margin-top: 4px; padding: 7px 14px 7px 16px; font: 700 15px var(--body); background: #eef3ef; color: var(--ink); box-shadow: none; }
@@ -362,6 +368,7 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
   #card .yard .sum { margin-bottom: 4px; }
   #card .yard .lines { margin: 4px 0 8px; line-height: 1.5; }
   #card .yard .lines button.harder { margin-top: 2px; padding: 5px 12px 5px 14px; }
+  #card .yard .lines button.goal { padding: 4px 12px; }
 }
 @media (max-height: 360px) { #menu-main > .head { display: none; } #menu button.link { margin: -3px 0 -6px; padding: 5px 12px; } } /* (the green 接着打 says it is paused) */
 @media (max-height: 340px) { #card .st small { display: none; } #card .st i, #card .st b { font-size: 30px; } #card .sub { margin: 2px 0 6px; } #card .inner { padding: 6px 24px; } #card .title, #card.yd-page .title { font-size: 24px; } #card .prog, #card .best, #card .tip { margin-bottom: 4px; } #card .yard .lines { margin: 2px 0 4px; line-height: 1.35; } }

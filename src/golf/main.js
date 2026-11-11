@@ -105,6 +105,9 @@ function tinted(c) {
 const G = {
   hole: 0, level: 'easy', state: 'load', strokes: 0, got: 0, best: [], rounds: [], paused: false, course: null, props: [], cols: [], sweets: [],
   ball: { x: 0, z: 0, vx: 0, vz: 0, lip: 0 }, still: 0, aim: null, pending: null, hitT: 0, t: 0, sinkT: 0, live: true,
+  // (holes played again for a yard's next medal, from its page: { y, had }, the medal it had then; the
+  // card's big button goes on to the next hole short of three stars, then back to the page: chase)
+  chase: null,
   // (a press still held when the goose or a cat pushes the ball is kept as one made while it rolls: once it
   // stops, the aim starts again from where the pointer is then, so it never shoots by itself)
   pushed() { if (G.state === 'aim') { if (G.aim) G.pending = { ...G.aim, sx: G.aim.x, sy: G.aim.y }; G.aim = null; showAim(false); G.state = 'roll'; G.still = 0; G.rollT = 0; } },
@@ -219,6 +222,15 @@ function goal(y) {
   return m === 3 ? t('{yard}满星，金牌！', { yard: name }) : pl(m === 2 ? '再拿 {n} 颗星换金牌' : '再拿 {n} 颗星换银牌', (m === 2 ? PER * 3 : PER * 2) - s);
 }
 
+/** a yard's holes played and short of three stars, in order */
+const shortOf = y => inYard(y, i => i).filter(i => played(i) && (G.any[i] || 0) < 3);
+/** from a yard's page (or the card after one of them): play hole i again for the yard's next medal, as
+ *  a hole played again by the way (where coming back goes on from stays), its card going on from there */
+function chase(i, c) {
+  track('chase', String(i + 1));
+  dip(() => { load(i, false, false, false, true); G.chase = c; });
+}
+
 async function boot() {
   translateDom();
   if (EN) document.title = t('小区高尔夫');
@@ -277,7 +289,13 @@ async function boot() {
     if (!e.target.closest('.harder')) return;
     audio.tap(); track('tip', 'open'); menu('level');
   });
-  $('card-yard').addEventListener('click', e => { if (!e.target.closest('.harder') || G.state !== 'card' || G.paused) return; audio.tap(); track('tip', 'open'); menu('level'); });
+  $('card-yard').addEventListener('click', e => {
+    if (G.state !== 'card' || G.paused) return;
+    const go = e.target.closest('button.goal');
+    if (go) { audio.tap(); const y = yardOf(+go.dataset.i); return chase(+go.dataset.i, { y, had: medalOf(y) }); }
+    if (!e.target.closest('.harder')) return;
+    audio.tap(); track('tip', 'open'); menu('level');
+  });
   $('skip').addEventListener('click', () => { if (!canSkip()) return; audio.tap(); finish(false, true); });
   makeMenu();
   // (Enter and Space press a button that has the focus themselves; Cmd/Ctrl+R is the browser's)
@@ -556,7 +574,8 @@ function coin() {
  *  in stays up, and the hole's name isn't said again */
 function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   const retry = !!G.course && i === G.hole;
-  if (!retry) G.detour = detour; // (a retry of a hole played again by the way is still one)
+  if (!retry || detour) G.detour = detour; // (a retry of a hole played again by the way is still one)
+  if (!retry) G.chase = null; // (set again by chase, after: a retry keeps it)
   if (!quiet) trackHole(i, retry);
   if (G.course) G.course.dispose();
   for (const k of cardTimers.splice(0)) clearTimeout(k);
@@ -936,7 +955,7 @@ function scorecard(y) {
   const par = holes.reduce((a, h) => a + h.par, 0), played = round.filter(s => s != null);
   const row = (cls, head, cells, sum) => `<tr class="${cls}"><th>${head}</th>${cells.join('')}<th class="sum">${sum}</th></tr>`;
   return '<table class="sc">'
-    + row('num', t('洞'), holes.map((h, i) => `<td>${y * PER + i + 1}</td>`), t('合计'))
+    + row('num', t('洞'), holes.map((h, i) => `<td${G.any[y * PER + i] != null && G.any[y * PER + i] < 3 ? ' class="short"' : ''}>${y * PER + i + 1}</td>`), t('合计'))
     + row('par', t('标准杆'), holes.map(h => `<td>${h.par}</td>`), par)
     + row('you', t('你'), holes.map((h, i) => {
       const s = round[i], d = s - h.par;
@@ -990,6 +1009,8 @@ function onward(fin = false) {
  *  hole it was left for; else the next hole */
 function cardNext() {
   if (G.yardPage) return showYard();
+  // (after a hole played again for a medal: the next one still short of three stars)
+  if (G.chase?.next != null) return chase(G.chase.next, G.chase);
   // (after a hole played again by the way: back to where it was, its round as it stands)
   if (G.detour) { track('detour', 'back'); return dip(() => { const n = resumeAt(); load(n, n % PER === 0 && stale(yardOf(n))); }); }
   const i = G.hole + 1;
@@ -1718,6 +1739,14 @@ function finish(sunk, skipped = false) {
   // (after a hole played again by the way the big button names the hole it goes back to, unless that is the next one)
   $('card-btn').textContent = G.yardPage ? t('看成绩') + ' ›' : G.detour && !(G.saved === G.hole + 1 && !lastHole) ? t('回到第 {n} 洞', { n: resumeAt() + 1 }) + ' ›'
     : !lastHole ? t('下一洞') : onward().text;
+  // (a hole played again from a yard's page for its next medal: on to the next one still short of three
+  // stars, or once the medal is won, or none is left but this one, back to the page)
+  if (G.chase && G.detour && G.chase.y === y) {
+    const s = shortOf(y), nx = medalOf(y) > G.chase.had ? undefined : s.find(i => i > G.hole) ?? s.find(i => i !== G.hole);
+    G.chase.next = nx;
+    if (nx == null) G.yardPage = { y, roundLine: '', card: scorecard(y), had: G.chase.had, opens: false, fin: false };
+    $('card-btn').textContent = nx == null ? t('看成绩') + ' ›' : t('重打第 {n} 洞', { n: nx + 1 }) + ' ›';
+  }
   // the difficulty: on the very first card, the three in a row (the one played lit); afterwards at the
   // easy one, there are harder ones (a tap opens them): said after a hole under par (from hole 4 on)
   // once a visit for the first few visits, until a difficulty is picked
@@ -1791,7 +1820,11 @@ function showYard() {
     // (left out on a short screen, so the goal under it stays in sight over the button: golf.css)
     lines.push(`<span class="whole">${t('整个街区：{n}/{all} 洞 · ★ {s}/{S}', { n: playedCount(), all: HOLES.length, s: starsAll(), S: HOLES.length * 3 })}</span>`);
   }
-  if (m < 3) lines.push(`<span class="goal">${goal(y)}</span>`);
+  // (short of gold: what the next medal takes, as a button to the first hole short of three stars; the
+  // scorecard marks each with a hollow star)
+  const short = shortOf(y);
+  if (m < 3 && short.length) lines.push(`<button class="goal" type="button" data-i="${short[0]}">${t('{goal}：重打第 {n} 洞', { goal: goal(y), n: short[0] + 1 })} ›</button>`);
+  else if (m < 3) lines.push(`<span class="goal">${goal(y)}</span>`);
   // (a yard all but swept at the easy difficulty: there are harder ones)
   if (G.level === 'easy' && starsIn(y) >= PER * 3 - 4) { lines.push(`<button class="harder" type="button">${t('嫌简单？换个难度')}</button>`); track('tip', 'yard'); }
   const won = m > p.had ? `<small>${t('新奖牌！')}</small>` : '';
