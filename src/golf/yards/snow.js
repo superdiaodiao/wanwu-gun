@@ -12,24 +12,29 @@ export default {
   name: '雪地',
   look: 'winter',
   holes: [
-    // 1: round a corner of ice, a snowbank to stop in (the hole that brings in the ice: its tag says so)
+    // 1: a terrace with a ramp up its middle: across a band of ice (the hole that brings in the ice: its tag
+    // says so), up the ramp, and left along the top to the cup in the terrace's corner; a snowbank at the
+    // back of the terrace stops a ball that comes up too fast. (The cup is just behind the terrace's front
+    // rail: tilt keeps the camera high enough to see it over the rail)
     {
-      name: '溜冰场', tip: '借雪堆把球停住', par: 3,
+      name: '溜冰场', tip: '借雪堆把球停住', par: 3, tilt: 0.95,
       map: [
-        'iiiiii....',
-        'iiiiii..H.',
-        'iiiiii....',
-        '....      ',
-        '....      ',
-        '....      ',
-        '....      ',
-        '....      ',
-        '....      ',
-        '.T..      ',
-        '....      ',
+        '..........',
+        '..........',
+        '..........',
+        '.H........',
+        '   ....   ',
+        '   ....   ',
+        '   ....   ',
+        'iiiiiiiiii',
+        'iiiiiiiiii',
+        '..........',
+        '.......T..',
+        '..........',
       ],
-      props: [bank([1.5, -0.05])],
-      coins: [[0.5, 0.5]],
+      ground: [{ t: 'ramp', from: [4.5, 6.6], to: [4.5, 3.4], h: 0.45 }],
+      props: [bank([4.5, -0.05])],
+      coins: [[6, 7]], // (on the ice at the foot of the ramp, where the ball goes up)
     },
     // 2: a band of ice across, and a snowbank: the ball slides on and on over the one, and stops dead in the
     // other; a little snowman in the mouth of the cup's corner (so it takes a putt to the corner, then one in)
