@@ -1119,8 +1119,9 @@ function camDone() {
 // follows (and at once on its way back if a finger is already down for the next shot).
 // It is only ever slid along the ground and moved in along its own line of sight, never turned, so the
 // course never swings round; and the ball and the cup are always kept clear of the
-// sides, the bottom and the bars at the top (cutting how far it goes). Held still while a finger is down
-// to aim. None of it for a player who asks for less motion: the fixed view, as before ----------------------
+// sides, the bottom and the bars at the top (cutting how far it goes). A finger down to aim before it is
+// back hurries it the rest of the way. None of it for a player who asks for less motion: the fixed view,
+// as before ----------------------------------------------------------------------------------------------
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 /** aim()'s view (where it looks: t), and how far the camera is from it now: slid by (x, z), and in along
  *  its line of sight by k of the way, with how fast each is changing */
@@ -1185,7 +1186,10 @@ function camRoom(x, z, k, n) {
 const smooth = u => (u = Math.max(0, Math.min(1, u))) * u * (3 - 2 * u);
 function camFollow(dt) {
   if (!home.ok || camMove || calm.matches || !G.course) return;
-  if (G.aim) return; // (still while aiming: where it is, which aim() and the last frames kept clear)
+  // a press for the next shot while it is still on its way back (a quick tapper, just after the ball
+  // stopped): the rest of the way back twice as quickly (nine tenths of it in under half a second), so the
+  // aim is from aim()'s own view and not from wherever the camera had got to (once back, it stays put)
+  const press = !!G.aim;
   const b = G.ball, cup = G.course.cup, st = G.state, by = ground(b.x, b.z), cy = ground(cup.x, cup.z);
   camPts[0].set(cup.x, cy, cup.z); camPts[1].set(cup.x, cy + 0.6, cup.z); camPts[2].set(b.x, by + BALL_R, b.z);
   // what it goes for: a point to slide towards (a of the way from aim()'s), k of the way in, and how
@@ -1218,7 +1222,8 @@ function camFollow(dt) {
   // to aim()'s view, half as fast again: the player is waiting for it)
   // (and it gathers speed and slows down gently: no more than 4 times that a second, each second)
   const spring = (x, v, to, lim) => { const dv = Math.max(-4 * lim * dt, Math.min(4 * lim * dt, (w * w * (to - x) - 2 * w * v) * dt)); v = Math.max(-lim, Math.min(lim, v + dv)); return [x + v * dt, v]; };
-  const q = a ? 1 : 1.5;
+  if (press) w = 12;
+  const q = a ? 1 : press ? 3 : 1.5;
   [cam.x, cam.vx] = spring(cam.x, cam.vx, tx * m, 2.5 * q);
   [cam.z, cam.vz] = spring(cam.z, cam.vz, tz * m, 2.5 * q);
   [cam.k, cam.vk] = spring(cam.k, cam.vk, k * m, 0.25 * q);
