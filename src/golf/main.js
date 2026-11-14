@@ -1125,7 +1125,7 @@ function camDone() {
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 /** aim()'s view (where it looks: t), and how far the camera is from it now: slid by (x, z), and in along
  *  its line of sight by k of the way, with how fast each is changing */
-const home = { p: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3(), ok: false, cupHid: false, kMax: 0.5 };
+const home = { p: new THREE.Vector3(), q: new THREE.Quaternion(), t: new THREE.Vector3(), ok: false, cupHid: false, kMax: 0.8 };
 const cam = { x: 0, z: 0, k: 0, vx: 0, vz: 0, vk: 0, g: 0, sunk: false, fit: 1 };
 function camHome() {
   const c = engine.camera;
@@ -1136,7 +1136,7 @@ function camHome() {
   // (or what it has from here, if more) with the camera over at the cup, as when the ball drops. From a
   // camera low behind the hole (a phone on its side) coming in on the cup would otherwise put the blades
   // over a quarter of the screen
-  home.kMax = 0.5;
+  home.kMax = 0.8;
   const talls = G.props.filter(p => p.tall).map(p => p.tall);
   if (talls.length) {
     const cover = () => Math.max(...talls.map(t => {
@@ -1148,9 +1148,9 @@ function camHome() {
       return Math.max(0, Math.min(1, box2.max.x) - Math.max(-1, box2.min.x)) * Math.max(0, Math.min(1, box2.max.y) - Math.max(-1, box2.min.y)) / 4;
     }));
     const most = Math.max(0.15, cover()), cup = G.course.cup, sx = 0.9 * (cup.x - home.t.x), sz = 0.9 * (cup.z - home.t.z);
-    camPut(sx, sz, 0.5);
+    camPut(sx, sz, 0.8);
     if (cover() > most) {
-      let lo = 0, hi = 0.5;
+      let lo = 0, hi = 0.8;
       for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; camPut(sx, sz, m); if (cover() > most) hi = m; else lo = m; }
       home.kMax = lo;
     }
@@ -1202,13 +1202,13 @@ function camFollow(dt) {
     cam.g = Math.max(cam.g, g);
     fx = b.x + b.vx * lead; fz = b.z + b.vz * lead; a = 0.5 * cam.g; k = 0.2 * cam.g; w = 3.2;
     // slow, near the cup: in on the two of them (less after a short putt)
-    const dc = Math.hypot(b.x - cup.x, b.z - cup.z), near = smooth((1.8 - dc) / 1.2) * smooth((2.8 - sp) / 1.8) * (0.35 + 0.65 * smooth((travel - 0.3) / 1.2));
+    const dc = Math.hypot(b.x - cup.x, b.z - cup.z), near = smooth((2.6 - dc) / 1.8) * smooth((3.2 - sp) / 2) * (0.35 + 0.65 * smooth((travel - 0.3) / 1.2));
     if (near > 0) {
       fx += ((b.x + cup.x) / 2 - fx) * near; fz += ((b.z + cup.z) / 2 - fz) * near;
-      a += (0.85 - a) * near; k += (0.4 - k) * near; w = 3.2 + 1.3 * near;
+      a += (0.85 - a) * near; k += (0.65 - k) * near; w = 3.2 + 1.3 * near;
     }
   } else if (st === 'sink' || (st === 'card' && cam.sunk)) {
-    fx = cup.x; fz = cup.z; a = 0.9; k = 0.3 + 0.2 * cam.g; w = 6; n = 2;
+    fx = cup.x; fz = cup.z; a = 0.9; k = 0.6 + 0.2 * cam.g; w = 6; n = 2;
   } else cam.g = 0;
   k = Math.min(k, home.kMax);
   // (back where aim() put it and staying there: left alone)
@@ -1226,7 +1226,7 @@ function camFollow(dt) {
   const q = a ? 1 : press ? 3 : 1.5;
   [cam.x, cam.vx] = spring(cam.x, cam.vx, tx * m, 2.5 * q);
   [cam.z, cam.vz] = spring(cam.z, cam.vz, tz * m, 2.5 * q);
-  [cam.k, cam.vk] = spring(cam.k, cam.vk, k * m, 0.25 * q);
+  [cam.k, cam.vk] = spring(cam.k, cam.vk, k * m, (a > 0.6 ? 0.6 : 0.25) * q);
   // (and where it has got to, held back as far as it takes if the ball has run on past what that keeps clear)
   cam.fit = camRoom(cam.x, cam.z, cam.k, n);
   camPut(cam.x * cam.fit, cam.z * cam.fit, cam.k * cam.fit);
