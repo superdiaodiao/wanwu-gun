@@ -270,6 +270,7 @@ async function boot() {
   confetti = new Confetti($('confetti'));
   makeBall(sc);
   makeAim(sc);
+  makeClub(sc);
   engine.camera.fov = 40;
   addEventListener('resize', () => { aim(); fitHud(); placeBanner(); G.redraw = true; });
   // (the bars grow when the numbers' font arrives: what is placed under them moves down with them)
@@ -458,7 +459,7 @@ async function wake() {
 }
 
 // ---- the ball and the aiming guide -----------------------------------------------------------------
-let ballG, ballSpin, ghost, ballRim, trail, arrow, arrowMat, dots, ring, ringBack;
+let ballG, ballSpin, ghost, ballRim, trail, arrow, arrowMat, dots, ring, ringBack, club;
 function makeBall(sc) {
   ballG = new THREE.Group();
   ballSpin = golfBall(BALL_R);
@@ -521,6 +522,76 @@ function makeAim(sc) {
   ringBack.visible = false;
   ring.add(ringBack);
   showAim(false);
+}
+// ---- the putter: only to look at (the shot is the pull's, as ever). It stands behind the ball while the
+// player pulls back, its head swung back the further the pull, and on the shot swings through where the
+// ball lay and fades. Its frame lies on the green at the ball (on a slope, along it), turned the way of
+// the shot: -z forward, the head across the line. The shaft leans out to the side (+x), as a putter is held,
+// so from the camera behind the ball it never lies along the aiming arrow; it swings about the hands, in
+// the plane of the shaft and the line of the shot
+const CLUB = { L: 0.95, LEAN: 0.5, HW: 0.4, HH: 0.11, HD: 0.13, BACK: 0.45, THRU: 0.3, SWING: 0.08, FADE: 0.4 };
+function makeClub(sc) {
+  const { L, LEAN, HW, HH, HD } = CLUB;
+  const mats = [0xd5dae2, 0x8c95a1, 0xe0453c, 0xffd34d].map(c => new THREE.MeshLambertMaterial({ color: c, transparent: true }));
+  const [steel, head, red, gold] = mats;
+  const root = new THREE.Group(), pivot = new THREE.Group();
+  // (the head at rest: on the green just behind the ball; the hands up and out to the side of it)
+  // (and bigger where the green is small on the screen, a phone's, as the arrow is: scaled about the
+  // head at rest, which stays just behind the ball whatever its size)
+  const sx = Math.sin(LEAN), cy = Math.cos(LEAN), off = new THREE.Group(), size = new THREE.Group();
+  pivot.position.set(L * sx, HH / 2 + L * cy, 0);
+  const arm = new THREE.Group(); // (along the shaft, from the hands down: its -y)
+  arm.rotation.z = -LEAN;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, L, 8), steel);
+  shaft.position.y = -L / 2;
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.034, 0.3, 10), red);
+  grip.position.y = -0.13;
+  arm.add(shaft, grip);
+  const h = new THREE.Group(); // (square to the line, flat on the green at rest)
+  h.position.set(-L * sx, -L * cy, 0);
+  const block = new THREE.Mesh(new THREE.BoxGeometry(HW, HH, HD), head);
+  const line = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.006, HD * 0.85), gold); // (the sight line on top)
+  line.position.y = HH / 2 + 0.003;
+  h.add(block, line);
+  pivot.add(arm, h);
+  size.add(pivot);
+  off.add(size);
+  root.add(off);
+  root.visible = false;
+  sc.add(root);
+  // (the swing's axis: across the plane of the shaft and the line of the shot)
+  const axis = new THREE.Vector3(0, 0, 1).cross(new THREE.Vector3(-sx, -cy, 0)).normalize(); // (a turn by a negative angle swings the head back, +z)
+  club = { root, off, size, pivot, mats, axis, phi: 0, k: 1, swing: -1, from: 0, ang: 0, x: 0, z: 0 };
+}
+/** the putter this frame: back with the pull while aiming; through and fading for a moment after a shot */
+function updateClub(dt) {
+  const c = club, a = G.aim;
+  let phi, fade = 1;
+  if (c.swing >= 0) {
+    c.swing += dt;
+    const k = Math.min(1, c.swing / CLUB.SWING);
+    phi = c.from + (CLUB.THRU - c.from) * k * k; // (speeding up into the ball)
+    fade = 1 - Math.max(0, c.swing - CLUB.SWING) / CLUB.FADE;
+    if (fade <= 0) { c.swing = -1; c.root.visible = false; return; }
+  } else if (a && G.state === 'aim' && a.p > 0) {
+    c.x = G.ball.x; c.z = G.ball.z; c.ang = a.ang;
+    phi = -CLUB.BACK * a.p;
+  } else { c.root.visible = false; return; }
+  c.phi = phi;
+  c.root.visible = true;
+  c.root.position.set(c.x, ground(c.x, c.z), c.z);
+  c.root.quaternion.setFromUnitVectors(UP, upAt(c.x, c.z, tmpV)).multiply(tmpQ.setFromAxisAngle(UP, -c.ang));
+  c.pivot.quaternion.setFromAxisAngle(c.axis, phi);
+  if (c.swing < 0) c.k = Math.min(1.6, Math.max(1, 90 / pxPerM())); // (held through the swing)
+  c.size.scale.setScalar(c.k);
+  c.off.position.z = BALL_R + 0.03 + (CLUB.HD / 2) * c.k;
+  for (const m of c.mats) m.opacity = fade;
+}
+/** the shot: the putter swings through from where the pull left it */
+function swingClub() {
+  if (!club.root.visible) return;
+  club.from = club.phi;
+  club.swing = 0;
 }
 function showAim(on) {
   arrow.userData.holder.visible = on;
@@ -637,6 +708,7 @@ function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   ballRim.material.opacity = rimA || 0;
   ballRim.scale.setScalar(BALL_R * 1.3); // (and sized to the screen as it goes: step)
   G.strokes = 0; G.got = 0; G.still = 0; G.aim = null; G.pending = null; G.state = 'aim'; G.live = true;
+  club.swing = -1; // (a putter still fading from the last hole's shot: gone)
   cam.sunk = false; cam.g = 0;
   showAim(false);
   $('card').hidden = true;
@@ -1586,6 +1658,7 @@ function pxPerM() {
 
 function shoot(ang, p) {
   const v = shotSpeed(p);
+  swingClub();
   G.from = { x: G.ball.x, z: G.ball.z };
   G.ball.vx = Math.sin(ang) * v;
   G.ball.vz = -Math.cos(ang) * v;
@@ -1762,6 +1835,7 @@ function step(dt, draw = true) {
   ringBack.visible = ghost.visible && ring.visible && G.props.some(p => p.tall && hides(p.tall, tmpV.set(b.x, ground(b.x, b.z), b.z)));
   camFollow(dt);
   if (G.aim && G.state === 'aim') drawAim();
+  updateClub(dt);
   fx.update(dt);
   if (draw) render();
 }
