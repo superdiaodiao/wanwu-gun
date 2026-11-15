@@ -880,8 +880,10 @@ function cornerTires(d, course, ctx) {
   const paint = [0xe8453c, 0xf6f2ea].map(c => new THREE.MeshLambertMaterial({ color: c }));
   // (the pile squashes about the middle of its front when hit)
   const fx0 = p.x + mx * h, fz0 = p.z + mz * h;
+  // (on raised ground: at the height of the green at its front; on flat ground 0, as it always stood)
+  const y0 = course.Y(fx0, fz0);
   const g = new THREE.Group();
-  g.position.set(fx0, 0, fz0);
+  g.position.set(fx0, y0, fz0);
   const m4 = new THREE.Matrix4();
   for (const c of [0, 1]) {
     const mine = spots.filter(s => s.c === c);
@@ -899,7 +901,7 @@ function cornerTires(d, course, ctx) {
   const col = { kind: 'seg', ax: fx0 + tx * e, az: fz0 + tz * e, bx: fx0 - tx * e, bz: fz0 - tz * e, e: 1.15 };
   let sq = 0;
   const me = {
-    cols: [col], tag: { text: '超级弹', at: () => [p.x + mx * h * 0.6, 4 * t + 0.25, p.z + mz * h * 0.6] },
+    cols: [col], tag: { text: '超级弹', at: () => [p.x + mx * h * 0.6, 4 * t + 0.25 + y0, p.z + mz * h * 0.6] },
     hit(speed) {
       if (speed < 0.3) return;
       sq = Math.min(1, 0.4 + speed / 6);

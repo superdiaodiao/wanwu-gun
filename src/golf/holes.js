@@ -43,9 +43,14 @@
 // middle, when the middle is where the player aims.
 // tilt: how low the camera may look along the hole at most (radians from straight down; a windmill in
 // front of the cup already keeps the camera high enough to see the cup over it).
+// (Height shows from the camera, which looks up the hole from the tee's end, where earth or tiles face
+// it: the near side of a part of the green with water in front of it, and the inner side of a raised leg,
+// the one facing the middle of the screen. A ramp is a plane right across the map, so it is put in rows
+// or columns that hold only one leg of the hole.)
 // The yards: nine holes each, played one after another, each a round of its own. The first is a duck
-// pond in a park at midday, everything flat; the second the pool in a back garden at sundown, where the
-// green has slopes and things on it turn. The ones after are files of their own (yards/), appended in
+// pond in a park at midday, its ground going up and down only where that helps the ball on (a tee
+// higher than the cup, a raised leg dropping into the next); the second the pool in a back garden at
+// sundown, where the green has slopes and things on it turn. The ones after are files of their own (yards/), appended in
 // order at the bottom (a new one: import its file and add it to the list there). A player's records are
 // kept by a hole's place, so a yard is only ever added at the end. A yard file:
 //   export default {
@@ -88,6 +93,10 @@ export const HOLES = [
     // and the ball on a phone held sideways down to 568x320, in Chinese too (its words stand 4 px taller
     // than the English ones); at 2.5 m the Chinese ones were left out on phones 360 px tall, at 2 m both)
     coins: [[2, 2], [2, 4]],
+    // (the tee on a deck 0.6 m up, the ground falling gently all the way to the cup (never steeper than a
+    // stopped ball stays on), and a bowl round the cup: a timid first putt still rolls on down to it. A
+    // flat deck with a drop at its end left a soft putt on top, and a second one too)
+    ground: [{ t: 'ramp', from: [2, 1.5], to: [2, 7.2], h: 0.6 }, { t: 'hill', at: [2, 1], r: 1.6, h: -0.15 }],
     props: [
       // (face to face: from the tee the ball meets a duck's round side. A putt between them rocks
       // them and they squeak; the goose by the cup hops as the ball comes up, and cheers it in)
@@ -113,6 +122,9 @@ export const HOLES = [
       '....        ',
     ],
     coins: [[1, 7.5]], // (on the way up the leg: a ball played for the seesaw takes it)
+    // (the tee's leg a raised walk 0.7 m above the bar, its right-hand side an earth wall all along, dropping
+    // into the seesaw's corner: the ball meets the seesaw faster, and a bowl round the cup takes it in)
+    ground: [{ t: 'ramp', from: [1.5, 2.4], to: [1.5, 5.4], h: 0.7 }, { t: 'hill', at: [10, 1], r: 1.8, h: -0.25 }],
     props: [
       // (the seesaw lies across the far corner, a bank that gives the ball all its speed back: up the
       // leg, off it, along the bar to the cup. The hydrants stand in the corners behind the cup)
@@ -127,7 +139,11 @@ export const HOLES = [
     // The fan at the band's end blows along it, carrying the ball round towards the cup's bed, and
     // leaves a ball that stops in the band against the far rail, under the cup; the second blows across
     // the cup's bed below the cup, so the putt up to it goes through the wind. Both on the rail)
+    // (the band and the cup's bed a step up from the tee's bed, 0.42 m, a ramp up the tee's bed to it: the
+    // band's front an earth wall over the water. The coin on the ramp, where every ball goes up)
     name: '电风扇', tip: '往上风那边瞄', par: 3,
+    ground: [{ t: 'ramp', from: [7, 10.2], to: [7, 7.4], h: 0.42 }],
+    coins: [[6, 10]],
     map: [
       '.....     ',
       '.H...     ',
@@ -136,7 +152,7 @@ export const HOLES = [
       '.....     ',
       '..........',
       '..........',
-      '.....o....',
+      '..........',
       '     .....',
       '     .....',
       '     .....',
@@ -197,6 +213,9 @@ export const HOLES = [
   },
   {
     name: '猫和轮胎', tip: '猫爪圈里会被拍，轮胎会把球狠狠弹回来', par: 4,
+    // (the tee's band a terrace 0.7 m up, the column a long slope down past the cat to the cup's band, a
+    // bowl round the cup: the column's left side an earth wall that falls with it)
+    ground: [{ t: 'ramp', from: [7, 3.4], to: [7, 8.6], h: 0.7 }, { t: 'hill', at: [1, 1], r: 1.4, h: -0.12 }],
     map: [
       '.........',
       '.H.......',
@@ -239,6 +258,10 @@ export const HOLES = [
       '.T..      ',
       '....      ',
     ],
+    // (the tee's leg and the tyres' side of the lawn 0.65 m up, the lawn tilting down to the cup's side: the
+    // leg's right side a tall earth wall, the lawn's front a wedge of it. A ball off the tyres runs downhill
+    // to the cup, which sits on the flat at the foot)
+    ground: [{ t: 'ramp', from: [7.5, 2], to: [3.5, 2], h: 0.65 }],
     props: [{ t: 'tires', corner: [-0.5, -0.5], leg: 2.5 }],
     coins: [[0.5, 2.2]], // (where the ball goes into the tyres: on the way, played off them)
   },
@@ -340,12 +363,12 @@ export const HOLES = [
       '.........',
     ],
     ground: [
-      { t: 'hill', at: [1.1, 5], r: 1.4, h: 0.3 },
-      { t: 'hill', at: [6.9, 5], r: 1.4, h: 0.3 },
+      { t: 'hill', at: [1.1, 5], r: 1.6, h: 0.55 }, // (0.55 m: they show as mounds from the tee; 0.3 hardly did)
+      { t: 'hill', at: [6.9, 5], r: 1.6, h: 0.55 },
       { t: 'hill', at: [4, 1], r: 1.2, h: -0.08 },
     ],
     props: [{ t: 'obj', id: 'garden_gnome', at: [8.2, -0.1], rot: -30, s: 1.2 }],
-    coins: [[6.5, 8]],
+    coins: [[6, 8.5]], // (before the right-hand mound, on the way round it)
   },
   {
     name: '风车', tip: '从风车旁边绕过去', par: 3,
@@ -425,7 +448,9 @@ export const HOLES = [
       '      ..T.',
       '      ....',
     ],
-    ground: [{ t: 'hill', at: [1, 1], r: 1.3, h: -0.08 }],
+    // (and a stair down: the tee's leg 0.9 m up, the middle 0.45, the cup's leg at the pool's level, a ramp
+    // between each: the tee's leg's left side and the middle's front tiled walls over the water)
+    ground: [{ t: 'ramp', from: [8, 7.6], to: [8, 9.6], h: 0.45 }, { t: 'ramp', from: [1.5, 2], to: [1.5, 4], h: 0.45 }, { t: 'hill', at: [1, 1], r: 1.3, h: -0.08 }],
     props: [
       { t: 'spinner', at: [8.2, 4.8], len: 2, speed: 1.0 },
       { t: 'spinner', at: [1.2, 6.4], len: 2, speed: -1.0, phase: 0.5 }, // (its arm's ends 0.1 m short of the near rail, not through it)
@@ -434,6 +459,9 @@ export const HOLES = [
   },
   {
     name: '割草机', tip: '等割草机开过去', par: 4,
+    // (the tee's leg 0.6 m higher than the cup's, the top falling from one to the other across the inlet: the
+    // tee's leg's left side a tiled wall down its length, and the way to the cup downhill)
+    ground: [{ t: 'ramp', from: [4.2, 5], to: [5.8, 5], h: 0.6 }],
     // (a U round the pool's inlet: up the tee's leg, across the top, down to the cup. One mower crosses
     // the top, where every ball goes by, flicking a ball that lies in its way off to the side; the other two
     // mow up and down the legs by their outer rails, flicking a ball that lies in their way back into the
