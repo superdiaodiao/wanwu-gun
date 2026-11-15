@@ -122,6 +122,9 @@ export const HOLES = [
       '....        ',
     ],
     coins: [[1, 7.5]], // (on the way up the leg: a ball played for the seesaw takes it)
+    // (the tee's leg a raised walk 0.7 m above the bar, its right-hand side an earth wall all along, dropping
+    // into the seesaw's corner: the ball meets the seesaw faster, and a bowl round the cup takes it in)
+    ground: [{ t: 'ramp', from: [1.5, 2.4], to: [1.5, 5.4], h: 0.7 }, { t: 'hill', at: [10, 1], r: 1.8, h: -0.25 }],
     props: [
       // (the seesaw lies across the far corner, a bank that gives the ball all its speed back: up the
       // leg, off it, along the bar to the cup. The hydrants stand in the corners behind the cup)
