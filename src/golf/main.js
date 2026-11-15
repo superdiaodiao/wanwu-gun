@@ -1299,6 +1299,7 @@ function banner(title, sub, logo, kick = '') {
   b.hidden = false;
 }
 
+const SLOPED = 0.9; // (how high at most a hole whose ground isn't flat is looked at from: see aim)
 /** frame the whole hole from its near end, so the ball starts near the player and is hit away from
  *  them: as close as still shows every wall and the flag, clear of the bars at top and bottom */
 function aim() {
@@ -1361,6 +1362,15 @@ function aim() {
     const near = metre(b.z1);
     if (metre(b.z0) < near * 0.4) break;
     if (near > most * 1.02) { most = near; best = a; }
+  }
+  // (a hole whose ground isn't flat is looked at from no higher than SLOPED, if the far end still comes out
+  // at least 0.55 the size of the near end there: from straight above, as a tall screen otherwise has it,
+  // slopes and mounds hardly show)
+  const lowest0 = Math.min(SLOPED, HOLES[G.hole].tilt || 1.25);
+  if (C.ground && best < lowest0) {
+    tilt = lowest0;
+    fit();
+    if (metre(b.z0) >= metre(b.z1) * 0.55 && !(talls.length && hidden())) best = lowest0;
   }
   tilt = best;
   fit();
