@@ -204,7 +204,8 @@ export default {
     },
     // 8: leaf piles — round a raised bed in the middle, either side: the left way over a muddy mound,
     // the right way past a cat on the fence by the cup (the way that works: the tip says so, and the coin
-    // lies on it)
+    // lies on it). Both ways climb 0.6 m to the far bed, whose earth face shows over the middle bed; a
+    // hollow round the cup there
     {
       name: '落叶堆', tip: '土包上有泥，从右边绕', par: 3, surfTags: false,
       map: [
@@ -223,7 +224,7 @@ export default {
         '.T.........',
         '...........',
       ],
-      ground: [{ t: 'hill', at: [1, 6], r: 1.6, h: 0.3 }, { t: 'hill', at: [5, 10.5], r: 1.5, h: 0.24 }],
+      ground: [{ t: 'ramp', from: [5, 5.6], to: [5, 3.6], h: 0.6 }, { t: 'hill', at: [1, 6], r: 1.6, h: 0.3 }, { t: 'hill', at: [5, 10.5], r: 1.5, h: 0.24 }, { t: 'hill', at: [9, 1], r: 1.5, h: -0.18 }],
       props: [
         { t: 'cat', id: 'cat_orange', at: [10.85, 3.2], face: 270, period: 2.4, tag: false },
         { t: 'obj', id: 'pumpkin', at: [8.4, 6.6], s: 1.35, wobble: true },
