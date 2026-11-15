@@ -82,7 +82,9 @@ export default {
       ],
     },
     // 4: a slalom up a staircase of beds through wobbling pumpkins; a coin in a muddy gap between two
-    // of them (the risky way)
+    // of them (the risky way). Three levels: the tee's bed, the middle bed 0.35 m up, the cup's bed 0.8 m up,
+    // their earth fronts stepping up the left edge; a little hollow round the cup holds a ball that climbs
+    // the last step
     {
       name: '南瓜阵', tip: '绕着南瓜走', par: 3, surfTags: false,
       map: [
@@ -99,6 +101,11 @@ export default {
         '     .....',
         '     ..T..',
         '     .....',
+      ],
+      ground: [
+        { t: 'ramp', from: [6, 9.6], to: [6, 8.4], h: 0.35 },
+        { t: 'ramp', from: [3, 4.6], to: [3, 3.4], h: 0.45 },
+        { t: 'hill', at: [1, 0.6], r: 1.6, h: -0.2 },
       ],
       props: [
         { t: 'obj', id: 'pumpkin', at: [6.9, 8.6], s: 1.35, wobble: true },
