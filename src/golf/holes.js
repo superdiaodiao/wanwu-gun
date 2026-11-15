@@ -459,6 +459,9 @@ export const HOLES = [
   },
   {
     name: '割草机', tip: '等割草机开过去', par: 4,
+    // (the tee's leg 0.6 m higher than the cup's, the top falling from one to the other across the inlet: the
+    // tee's leg's left side a tiled wall down its length, and the way to the cup downhill)
+    ground: [{ t: 'ramp', from: [4.2, 5], to: [5.8, 5], h: 0.6 }],
     // (a U round the pool's inlet: up the tee's leg, across the top, down to the cup. One mower crosses
     // the top, where every ball goes by, flicking a ball that lies in its way off to the side; the other two
     // mow up and down the legs by their outer rails, flicking a ball that lies in their way back into the
