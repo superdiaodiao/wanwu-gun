@@ -534,9 +534,9 @@ function showAim(on) {
 const ground = (x, z) => G.course.Y(x, z);
 const UP = new THREE.Vector3(0, 1, 0);
 function upAt(x, z, out) {
-  const gr = G.course.ground;
-  if (!gr) return out.copy(UP);
-  const g = gr.grad(x, z);
+  const sl = G.course.slope; // (the ground as drawn, LOOK_H times as steep as the ball feels it: course.js)
+  if (!sl) return out.copy(UP);
+  const g = sl(x, z);
   return out.set(-g[0], 1, -g[1]).normalize();
 }
 
@@ -1738,7 +1738,7 @@ function step(dt, draw = true) {
     const s = Math.max(1, Math.min(80 / pxPerM(), (r.room + 0.2) / (BALL_R * 1.9)));
     ring.scale.setScalar(s);
     if (G.course.ground) {
-      const [gx, gz] = G.course.ground.grad(b.x, b.z), y0 = ground(b.x, b.z), R = BALL_R * 1.9 * s;
+      const [gx, gz] = G.course.slope(b.x, b.z), y0 = ground(b.x, b.z), R = BALL_R * 1.9 * s;
       for (let k = 0; k < 12; k++) {
         const dx = Math.cos((k * Math.PI) / 6) * R, dz = Math.sin((k * Math.PI) / 6) * R;
         lift = Math.max(lift, ground(b.x + dx, b.z + dz) - y0 - gx * dx - gz * dz);

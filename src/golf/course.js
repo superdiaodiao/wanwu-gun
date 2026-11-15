@@ -20,6 +20,8 @@ import { CATALOG } from '../catalog/registry.js';
 
 const PX = 64; // the green's texels per metre
 const SUB = 6; // squares a metre a side of the green is cut into where it isn't flat
+const LOOK_H = 1.6, DEEP = 0.45; // how many times higher the ground is drawn than it is to the ball, and how
+// deep it goes at most (see buildCourse)
 // the squares that are green to the ball but roll differently (physics.js PHYS.surf), and what each
 // says over it till the first shot
 export const SURF = { m: '泥地会减速', i: '冰面很滑' };
@@ -312,11 +314,27 @@ export function buildCourse(hole, index, { scene, model, num = index + 1, look =
   // which show the hole on screen)
   const L = lookOf(look), R = rng(index + 7), M0 = mats(L), twin = m => Object.assign(m.clone(), { onBeforeCompile: m.onBeforeCompile, customProgramCacheKey: m.customProgramCacheKey });
   const M = warm ? { ...M0, turf: twin(M0.turf), flag: twin(M0.flag) } : M0;
-  // how high the green stands at (x, z): ramps and mounds, or flat
-  const gr = ground(hole.ground, at), lift = gr && gr.h;
+  // how high the green stands at (x, z): ramps and mounds, or flat. What is drawn stands LOOK_H times
+  // as high as the ball feels it (course.ground: physics.js, the bots and the aiming guide's path all go
+  // by that, unchanged): a 0.3 m mound seen from above hardly shows, at half as high again it does.
+  // Everything drawn on the green goes by course.Y and course.slope (the ball, the cup, the rails, what
+  // stands on it), so it all sits on the ground as drawn
+  // (a hole that goes down, into a bowl or down a slope, more than DEEP deep as drawn, is drawn raised
+  // by as much as it would go deeper than that: its low end no lower than it is to the ball, nearer the
+  // water than DEEP never)
+  const gr = ground(hole.ground, at);
+  let deep = 0;
+  if (gr) for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    if (!green(cell(c, r))) continue;
+    const p = at(c, r);
+    for (let j = 0; j <= 4; j++) for (let i = 0; i <= 4; i++) deep = Math.min(deep, gr.h(p.x - 0.5 + i / 4, p.z - 0.5 + j / 4));
+  }
+  const up = Math.max(0, -LOOK_H * deep - Math.max(-deep, DEEP)), lift = gr && ((x, z) => LOOK_H * gr.h(x, z) + up);
   const Y = lift ? (x, z) => lift(x, z) : () => 0;
+  const G2 = [0, 0];
   course.ground = gr;
   course.Y = Y;
+  course.slope = gr ? (x, z) => { const g = gr.grad(x, z); G2[0] = LOOK_H * g[0]; G2[1] = LOOK_H * g[1]; return G2; } : null;
 
   // ---- the green: a tile of it per square, painted from one canvas ----
   const tiles = [];
@@ -355,18 +373,28 @@ export function buildCourse(hole, index, { scene, model, num = index + 1, look =
   // (a square each, or where the ground isn't flat cut finer to follow it, lit by its slope)
   // (and shaded: a slope facing the player lighter, one facing away darker, the high ground a little
   // lighter than the low, so the shape reads from where the hole is watched)
+  // (and where the ground bends: darker in the hollow at the foot of a rise and down in a bowl, as
+  // grass in a fold is, lighter along the brow of a step and over a mound's top, where it catches the
+  // light: from how far the ground round a point, RING metres off, sits above or below it on average.
+  // These are what make a slope read as one from above, where its tilt alone hardly shows)
   const pos = [], uv = [], nor = [], col = [], idx = [], S = lift ? SUB : 1;
-  const nv = new THREE.Vector3(), LX = -0.37, LZ = 0.93;
+  const nv = new THREE.Vector3(), LX = -0.37, LZ = 0.93, RING = 0.42, DIRS = 10;
+  const fold = (x, z, y) => {
+    let s = 0;
+    for (let a = 0; a < DIRS; a++) { const t = (a / DIRS) * Math.PI * 2; s += lift(x + Math.cos(t) * RING, z + Math.sin(t) * RING); }
+    return (s / DIRS - y) / RING; // (> 0 in a hollow, < 0 on a brow)
+  };
   for (const t of tiles) {
     const p = at(t.c, t.r), n = pos.length / 3;
     for (let j = 0; j <= S; j++) for (let i = 0; i <= S; i++) {
       const x = p.x - 0.5 + i / S, z = p.z - 0.5 + j / S, y = Y(x, z);
       pos.push(x, y, z);
       if (lift) {
-        const g = gr.grad(x, z);
+        const g = course.slope(x, z);
         nv.set(-g[0], 1, -g[1]).normalize();
         nor.push(nv.x, nv.y, nv.z);
-        const k = Math.max(0.62, Math.min(1.35, (1 + 1.6 * (nv.x * LX + nv.z * LZ)) * (1 + 0.16 * y)));
+        const f = fold(x, z, y), bend = f > 0 ? Math.max(0.66, 1 - 3.2 * f) : Math.min(1.22, 1 - 2.2 * f);
+        const k = Math.max(0.55, Math.min(1.45, (1 + 2.1 * (nv.x * LX + nv.z * LZ)) * (1 + 0.42 * (y - up)) * bend));
         col.push(k, k, k);
       } else { nor.push(0, 1, 0); col.push(1, 1, 1); }
       uv.push((x + W / 2) / W, 1 - (z + H / 2) / H);
@@ -450,7 +478,7 @@ export function buildCourse(hole, index, { scene, model, num = index + 1, look =
       const top = (x, z) => Y(cx(x), cz(z)) + BLOCK_TOP;
       const nu = Math.ceil(k.w * SUB), nw = Math.ceil(k.d * SUB), base = pos.length / 3;
       for (let j = 0; j <= nw; j++) for (let i = 0; i <= nu; i++) {
-        const x = x0 + (k.w * i) / nu, z = z0 + (k.d * j) / nw, g = gr.grad(cx(x), cz(z));
+        const x = x0 + (k.w * i) / nu, z = z0 + (k.d * j) / nw, g = course.slope(cx(x), cz(z));
         n3.set(x === cx(x) ? -g[0] : 0, 1, z === cz(z) ? -g[1] : 0).normalize();
         pos.push(x, top(x, z), z); nor.push(n3.x, n3.y, n3.z); soilTop.push(top(x, z));
       }
