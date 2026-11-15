@@ -143,15 +143,18 @@ export default {
       ],
       coins: [[2.5, 2]], // (at the far bend, where every ball comes round)
     },
-    // 6: the breather: two steps funnel down to the cup, crows watching from the posts
+    // 6: the breather: the crows' nest, a deep hollow round the cup (0.65 m down, 3.4 m across to its rim),
+    // the tee on a bank 0.8 m up sloping down into it: a ball that leaves the tee rolls on down to the cup
+    // (the slope is too steep to stop on), and one that runs past climbs the far side and comes back; the
+    // far side faces the tee, so the hollow shows at once. Crows watch from the posts
     {
-      name: '乌鸦窝', tip: '打足劲，台阶会把球送进洞', par: 2,
+      name: '乌鸦窝', tip: '球会顺着窝滚到洞边', par: 2,
       map: [
-        ' ...   ',
-        '..H..  ',
-        '...... ',
+        '  ...  ',
+        ' ..... ',
         '.......',
         '.......',
+        '...H...',
         '.......',
         '.......',
         '.......',
@@ -160,16 +163,12 @@ export default {
         '...T...',
         '.......',
       ],
-      ground: [
-        { t: 'ramp', from: [3, 7], to: [3, 8], h: 0.2 },
-        { t: 'ramp', from: [3, 4], to: [3, 5], h: 0.2 },
-        { t: 'hill', at: [2, 1], r: 1.7, h: -0.16 },
-      ],
+      ground: [{ t: 'ramp', from: [3, 6.6], to: [3, 10.4], h: 0.8 }, { t: 'hill', at: [3, 4], r: 3.4, h: -0.65 }],
       props: [
         { t: 'watch', id: 'bird_crow', at: [-0.95, 5.5], s: 2.1 },
         { t: 'watch', id: 'bird_crow', at: [7.25, 2.5], s: 2.1 },
       ],
-      coins: [[2.5, 7]], // (on the line from the tee to the cup)
+      coins: [[3, 7]], // (on the line from the tee to the cup, at the hollow's rim)
     },
     // 7: an S down two steps, one at each bend; a wheelbarrow trundles across the middle bed
     {
@@ -278,7 +277,7 @@ export default {
     '猪圈': 'Pig Pen',
     '球别停在小猪的泥坑里': "Keep the ball out of the pig's mud",
     '乌鸦窝': "Crow's Nest",
-    '打足劲，台阶会把球送进洞': 'Putt firmly: the steps funnel it in',
+    '球会顺着窝滚到洞边': 'The nest rolls the ball down to the cup',
     '独轮车': 'Wheelbarrow',
     '等独轮车推过去再打': 'Let the wheelbarrow pass',
     '落叶堆': 'Leaf Piles',
