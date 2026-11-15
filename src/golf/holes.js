@@ -258,6 +258,10 @@ export const HOLES = [
       '.T..      ',
       '....      ',
     ],
+    // (the tee's leg and the tyres' side of the lawn 0.65 m up, the lawn tilting down to the cup's side: the
+    // leg's right side a tall earth wall, the lawn's front a wedge of it. A ball off the tyres runs downhill
+    // to the cup, which sits on the flat at the foot)
+    ground: [{ t: 'ramp', from: [7.5, 2], to: [3.5, 2], h: 0.65 }],
     props: [{ t: 'tires', corner: [-0.5, -0.5], leg: 2.5 }],
     coins: [[0.5, 2.2]], // (where the ball goes into the tyres: on the way, played off them)
   },
