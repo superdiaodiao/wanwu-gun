@@ -523,71 +523,141 @@ function makeAim(sc) {
   ring.add(ringBack);
   showAim(false);
 }
-// ---- the putter: only to look at (the shot is the pull's, as ever). It stands behind the ball while the
-// player pulls back, its head swung back the further the pull, and on the shot swings through where the
-// ball lay and fades. Its frame lies on the green at the ball (on a slope, along it), turned the way of
-// the shot: -z forward, the head across the line. The shaft leans out to the side (+x), as a putter is held,
-// so from the camera behind the ball it never lies along the aiming arrow; it swings about the hands, in
-// the plane of the shaft and the line of the shot
-const CLUB = { L: 0.95, LEAN: 0.5, HW: 0.4, HH: 0.11, HD: 0.13, BACK: 0.45, THRU: 0.3, SWING: 0.08, FADE: 0.4 };
+// ---- the player and the putter: only to look at (the shot is the pull's, as ever). A little golfer stands
+// by the ball, side on to the line of the shot, the putter's head just behind the ball. While the player pulls
+// back only the putter and the arms holding it go back, the further the pull; on the shot they swing through,
+// the golfer's head turns after the ball, and the golfer fades. Back on the ball's next stop, faded in there.
+// Its frame lies on the green at the ball (on a slope, along it), turned the way of the shot: -z forward,
+// +x the golfer's side (or -x, a left-hander's, where +x has no green to stand on). From the camera behind the
+// ball the golfer stands off to the side of the aiming arrow; where it would still hide the ball or the cup
+// on the screen, all but the putter is drawn faint. Arms and putter swing about the middle of the shoulders,
+// in the plane of the shaft and the line of the shot (a putting stroke is a pendulum from the shoulders)
+const CLUB = { L: 0.95, LEAN: 0.5, HW: 0.4, HH: 0.11, HD: 0.13, BACK: 0.4, THRU: 0.28, SWING: 0.08, HOLD: 0.35, FADE: 0.4, IN: 0.25, FAINT: 0.3 };
+const SHOULDER = [0.68, 1.13]; // (the middle of the shoulders: x out from the line, y up)
+/** a rod of radius r from a to b (each [x, y, z]), as a capsule (round ends) or a cylinder */
+function rod(a, b, r, mat, round = true) {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), len = d.length();
+  const m = new THREE.Mesh(round ? new THREE.CapsuleGeometry(r, Math.max(0.001, len), 4, 10) : new THREE.CylinderGeometry(r, r, len, 10), mat);
+  m.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+  m.quaternion.setFromUnitVectors(UP, d.normalize());
+  return m;
+}
 function makeClub(sc) {
-  const { L, LEAN, HW, HH, HD } = CLUB;
-  const mats = [0xd5dae2, 0x8c95a1, 0xe0453c, 0xffd34d].map(c => new THREE.MeshLambertMaterial({ color: c, transparent: true }));
-  const [steel, head, red, gold] = mats;
-  const root = new THREE.Group(), pivot = new THREE.Group();
-  // (the head at rest: on the green just behind the ball; the hands up and out to the side of it)
-  // (and bigger where the green is small on the screen, a phone's, as the arrow is: scaled about the
-  // head at rest, which stays just behind the ball whatever its size)
-  const sx = Math.sin(LEAN), cy = Math.cos(LEAN), off = new THREE.Group(), size = new THREE.Group();
-  pivot.position.set(L * sx, HH / 2 + L * cy, 0);
-  const arm = new THREE.Group(); // (along the shaft, from the hands down: its -y)
-  arm.rotation.z = -LEAN;
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, L, 8), steel);
-  shaft.position.y = -L / 2;
-  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.034, 0.3, 10), red);
-  grip.position.y = -0.13;
-  arm.add(shaft, grip);
-  const h = new THREE.Group(); // (square to the line, flat on the green at rest)
-  h.position.set(-L * sx, -L * cy, 0);
-  const block = new THREE.Mesh(new THREE.BoxGeometry(HW, HH, HD), head);
+  const { L, LEAN, HW, HH, HD } = CLUB, [Sx, Sy] = SHOULDER;
+  const mat = c => new THREE.MeshLambertMaterial({ color: c, transparent: true });
+  const steel = mat(0xd5dae2), headM = mat(0x8c95a1), red = mat(0xe0453c), gold = mat(0xffd34d);
+  const skin = mat(0xf1c49b), shirt = mat(0x3d82d6), pants = mat(0x2f3b52), shoe = mat(0xf6f4ef), cap = mat(0xe0453c);
+  const clubMats = [steel, headM, red, gold], bodyMats = [skin, shirt, pants, shoe, cap];
+  const root = new THREE.Group(), off = new THREE.Group(), side = new THREE.Group(), size = new THREE.Group();
+  // (the head at rest on the green just behind the ball; the hands up and out to the side of it)
+  const sx = Math.sin(LEAN), cy = Math.cos(LEAN), hand = [L * sx, HH / 2 + L * cy];
+  // the golfer, still: legs, body bent over the ball, head looking down at it, cap
+  const body = new THREE.Group();
+  for (const z of [-0.13, 0.13]) {
+    body.add(rod([0.86, 0.1, z], [0.83, 0.6, z * 0.75], 0.075, pants));
+    const s = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.11), shoe);
+    s.position.set(0.82, 0.04, z);
+    body.add(s);
+  }
+  body.add(rod([0.83, 0.66, 0], [Sx + 0.02, Sy - 0.06, 0], 0.17, shirt));
+  const look = new THREE.Group(); // (the head: turns after the ball on the follow-through)
+  look.position.set(Sx - 0.06, Sy + 0.17, 0);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 10), skin);
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(0.145, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), cap);
+  crown.position.y = 0.02;
+  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.025, 0.2), cap);
+  brim.position.set(-0.15, 0.06, 0);
+  brim.rotation.z = 0.35;
+  look.add(head, crown, brim);
+  look.rotation.z = 0.5; // (bowed over the ball)
+  body.add(look);
+  // the swing: about the middle of the shoulders, the arms and the putter as one
+  const pivot = new THREE.Group();
+  pivot.position.set(Sx, Sy, 0);
+  const rel = (x, y, z = 0) => [x - Sx, y - Sy, z];
+  for (const z of [-0.15, 0.15]) pivot.add(rod(rel(Sx, Sy, z), rel(hand[0] + 0.02, hand[1] + 0.08, z * 0.2), 0.055, shirt));
+  pivot.add(rod(rel(hand[0], hand[1]), rel(hand[0] - 0.13 * sx, hand[1] - 0.13 * cy), 0.05, skin)); // (the hands round the grip's top)
+  pivot.add(rod(rel(hand[0], hand[1]), rel(0, HH / 2), 0.024, steel, false));
+  pivot.add(rod(rel(hand[0] - 0.02 * sx, hand[1] - 0.02 * cy), rel(hand[0] - 0.3 * sx, hand[1] - 0.3 * cy), 0.038, red, false));
+  const block = new THREE.Mesh(new THREE.BoxGeometry(HW, HH, HD), headM);
+  block.position.set(...rel(0, HH / 2));
   const line = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.006, HD * 0.85), gold); // (the sight line on top)
-  line.position.y = HH / 2 + 0.003;
-  h.add(block, line);
-  pivot.add(arm, h);
-  size.add(pivot);
-  off.add(size);
+  line.position.set(...rel(0, HH + 0.003));
+  pivot.add(block, line);
+  size.add(body, pivot);
+  side.add(size);
+  off.add(side);
   root.add(off);
   root.visible = false;
   sc.add(root);
-  // (the swing's axis: across the plane of the shaft and the line of the shot)
-  const axis = new THREE.Vector3(0, 0, 1).cross(new THREE.Vector3(-sx, -cy, 0)).normalize(); // (a turn by a negative angle swings the head back, +z)
-  club = { root, off, size, pivot, mats, axis, phi: 0, k: 1, swing: -1, from: 0, ang: 0, x: 0, z: 0 };
+  // (the swing's axis: across the plane of the shoulders' middle, the head at rest and the line of the shot;
+  // a turn by a negative angle swings the head back, +z)
+  const axis = new THREE.Vector3(0, 0, 1).cross(new THREE.Vector3(-Sx, HH / 2 - Sy, 0)).normalize();
+  club = { root, off, side, size, pivot, look, clubMats, bodyMats, axis, phi: 0, k: 1, hand: 1, swing: -1, from: 0, ang: 0, x: 0, z: 0, x0: NaN, z0: NaN, in: 0, faint: 1 };
 }
-/** the putter this frame: back with the pull while aiming; through and fading for a moment after a shot */
+/** the golfer this frame: standing by the ball while aiming (the putter back with the pull); swinging
+ *  through, watching the ball and fading for a moment after a shot */
 function updateClub(dt) {
-  const c = club, a = G.aim;
-  let phi, fade = 1;
+  const c = club, a = G.aim, b = G.ball, C = G.course;
+  let phi = 0, fade = 1, turn = 0;
   if (c.swing >= 0) {
     c.swing += dt;
     const k = Math.min(1, c.swing / CLUB.SWING);
     phi = c.from + (CLUB.THRU - c.from) * k * k; // (speeding up into the ball)
-    fade = 1 - Math.max(0, c.swing - CLUB.SWING) / CLUB.FADE;
-    if (fade <= 0) { c.swing = -1; c.root.visible = false; return; }
-  } else if (a && G.state === 'aim' && a.p > 0) {
-    c.x = G.ball.x; c.z = G.ball.z; c.ang = a.ang;
-    phi = -CLUB.BACK * a.p;
+    turn = Math.min(1, c.swing / (CLUB.SWING + CLUB.HOLD)) * 0.7;
+    fade = 1 - Math.max(0, c.swing - CLUB.SWING - CLUB.HOLD) / CLUB.FADE;
+    if (fade <= 0) { c.swing = -1; c.in = 0; c.root.visible = false; return; }
+  } else if (G.state === 'aim') {
+    if (b.x !== c.x0 || b.z !== c.z0) {
+      // (a new place to stand: faced at the cup till the player aims, on the side with green to stand on)
+      c.x0 = c.x = b.x; c.z0 = c.z = b.z; c.in = 0;
+      c.ang = Math.atan2(C.cup.x - b.x, -(C.cup.z - b.z));
+      c.hand = standSide(c.ang, 1);
+    }
+    // (bigger where the green is small on the screen, a phone's, as the arrow is: held through the swing;
+    // taken every frame, the camera still settling after a hole loads)
+    c.k = Math.min(1.3, Math.max(1, 90 / pxPerM())); // (less than the arrow: a golfer much bigger stands over the hole)
+    if (a && a.p > 0) { c.ang = a.ang; c.hand = standSide(c.ang, c.hand); phi = -CLUB.BACK * a.p; }
+    c.in = Math.min(1, c.in + dt / CLUB.IN);
+    fade = c.in;
   } else { c.root.visible = false; return; }
   c.phi = phi;
   c.root.visible = true;
   c.root.position.set(c.x, ground(c.x, c.z), c.z);
   c.root.quaternion.setFromUnitVectors(UP, upAt(c.x, c.z, tmpV)).multiply(tmpQ.setFromAxisAngle(UP, -c.ang));
-  c.pivot.quaternion.setFromAxisAngle(c.axis, phi);
-  if (c.swing < 0) c.k = Math.min(1.6, Math.max(1, 90 / pxPerM())); // (held through the swing)
+  c.side.scale.x = c.hand;
   c.size.scale.setScalar(c.k);
   c.off.position.z = BALL_R + 0.03 + (CLUB.HD / 2) * c.k;
-  for (const m of c.mats) m.opacity = fade;
+  c.pivot.quaternion.setFromAxisAngle(c.axis, phi);
+  c.look.rotation.set(0, turn, 0.5 - turn * 0.4);
+  c.root.updateMatrixWorld(true);
+  if (c.swing < 0) c.faint = hidesView(c) ? CLUB.FAINT : 1;
+  for (const m of c.clubMats) m.opacity = fade;
+  for (const m of c.bodyMats) m.opacity = fade * c.faint;
 }
-/** the shot: the putter swings through from where the pull left it */
+/** which side to stand on, for a shot at angle ang: the one given if there is green there to stand on
+ *  (where the feet go), else the other if that has, else the one given */
+function standSide(ang, pref) {
+  const C = G.course, b = G.ball, k = club.k, s = Math.sin(ang), co = Math.cos(ang);
+  // (the frame's +x on the green: the shot's way (s, -co) turned a quarter to the right, (co, s))
+  const ok = h => [0.55, 0.85].every(d => C.onGreen(b.x + h * co * d * k, b.z + h * s * d * k));
+  return ok(pref) || !ok(-pref) ? pref : -pref;
+}
+/** whether the golfer covers the ball or the cup on the screen (the box round its head, shoulders, hips and
+ *  feet, a little bigger) */
+function hidesView(c) {
+  const cam = engine.camera, w = engine.renderer.domElement.clientWidth / 2, h = engine.renderer.domElement.clientHeight / 2;
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const [x, y] of [[0.84, 0], [0.83, 0.66], [SHOULDER[0], SHOULDER[1]], [SHOULDER[0] - 0.06, SHOULDER[1] + 0.32]]) {
+    tmpV.set(x, y, 0).applyMatrix4(c.size.matrixWorld).project(cam);
+    x0 = Math.min(x0, tmpV.x * w); x1 = Math.max(x1, tmpV.x * w); y0 = Math.min(y0, tmpV.y * h); y1 = Math.max(y1, tmpV.y * h);
+  }
+  const pad = 0.3 * c.k * pxPerM(); // (the body's half width, and some)
+  const hit = (x, y, z) => { tmpV.set(x, y, z).project(cam); const sx = tmpV.x * w, sy = tmpV.y * h; return sx > x0 - pad && sx < x1 + pad && sy > y0 - pad && sy < y1 + pad; };
+  const b = G.ball, cup = G.course.cup;
+  return hit(b.x, ground(b.x, b.z) + BALL_R, b.z) || hit(cup.x, ground(cup.x, cup.z), cup.z);
+}
+/** the shot: arms and putter swing through from where the pull left them */
 function swingClub() {
   if (!club.root.visible) return;
   club.from = club.phi;
@@ -708,7 +778,7 @@ function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   ballRim.material.opacity = rimA || 0;
   ballRim.scale.setScalar(BALL_R * 1.3); // (and sized to the screen as it goes: step)
   G.strokes = 0; G.got = 0; G.still = 0; G.aim = null; G.pending = null; G.state = 'aim'; G.live = true;
-  club.swing = -1; // (a putter still fading from the last hole's shot: gone)
+  club.swing = -1; club.x0 = NaN; // (a golfer still fading from the last hole's shot: gone; and a new place to stand)
   cam.sunk = false; cam.g = 0;
   showAim(false);
   $('card').hidden = true;
@@ -2120,6 +2190,7 @@ window.__golf = {
   res, // (the resolution's steps down: res.k, res.log; for the tests)
   cam, // (the camera along with the ball: for the tests)
   camDone, // (the camera's move after a fade, done at once: for the tests, after a hole changed by the card or the holes)
+  get club() { return club; }, // (the golfer and the putter: for the tests)
 };
 
 boot();
