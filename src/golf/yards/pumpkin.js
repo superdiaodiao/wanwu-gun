@@ -116,8 +116,9 @@ export default {
       ],
       coins: [[5.5, 7.3]],
     },
-    // 5: a long U round the pig's pen; the far bend steps down to the cup's side, where the pig keeps its
-    // wallow in the corner: a ball left lying in its mud gets nosed out, away from the corner
+    // 5: a long U round the pig's pen, its far end a bank 0.7 m up (its earth face shows across the pen):
+    // up the tee's leg, along the top past the pig, down the cup's leg to a hollow round the cup. The pig
+    // keeps its wallow in the top corner: a ball left lying in its mud gets nosed out, away from the corner
     {
       name: '猪圈', tip: '球别停在小猪的泥坑里', par: 4, surfTags: false,
       map: [
@@ -136,7 +137,7 @@ export default {
         '...   .T.',
         '...   ...',
       ],
-      ground: [{ t: 'ramp', from: [3.4, 1], to: [5.6, 1], h: 0.35 }],
+      ground: [{ t: 'ramp', from: [4, 4.6], to: [4, 2.6], h: 0.7 }, { t: 'hill', at: [1, 10], r: 1.6, h: -0.22 }],
       props: [
         { t: 'goose', id: 'pig', at: [0, 0], aggro: 2.6, leash: 1.8, s: 1.25, call: 'oink' },
       ],
