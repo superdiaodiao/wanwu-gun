@@ -363,12 +363,12 @@ export const HOLES = [
       '.........',
     ],
     ground: [
-      { t: 'hill', at: [1.1, 5], r: 1.4, h: 0.3 },
-      { t: 'hill', at: [6.9, 5], r: 1.4, h: 0.3 },
+      { t: 'hill', at: [1.1, 5], r: 1.6, h: 0.55 }, // (0.55 m: they show as mounds from the tee; 0.3 hardly did)
+      { t: 'hill', at: [6.9, 5], r: 1.6, h: 0.55 },
       { t: 'hill', at: [4, 1], r: 1.2, h: -0.08 },
     ],
     props: [{ t: 'obj', id: 'garden_gnome', at: [8.2, -0.1], rot: -30, s: 1.2 }],
-    coins: [[6.5, 8]],
+    coins: [[6, 8.5]], // (before the right-hand mound, on the way round it)
   },
   {
     name: '风车', tip: '从风车旁边绕过去', par: 3,
