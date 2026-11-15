@@ -213,6 +213,9 @@ export const HOLES = [
   },
   {
     name: '猫和轮胎', tip: '猫爪圈里会被拍，轮胎会把球狠狠弹回来', par: 4,
+    // (the tee's band a terrace 0.7 m up, the column a long slope down past the cat to the cup's band, a
+    // bowl round the cup: the column's left side an earth wall that falls with it)
+    ground: [{ t: 'ramp', from: [7, 3.4], to: [7, 8.6], h: 0.7 }, { t: 'hill', at: [1, 1], r: 1.4, h: -0.12 }],
     map: [
       '.........',
       '.H.......',
