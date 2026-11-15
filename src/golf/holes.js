@@ -448,7 +448,9 @@ export const HOLES = [
       '      ..T.',
       '      ....',
     ],
-    ground: [{ t: 'hill', at: [1, 1], r: 1.3, h: -0.08 }],
+    // (and a stair down: the tee's leg 0.9 m up, the middle 0.45, the cup's leg at the pool's level, a ramp
+    // between each: the tee's leg's left side and the middle's front tiled walls over the water)
+    ground: [{ t: 'ramp', from: [8, 7.6], to: [8, 9.6], h: 0.45 }, { t: 'ramp', from: [1.5, 2], to: [1.5, 4], h: 0.45 }, { t: 'hill', at: [1, 1], r: 1.3, h: -0.08 }],
     props: [
       { t: 'spinner', at: [8.2, 4.8], len: 2, speed: 1.0 },
       { t: 'spinner', at: [1.2, 6.4], len: 2, speed: -1.0, phase: 0.5 }, // (its arm's ends 0.1 m short of the near rail, not through it)
