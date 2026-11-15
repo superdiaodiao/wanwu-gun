@@ -84,7 +84,8 @@ export default {
       props: [man([1.8, 8.6]), kid([4.6, 9.2]), man([3.6, 6.4], 20), kid([1.6, 4.4], -20), man([4.4, 4], -30), kid([6.8, 2.3], -20)],
       coins: [[6.5, 4.5]],
     },
-    // 4: downhill onto ice, a sled sliding across it
+    // 4: the sledding hill: the tee on a bank of snow 0.5 m up, a 4 m slope down towards the ice (too steep
+    // to stop on: a ball rolls on down to the ice), a sled sliding across it
     {
       name: '滑雪坡', tip: '用力打下坡，滑过冰面', par: 2,
       map: [
@@ -105,7 +106,7 @@ export default {
         '   .....',
       ],
       surfTags: false,
-      ground: [{ t: 'ramp', from: [4, 10.6], to: [4, 6.6], h: -0.5 }],
+      ground: [{ t: 'ramp', from: [4, 6.6], to: [4, 10.6], h: 0.5 }], // (the old slope, the same pull everywhere: only now the tee stands up on the bank, the ice at the ground's level)
       props: [{ t: 'bike', id: 'sled', s: 1.2, from: [1, 4], to: [6.5, 4], speed: 1.4, aside: true, call: false }],
       coins: [[3.2, 9.4]], // (on the slope, where a good first putt runs)
     },
@@ -128,13 +129,13 @@ export default {
         '    .....',
       ],
       surfTags: false,
-      ground: [{ t: 'ramp', from: [3, 3.8], to: [3, 2.3], h: 0.45 }],
+      ground: [{ t: 'ramp', from: [3, 3.8], to: [3, 2.3], h: 0.7 }, { t: 'hill', at: [1, 1], r: 1.4, h: -0.15 }],
       // (it looks down the hole at home, its white face to the player; the snowbank stands on the straight
       // line from the tee, so the way up goes round it)
       props: [{ t: 'goose', id: 'dog_husky', at: [4.4, 4.2], aggro: 1.8, leash: 1.4, face: 0 }, short([4.5, 8], 30)],
       coins: [[3, 5]],
     },
-    // 6: a breather: an icy bowl ringed with snow
+    // 6: a breather: an icy bowl ringed with snow, 0.6 m deep and 3 m round the cup
     {
       name: '冰碗', tip: '打进冰碗，球会滑进洞', par: 2,
       map: [
@@ -151,7 +152,7 @@ export default {
         '  .....  ',
       ],
       surfTags: false,
-      ground: [{ t: 'hill', at: [5, 3], r: 1.6, h: -0.18 }],
+      ground: [{ t: 'hill', at: [5, 3], r: 3, h: -0.6 }],
       props: [short([5, 0.6]), short([3, 1.4], 45), short([7, 1.4], -45)],
       coins: [[2, 6]],
     },
@@ -182,7 +183,8 @@ export default {
       ],
       coins: [[6, 8]], // (on the line from the tee to the cup, before the sled's track)
     },
-    // 8: up one icy lane, round the top, down the other
+    // 8: up one icy lane, round the top, down the other: the top is a bank 0.55 m up (its earth face shows
+    // across the gap between the lanes), and a hollow round the cup takes the speed of the ball coming down
     {
       name: '冰上折返', tip: '雪堆帮你转弯', par: 4,
       map: [
@@ -203,6 +205,7 @@ export default {
         '....    ....',
       ],
       surfTags: false,
+      ground: [{ t: 'ramp', from: [5.5, 4.6], to: [5.5, 2.6], h: 0.55 }, { t: 'hill', at: [10, 12], r: 1.8, h: -0.28 }],
       props: [bank([0.5, 0.5], 45), bank([10.5, 0.5], -45), bank([5.5, 2.3])],
       coins: [[5.5, 1.2]],
     },
