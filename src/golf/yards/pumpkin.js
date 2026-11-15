@@ -170,7 +170,9 @@ export default {
       ],
       coins: [[3, 7]], // (on the line from the tee to the cup, at the hollow's rim)
     },
-    // 7: an S down two steps, one at each bend; a wheelbarrow trundles across the middle bed
+    // 7: an S: down a step (0.4 m) from the tee's bed into the middle bed, where a wheelbarrow trundles
+    // across, then up a bank of 0.4 m to the cup's bed, its earth face showing across the gap at the left;
+    // a little hollow round the cup
     {
       name: '独轮车', tip: '等独轮车推过去再打', par: 4, surfTags: false,
       map: [
@@ -190,8 +192,9 @@ export default {
         '...........',
       ],
       ground: [
-        { t: 'ramp', from: [3, 7.4], to: [3, 8.6], h: 0.25 },
-        { t: 'ramp', from: [7, 3.4], to: [7, 4.6], h: 0.25 },
+        { t: 'ramp', from: [3, 7.4], to: [3, 8.6], h: 0.4 },
+        { t: 'ramp', from: [7, 4.6], to: [7, 3.4], h: 0.4 },
+        { t: 'hill', at: [1, 1], r: 1.5, h: -0.18 },
       ],
       props: [
         { t: 'bike', id: 'wheelbarrow', len: 1.4, from: [4.4, 6], to: [9.4, 6], speed: 0.8, pause: 1, call: false, aside: true },
