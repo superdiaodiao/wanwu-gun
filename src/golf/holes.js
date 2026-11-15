@@ -43,9 +43,14 @@
 // middle, when the middle is where the player aims.
 // tilt: how low the camera may look along the hole at most (radians from straight down; a windmill in
 // front of the cup already keeps the camera high enough to see the cup over it).
+// (Height shows from the camera, which looks up the hole from the tee's end, where earth or tiles face
+// it: the near side of a part of the green with water in front of it, and the inner side of a raised leg,
+// the one facing the middle of the screen. A ramp is a plane right across the map, so it is put in rows
+// or columns that hold only one leg of the hole.)
 // The yards: nine holes each, played one after another, each a round of its own. The first is a duck
-// pond in a park at midday, everything flat; the second the pool in a back garden at sundown, where the
-// green has slopes and things on it turn. The ones after are files of their own (yards/), appended in
+// pond in a park at midday, its ground going up and down only where that helps the ball on (a tee
+// higher than the cup, a raised leg dropping into the next); the second the pool in a back garden at
+// sundown, where the green has slopes and things on it turn. The ones after are files of their own (yards/), appended in
 // order at the bottom (a new one: import its file and add it to the list there). A player's records are
 // kept by a hole's place, so a yard is only ever added at the end. A yard file:
 //   export default {
@@ -88,6 +93,10 @@ export const HOLES = [
     // and the ball on a phone held sideways down to 568x320, in Chinese too (its words stand 4 px taller
     // than the English ones); at 2.5 m the Chinese ones were left out on phones 360 px tall, at 2 m both)
     coins: [[2, 2], [2, 4]],
+    // (the tee on a deck 0.6 m up, the ground falling gently all the way to the cup (never steeper than a
+    // stopped ball stays on), and a bowl round the cup: a timid first putt still rolls on down to it. A
+    // flat deck with a drop at its end left a soft putt on top, and a second one too)
+    ground: [{ t: 'ramp', from: [2, 1.5], to: [2, 7.2], h: 0.6 }, { t: 'hill', at: [2, 1], r: 1.6, h: -0.15 }],
     props: [
       // (face to face: from the tee the ball meets a duck's round side. A putt between them rocks
       // them and they squeak; the goose by the cup hops as the ball comes up, and cheers it in)
