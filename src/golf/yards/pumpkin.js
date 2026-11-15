@@ -82,7 +82,9 @@ export default {
       ],
     },
     // 4: a slalom up a staircase of beds through wobbling pumpkins; a coin in a muddy gap between two
-    // of them (the risky way)
+    // of them (the risky way). Three levels: the tee's bed, the middle bed 0.35 m up, the cup's bed 0.8 m up,
+    // their earth fronts stepping up the left edge; a little hollow round the cup holds a ball that climbs
+    // the last step
     {
       name: '南瓜阵', tip: '绕着南瓜走', par: 3, surfTags: false,
       map: [
@@ -100,6 +102,11 @@ export default {
         '     ..T..',
         '     .....',
       ],
+      ground: [
+        { t: 'ramp', from: [6, 9.6], to: [6, 8.4], h: 0.35 },
+        { t: 'ramp', from: [3, 4.6], to: [3, 3.4], h: 0.45 },
+        { t: 'hill', at: [1, 0.6], r: 1.6, h: -0.2 },
+      ],
       props: [
         { t: 'obj', id: 'pumpkin', at: [6.9, 8.6], s: 1.35, wobble: true },
         { t: 'obj', id: 'pumpkin', at: [4.4, 6.4], s: 1.4, wobble: true },
@@ -109,8 +116,9 @@ export default {
       ],
       coins: [[5.5, 7.3]],
     },
-    // 5: a long U round the pig's pen; the far bend steps down to the cup's side, where the pig keeps its
-    // wallow in the corner: a ball left lying in its mud gets nosed out, away from the corner
+    // 5: a long U round the pig's pen, its far end a bank 0.7 m up (its earth face shows across the pen):
+    // up the tee's leg, along the top past the pig, down the cup's leg to a hollow round the cup. The pig
+    // keeps its wallow in the top corner: a ball left lying in its mud gets nosed out, away from the corner
     {
       name: '猪圈', tip: '球别停在小猪的泥坑里', par: 4, surfTags: false,
       map: [
@@ -129,21 +137,24 @@ export default {
         '...   .T.',
         '...   ...',
       ],
-      ground: [{ t: 'ramp', from: [3.4, 1], to: [5.6, 1], h: 0.35 }],
+      ground: [{ t: 'ramp', from: [4, 4.6], to: [4, 2.6], h: 0.7 }, { t: 'hill', at: [1, 10], r: 1.6, h: -0.22 }],
       props: [
         { t: 'goose', id: 'pig', at: [0, 0], aggro: 2.6, leash: 1.8, s: 1.25, call: 'oink' },
       ],
       coins: [[2.5, 2]], // (at the far bend, where every ball comes round)
     },
-    // 6: the breather: two steps funnel down to the cup, crows watching from the posts
+    // 6: the breather: the crows' nest, a deep hollow round the cup (0.65 m down, 3.4 m across to its rim),
+    // the tee on a bank 0.8 m up sloping down into it: a ball that leaves the tee rolls on down to the cup
+    // (the slope is too steep to stop on), and one that runs past climbs the far side and comes back; the
+    // far side faces the tee, so the hollow shows at once. Crows watch from the posts
     {
-      name: '乌鸦窝', tip: '打足劲，台阶会把球送进洞', par: 2,
+      name: '乌鸦窝', tip: '球会顺着窝滚到洞边', par: 2,
       map: [
-        ' ...   ',
-        '..H..  ',
-        '...... ',
+        '  ...  ',
+        ' ..... ',
         '.......',
         '.......',
+        '...H...',
         '.......',
         '.......',
         '.......',
@@ -152,18 +163,16 @@ export default {
         '...T...',
         '.......',
       ],
-      ground: [
-        { t: 'ramp', from: [3, 7], to: [3, 8], h: 0.2 },
-        { t: 'ramp', from: [3, 4], to: [3, 5], h: 0.2 },
-        { t: 'hill', at: [2, 1], r: 1.7, h: -0.16 },
-      ],
+      ground: [{ t: 'ramp', from: [3, 6.6], to: [3, 10.4], h: 0.8 }, { t: 'hill', at: [3, 4], r: 3.4, h: -0.65 }],
       props: [
         { t: 'watch', id: 'bird_crow', at: [-0.95, 5.5], s: 2.1 },
         { t: 'watch', id: 'bird_crow', at: [7.25, 2.5], s: 2.1 },
       ],
-      coins: [[2.5, 7]], // (on the line from the tee to the cup)
+      coins: [[3, 7]], // (on the line from the tee to the cup, at the hollow's rim)
     },
-    // 7: an S down two steps, one at each bend; a wheelbarrow trundles across the middle bed
+    // 7: an S: down a step (0.4 m) from the tee's bed into the middle bed, where a wheelbarrow trundles
+    // across, then up a bank of 0.4 m to the cup's bed, its earth face showing across the gap at the left;
+    // a little hollow round the cup
     {
       name: '独轮车', tip: '等独轮车推过去再打', par: 4, surfTags: false,
       map: [
@@ -183,8 +192,9 @@ export default {
         '...........',
       ],
       ground: [
-        { t: 'ramp', from: [3, 7.4], to: [3, 8.6], h: 0.25 },
-        { t: 'ramp', from: [7, 3.4], to: [7, 4.6], h: 0.25 },
+        { t: 'ramp', from: [3, 7.4], to: [3, 8.6], h: 0.4 },
+        { t: 'ramp', from: [7, 4.6], to: [7, 3.4], h: 0.4 },
+        { t: 'hill', at: [1, 1], r: 1.5, h: -0.18 },
       ],
       props: [
         { t: 'bike', id: 'wheelbarrow', len: 1.4, from: [4.4, 6], to: [9.4, 6], speed: 0.8, pause: 1, call: false, aside: true },
@@ -194,7 +204,8 @@ export default {
     },
     // 8: leaf piles — round a raised bed in the middle, either side: the left way over a muddy mound,
     // the right way past a cat on the fence by the cup (the way that works: the tip says so, and the coin
-    // lies on it)
+    // lies on it). Both ways climb 0.6 m to the far bed, whose earth face shows over the middle bed; a
+    // hollow round the cup there
     {
       name: '落叶堆', tip: '土包上有泥，从右边绕', par: 3, surfTags: false,
       map: [
@@ -213,7 +224,7 @@ export default {
         '.T.........',
         '...........',
       ],
-      ground: [{ t: 'hill', at: [1, 6], r: 1.6, h: 0.3 }, { t: 'hill', at: [5, 10.5], r: 1.5, h: 0.24 }],
+      ground: [{ t: 'ramp', from: [5, 5.6], to: [5, 3.6], h: 0.6 }, { t: 'hill', at: [1, 6], r: 1.6, h: 0.3 }, { t: 'hill', at: [5, 10.5], r: 1.5, h: 0.24 }, { t: 'hill', at: [9, 1], r: 1.5, h: -0.18 }],
       props: [
         { t: 'cat', id: 'cat_orange', at: [10.85, 3.2], face: 270, period: 2.4, tag: false },
         { t: 'obj', id: 'pumpkin', at: [8.4, 6.6], s: 1.35, wobble: true },
@@ -270,7 +281,7 @@ export default {
     '猪圈': 'Pig Pen',
     '球别停在小猪的泥坑里': "Keep the ball out of the pig's mud",
     '乌鸦窝': "Crow's Nest",
-    '打足劲，台阶会把球送进洞': 'Putt firmly: the steps funnel it in',
+    '球会顺着窝滚到洞边': 'The nest rolls the ball down to the cup',
     '独轮车': 'Wheelbarrow',
     '等独轮车推过去再打': 'Let the wheelbarrow pass',
     '落叶堆': 'Leaf Piles',
