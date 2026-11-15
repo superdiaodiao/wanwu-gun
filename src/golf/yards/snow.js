@@ -10,6 +10,7 @@ const kid = (at, rot = 0, s = 1.1) => ({ t: 'obj', id: 'snowman_small', at, rot,
 
 export default {
   name: '雪地',
+  season: '冬',
   look: 'winter',
   holes: [
     // 1: a terrace with a ramp up its middle: across a band of ice (the hole that brings in the ice: its tag

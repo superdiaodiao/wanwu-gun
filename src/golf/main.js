@@ -649,7 +649,7 @@ function load(i, fresh = false, quiet = false, stay = false, detour = false) {
   hud();
   aim();
   // (the game's name over the first hole played, and a welcome back to the yard; a yard's name over its first hole)
-  if (!stay) banner(t(hole.name), t(hole.tip), !G.titled, G.welcome || (i % PER ? '' : t(YARDS[y].name)));
+  if (!stay) banner(t(hole.name), t(hole.tip), !G.titled, G.welcome || (i % PER ? '' : yardTitle(y)));
   G.welcome = '';
   G.titled = true;
   // what each nuisance does (one of each kind: the one lowest on the screen, so furthest from the
@@ -857,6 +857,8 @@ function makeMenu() {
     dip(() => load(i, fresh, false, false, detour));
   });
 }
+/** a yard's name with its season before it ("春·鸭子池塘"): in the bar, and over the yard's first hole */
+const yardTitle = y => t('{season}·{yard}', { season: t(YARDS[y].season), yard: t(YARDS[y].name) });
 /** picking a hole, one page: the yards as tabs (yard y's lit: its sky, picture and name, its medal once
  *  won, a lock till it opens), a line on how that yard stands (its stars and what is left to do, or what
  *  opens it), and its holes */
@@ -864,7 +866,7 @@ function pickPage(y) {
   $('pick-tabs').innerHTML = YARDS.map((yd, k) => {
     const L = lookDef(yd.look), open = yardOpen(k), m = medalOf(k);
     return `<button class="tab${k === y ? ' on' : ''}${open ? '' : ' locked'}" role="tab" aria-selected="${k === y}" data-y="${k}">`
-      + `<span class="sky" style="background: ${L.card}">${L.icon}<b>${t(yd.name)}</b></span>${!open ? LOCK_S : m ? medal(m) : ''}</button>`;
+      + `<span class="sky" style="background: ${L.card}">${L.icon}<b>${t(yd.name)}</b></span><i class="ssn">${t(yd.season)}</i>${!open ? LOCK_S : m ? medal(m) : ''}</button>`;
   }).join('');
   const m = medalOf(y);
   $('pick-line').innerHTML = yardOpen(y)
@@ -1241,7 +1243,7 @@ function hud() {
     hudYard = G.yard;
     $('yard-ic').innerHTML = L.icon;
     $('yard-ic').style.background = L.card;
-    $('yard-name').textContent = t(YARDS[G.yard].name);
+    $('yard-name').textContent = yardTitle(G.yard);
   }
   $('yard-dots').innerHTML = dotsOf(G.yard, G.hole);
   $('strokes-num').textContent = G.strokes;

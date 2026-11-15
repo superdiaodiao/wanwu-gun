@@ -50,6 +50,7 @@
 // kept by a hole's place, so a yard is only ever added at the end. A yard file:
 //   export default {
 //     name: '南瓜地',      the yard's name (the Chinese is the key its English is found by)
+//     season: '秋',       its season, before its name over its first hole and in the bar (en.js has the English)
 //     look: 'autumn',     how it looks (looks/: its light and colours, what is round the pond)
 //     holes: [ ... ],     its nine holes, written as above
 //     en: { '南瓜地': 'Pumpkin Patch', ... },  the English of its own words: its name, its holes'
@@ -62,8 +63,8 @@ import snow from './yards/snow.js';
 
 export const PER = 9;
 export const YARDS = [
-  { name: '鸭子池塘', look: 'pond' },
-  { name: '泳池派对', look: 'pool' },
+  { name: '鸭子池塘', season: '春', look: 'pond' },
+  { name: '泳池派对', season: '夏', look: 'pool' },
 ];
 
 export const HOLES = [
@@ -549,7 +550,7 @@ Object.assign(UI, EN); // (the golf game's own English, en.js: the shared table 
 for (const y of [pumpkin, snow]) {
   if (y.holes.length !== PER) console.warn(`[golf] ${y.name}: ${y.holes.length} holes, not ${PER}`);
   for (const h of y.holes) if (h.map.join('').split('T').length !== 2 || h.map.join('').split('H').length !== 2) console.warn(`[golf] ${h.name}: wants one T and one H`);
-  YARDS.push({ name: y.name, look: y.look });
+  YARDS.push({ name: y.name, season: y.season, look: y.look });
   HOLES.push(...y.holes);
   Object.assign(UI, y.en);
 }

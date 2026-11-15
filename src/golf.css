@@ -267,6 +267,9 @@ html[lang="en"] #menu .tab .sky b { white-space: normal; text-wrap: balance; fon
 #menu .tab.locked .sky { filter: grayscale(1) brightness(1.06); }
 #menu .tab.locked .sky b { color: var(--dim); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5); }
 #menu .tab .medal { position: absolute; right: 4px; top: 3px; }
+#menu .tab .ssn { position: absolute; left: 4px; top: 4px; padding: 2px 5px; border-radius: 8px; background: rgba(255, 255, 255, 0.88); color: #2f3a33; font: 800 10px/1 var(--body); font-style: normal; }
+#menu .tab.locked .ssn { color: var(--dim); }
+html[lang="en"] #menu .tab .ssn { left: 3px; top: 3px; padding: 2px 4px; font-size: 9px; }
 #menu .tab .medal svg { width: 15px; height: 19px; }
 #menu .tab svg.lk { position: absolute; right: 6px; top: 6px; width: 16px; height: 16px; stroke: #7d877f; stroke-width: 2.4; }
 #menu .tab.no { animation: shake 0.3s; }

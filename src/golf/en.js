@@ -2,6 +2,12 @@
 // other game bundles whole, so it stays as that game has it) doesn't have. Merged into that table at
 // start (holes.js), as each yard's own words are. The Chinese is the key.
 export const EN = {
+  // (the yards' seasons, one each: before a yard's name in the bar and over its first hole, and on its tab)
+  '春': 'Spring',
+  '夏': 'Summer',
+  '秋': 'Fall',
+  '冬': 'Winter',
+  '{season}·{yard}': '{season} · {yard}',
   // (the card on a hole with no coins: its third star, and the line under the stars)
   '小鸟球': 'Birdie',
   '{n} 杆 · 标准杆 {par}': '{n} stroke{s} · par {par}',

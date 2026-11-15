@@ -6,6 +6,7 @@
 // it, then with the others; see holes.js for how a hole is written.
 export default {
   name: '南瓜地',
+  season: '秋',
   look: 'autumn',
   holes: [
     // 1: mud alone — an L: up the tee's leg through a two-row band of mud, then left along the far bed to
