@@ -139,7 +139,11 @@ export const HOLES = [
     // The fan at the band's end blows along it, carrying the ball round towards the cup's bed, and
     // leaves a ball that stops in the band against the far rail, under the cup; the second blows across
     // the cup's bed below the cup, so the putt up to it goes through the wind. Both on the rail)
+    // (the band and the cup's bed a step up from the tee's bed, 0.42 m, a ramp up the tee's bed to it: the
+    // band's front an earth wall over the water. The coin on the ramp, where every ball goes up)
     name: '电风扇', tip: '往上风那边瞄', par: 3,
+    ground: [{ t: 'ramp', from: [7, 10.2], to: [7, 7.4], h: 0.42 }],
+    coins: [[6, 10]],
     map: [
       '.....     ',
       '.H...     ',
@@ -148,7 +152,7 @@ export const HOLES = [
       '.....     ',
       '..........',
       '..........',
-      '.....o....',
+      '..........',
       '     .....',
       '     .....',
       '     .....',
